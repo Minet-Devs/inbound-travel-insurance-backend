@@ -1,0 +1,357 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Underwriter Workflow</title>
+<style>
+  @page { size: A4; margin: 18mm 20mm 18mm 20mm; }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    color: #2b2f36;
+    font-size: 10.3pt;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .page-footer {
+    text-align: center;
+    font-size: 8.3pt;
+    color: #8a94a3;
+    border-top: 1px solid #d7dce3;
+    padding-top: 3mm;
+    margin-top: 10mm;
+  }
+
+  .navy { color: #1c3a5e; }
+
+  /* ---------- Cover page ---------- */
+  .cover {
+    page-break-after: always;
+    min-height: 258mm;
+    display: flex;
+    flex-direction: column;
+  }
+  .cover .page-footer { margin-top: auto; }
+  .cover .top-rule {
+    border: none;
+    border-top: 1px solid #d7dce3;
+    margin: 0 0 10mm 0;
+  }
+  .cover .kicker {
+    font-size: 8.5pt;
+    color: #8a94a3;
+    text-align: right;
+    margin-bottom: 3mm;
+  }
+  .title-block {
+    background: #1c3a5e;
+    color: #ffffff;
+    padding: 12mm 10mm;
+    margin-top: 30mm;
+  }
+  .title-block .brand {
+    font-size: 30pt;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin: 0 0 3mm 0;
+  }
+  .title-block .platform {
+    font-size: 13pt;
+    font-weight: 400;
+    margin: 0 0 1.5mm 0;
+    color: #e3e9f1;
+  }
+  .title-block .sub {
+    font-size: 9.5pt;
+    color: #a9b7c9;
+    margin: 0;
+  }
+  .heavy-rule {
+    border: none;
+    border-top: 2.5px solid #1c3a5e;
+    margin: 8mm 0 10mm 0;
+  }
+  .doc-title {
+    font-size: 19pt;
+    font-weight: 700;
+    color: #1c3a5e;
+    margin: 0 0 2mm 0;
+  }
+  .doc-sub {
+    font-size: 10.5pt;
+    color: #5c6675;
+    margin: 0 0 18mm 0;
+  }
+  .meta-table {
+    border-collapse: collapse;
+    width: 100%;
+    max-width: 130mm;
+  }
+  .meta-table td {
+    padding: 2.6mm 0;
+    border-bottom: 1px solid #d7dce3;
+    font-size: 9pt;
+    vertical-align: top;
+  }
+  .meta-table td:first-child {
+    font-weight: 700;
+    color: #1c3a5e;
+    letter-spacing: 0.4px;
+    width: 40mm;
+  }
+
+  /* ---------- Section styling ---------- */
+  h1.section {
+    font-size: 12.5pt;
+    color: #1c3a5e;
+    border-bottom: 2px solid #1c3a5e;
+    padding-bottom: 2mm;
+    margin: 0 0 4mm 0;
+    page-break-after: avoid;
+  }
+  .section-body { margin-bottom: 9mm; }
+  .section-body p { margin: 0 0 3mm 0; }
+
+  .step {
+    margin-bottom: 5mm;
+    page-break-inside: avoid;
+  }
+  .step .step-title {
+    font-weight: 700;
+    color: #1c3a5e;
+    font-size: 10.3pt;
+    margin-bottom: 1mm;
+  }
+  .step p, .step ul { margin: 0 0 1.5mm 0; }
+  .step ul { padding-left: 5mm; }
+  .step ul li { margin-bottom: 0.8mm; }
+
+  .note {
+    font-size: 9pt;
+    color: #5c6675;
+    font-style: italic;
+  }
+
+  /* flow diagram */
+  .flow { margin: 4mm 0 6mm 30mm; max-width: 110mm; page-break-inside: avoid; }
+  .flow-item { page-break-inside: avoid; }
+  .flow .box {
+    background: #eef1f5;
+    border: 1px solid #d7dce3;
+    color: #1c3a5e;
+    font-weight: 700;
+    text-align: center;
+    padding: 2.6mm 3mm;
+    font-size: 9.3pt;
+    border-radius: 1px;
+  }
+  .flow .box.highlight {
+    background: #1c3a5e;
+    color: #ffffff;
+    border-color: #1c3a5e;
+  }
+  .flow .arrow {
+    text-align: center;
+    color: #9aa5b3;
+    font-size: 9pt;
+    padding: 1mm 0;
+  }
+
+  ul.considerations { padding-left: 5mm; margin: 0; }
+  ul.considerations li { margin-bottom: 2.4mm; }
+  ul.considerations li b { color: #1c3a5e; }
+
+  table.simple {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 3mm 0 6mm 0;
+  }
+  table.simple th {
+    background: #1c3a5e;
+    color: #fff;
+    text-align: left;
+    font-size: 8.6pt;
+    letter-spacing: 0.4px;
+    padding: 2.4mm 3mm;
+  }
+  table.simple td {
+    padding: 2.2mm 3mm;
+    font-size: 9.3pt;
+    border-bottom: 1px solid #e3e7ec;
+  }
+  table.simple tr:nth-child(even) td { background: #f4f6f8; }
+</style>
+</head>
+<body>
+
+<!-- ================= COVER PAGE ================= -->
+<div class="cover">
+  <div class="kicker">Underwriter Workflow &middot; Medical Insurance Underwriting</div>
+  <hr class="top-rule">
+
+  <div class="title-block">
+    <p class="brand">UNDERWRITING</p>
+    <p class="platform">Medical &amp; Travel Insurance</p>
+    <p class="sub">Underwriter Workflow Reference</p>
+  </div>
+
+  <hr class="heavy-rule">
+
+  <p class="doc-title">Underwriter Workflow</p>
+  <p class="doc-sub">Medical insurance underwriting: process, key considerations, and decision flow</p>
+
+  <table class="meta-table">
+    <tr><td>DOCUMENT</td><td>Underwriter Workflow</td></tr>
+    <tr><td>SCOPE</td><td>Medical Insurance Underwriting</td></tr>
+    <tr><td>VERSION</td><td>1.0</td></tr>
+    <tr><td>STATUS</td><td>For review</td></tr>
+  </table>
+  <div class="page-footer">Minet Travel Insurance &nbsp;&nbsp; Version 1.0</div>
+</div>
+
+<!-- ================= CONTENT ================= -->
+
+<h1 class="section">1&nbsp;&nbsp;Medical Insurance Underwriting Workflow</h1>
+<div class="section-body">
+<p>Medical (health) underwriting differs from general property/casualty underwriting because the risk
+being priced is a person's health, not an asset. This applies both to standalone medical/health
+insurance and to the medical benefit component of travel insurance policies. The steps below run
+in sequence for each applicant.</p>
+
+<div class="step">
+  <div class="step-title">Step 1 &mdash; KYC &amp; Compliance Verification</div>
+  <p>Before risk assessment begins, verify the applicant's identity and eligibility:</p>
+  <ul>
+    <li>Passport document</li>
+    <li>Proof of address</li>
+    <li>Sanctions / PEP (politically exposed person) screening</li>
+  </ul>
+  <p class="note">This is a regulatory/AML requirement, not a risk-pricing step, but incomplete or failed
+  KYC blocks underwriting from proceeding and can trigger an automatic decline regardless of medical risk.</p>
+</div>
+
+<div class="step">
+  <div class="step-title">Step 2 &mdash; Application &amp; Medical Declaration</div>
+  <p>Applicant completes a health questionnaire disclosing pre-existing conditions, current medications,
+  past surgeries/hospitalizations, and family medical history.</p>
+</div>
+
+<div class="step">
+  <div class="step-title">Step 3 &mdash; Age &amp; Demographic Risk Screening</div>
+  <p>Age bands, gender, occupation, and lifestyle factors (smoking, alcohol use, hazardous
+  activities/sports) are assessed, since these strongly correlate with claims frequency and severity.</p>
+</div>
+
+<div class="step">
+  <div class="step-title">Step 4 &mdash; Pre-Existing Condition Assessment</div>
+  <ul>
+    <li>Determine whether a condition is disclosed and how it affects eligibility.</li>
+    <li>Apply <b>exclusions</b> (condition permanently excluded from cover), <b>waiting periods</b>
+    (condition covered only after a set time on the policy), or <b>loadings</b> (extra premium for
+    elevated risk).</li>
+    <li>For travel insurance specifically, pre-existing conditions are a major driver of claim denials,
+    so accurate disclosure and clear policy wording are critical.</li>
+  </ul>
+</div>
+
+<div class="step">
+  <div class="step-title">Step 5 &mdash; Medical Evidence Gathering</div>
+  <p>For higher sums insured, older applicants, or flagged conditions, request additional evidence:
+  medical exams, doctor's reports (attending physician statements), lab results, or teleunderwriting
+  interviews.</p>
+</div>
+
+<div class="step">
+  <div class="step-title">Step 6 &mdash; Risk Classification / Rating Tiers</div>
+  <p>Applicants are grouped into standard, substandard (rated up), or declined categories based on the
+  aggregated medical risk, sometimes using actuarial mortality/morbidity tables or automated
+  underwriting rules engines.</p>
+</div>
+
+<div class="step">
+  <div class="step-title">Step 7 &mdash; Coverage Limits &amp; Sub-Limits</div>
+  <p>Set overall sum insured plus medical-specific sub-limits (e.g., emergency medical treatment,
+  hospitalization, evacuation/repatriation, dental emergencies, maternity) appropriate to the risk
+  profile.</p>
+  <p class="note">This is the underwriter <i>selecting and adjusting</i> cover for an individual applicant
+  within an already-built product &mdash; distinct from <b>medical cover setup</b>, the upfront
+  product/actuarial work of designing the plan template and rate tables that underwriters then apply.</p>
+</div>
+
+<div class="step">
+  <div class="step-title">Step 8 &mdash; Pricing / Loading Application</div>
+  <p>Calculate the base premium, then apply any medical loadings, age-banding multipliers, or
+  destination/duration factors (for travel medical cover) to reach the final premium.</p>
+</div>
+
+<div class="step">
+  <div class="step-title">Step 9 &mdash; Decision, Terms &amp; Policy Issuance</div>
+  <p>Approve as standard, approve with exclusions/loadings, or decline. Clearly document any medical
+  exclusions or waiting periods on the policy schedule so claims can be assessed consistently later.</p>
+</div>
+
+<div class="step">
+  <div class="step-title">Step 10 &mdash; Ongoing Claims Feedback Loop</div>
+  <p>Medical claims experience is fed back into underwriting guidelines and pricing models to keep risk
+  assessment accurate over time (e.g., adjusting loadings for conditions that are producing
+  higher-than-expected claims).</p>
+</div>
+</div>
+
+<h1 class="section">2&nbsp;&nbsp;Workflow Summary</h1>
+<div class="section-body">
+<p>The complete underwriting sequence, from compliance checks through to the claims feedback loop.</p>
+<div class="flow">
+  <div class="box">KYC &amp; Compliance Verification</div>
+  <div class="arrow">&#9660;</div>
+  <div class="box">Application &amp; Medical Declaration</div>
+  <div class="arrow">&#9660;</div>
+  <div class="box">Age &amp; Demographic Screening</div>
+  <div class="arrow">&#9660;</div>
+  <div class="box">Pre-Existing Condition Assessment</div>
+  <div class="arrow">&#9660;</div>
+  <div class="box">Medical Evidence Gathering</div>
+  <div class="arrow">&#9660;</div>
+  <div class="box highlight">Risk Classification / Rating</div>
+  <div class="arrow">&#9660;</div>
+  <div class="box">Coverage Limits &amp; Sub-Limits</div>
+  <div class="arrow">&#9660;</div>
+  <div class="box">Pricing / Loading Application</div>
+  <div class="arrow">&#9660;</div>
+  <div class="box">Decision, Terms &amp; Policy Issuance</div>
+  <div class="arrow">&#9660;</div>
+  <div class="box">Ongoing Claims Feedback Loop</div>
+</div>
+</div>
+
+<h1 class="section">3&nbsp;&nbsp;Key Considerations</h1>
+<div class="section-body">
+<p>Factors specific to medical and travel medical underwriting that shape disclosure, pricing, and
+compliance decisions throughout the workflow above.</p>
+<ul class="considerations">
+  <li><b>Disclosure accuracy</b> &mdash; Non-disclosure or misrepresentation of medical history is the
+  leading cause of claim disputes.</li>
+  <li><b>Age thresholds</b> &mdash; Many travel medical policies have hard age cutoffs or require medical
+  screening above a certain age (e.g., 65+, 70+).</li>
+  <li><b>Destination risk</b> &mdash; Cost of medical treatment varies drastically by country (e.g., US
+  healthcare costs vs. regional averages), affecting pricing and sub-limits.</li>
+  <li><b>Trip duration</b> &mdash; Longer trips increase exposure to both illness and pre-existing
+  condition flare-ups.</li>
+  <li><b>Regulatory compliance</b> &mdash; Medical underwriting must comply with local insurance
+  regulations on permissible risk factors and non-discrimination rules.</li>
+  <li><b>KYC vs. underwriting</b> &mdash; KYC confirms <i>who</i> the applicant is (compliance/AML);
+  underwriting assesses <i>what risk</i> they present (health, age, destination). They run in parallel
+  at intake, but a KYC failure overrides the underwriting outcome.</li>
+  <li><b>Family size</b> &mdash; For family/group travel medical plans, the number of dependents affects
+  pricing (per-head vs. flat family rate, child discounts), risk aggregation (each member can trigger an
+  independent claim), and how sub-limits are allocated (shared vs. per-person).</li>
+</ul>
+</div>
+
+<div class="page-footer">Minet Travel Insurance &nbsp;&nbsp; Version 1.0</div>
+
+</body>
+</html>
