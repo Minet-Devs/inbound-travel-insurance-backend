@@ -1,4 +1,4 @@
-# Minet Travel Insurance — Backend
+# Inbound Travel Medical Insurance — Backend
 
 Spring Boot 3 / Java 21 backend for travel insurance policies, benefits,
 pre-authorizations and claims. The architecture is documented in
