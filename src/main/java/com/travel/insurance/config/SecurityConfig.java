@@ -38,10 +38,10 @@ public class SecurityConfig {
                     if (!environment.acceptsProfiles(Profiles.of("prod"))) {
                         auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
                     }
-                    auth.requestMatchers("/api/v1/users/**").hasAnyRole("ADMIN", "AGENT");
-                    auth.requestMatchers("/api/v1/insurers/**").hasAnyRole("ADMIN", "AGENT", "INSURER_USER");
+                    auth.requestMatchers("/api/v1/users/**").hasRole("ADMIN");
+                    auth.requestMatchers("/api/v1/insurers/**").hasAnyRole("ADMIN", "INSURER_USER");
                     auth.requestMatchers("/api/v1/service-providers/**")
-                            .hasAnyRole("ADMIN", "AGENT", "PROVIDER_USER");
+                            .hasAnyRole("ADMIN", "PROVIDER_USER");
                     auth.anyRequest().authenticated();
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

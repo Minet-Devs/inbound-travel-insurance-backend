@@ -29,16 +29,19 @@ mvn spring-boot:run
 - OpenAPI spec: http://localhost:8080/v3/api-docs
 - RabbitMQ console: http://localhost:15672 (travel / travel)
 
+## Admin access
+
+There is no public registration endpoint. A bootstrap admin is seeded by
+Flyway migration `V002__seed_admin.sql`: `admin@travel.local` / `admin123`.
+The admin creates all other users through the user management API. Change
+the seeded password in any non-local environment.
+
 ## Quick smoke test
 
 ```bash
-# Register a customer
-curl -s -X POST localhost:8080/api/v1/auth/register -H 'Content-Type: application/json' \
-  -d '{"firstName":"Jane","lastName":"Doe","email":"jane@example.com","password":"secret123"}'
-
-# Login and capture the access token
+# Login as the seeded admin and capture the access token
 TOKEN=$(curl -s -X POST localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' \
-  -d '{"email":"jane@example.com","password":"secret123"}' | jq -r .accessToken)
+  -d '{"email":"admin@travel.local","password":"admin123"}' | jq -r .accessToken)
 
 curl -s localhost:8080/api/v1/policies -H "Authorization: Bearer $TOKEN"
 ```

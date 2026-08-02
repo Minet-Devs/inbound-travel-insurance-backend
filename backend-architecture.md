@@ -60,7 +60,7 @@ com.travel.insurance/
 │   └── 📁 util/
 │
 ├── 📁 auth/                                # Feature: Authentication
-│   ├── AuthController.java                 # /login, /refresh, /register
+│   ├── AuthController.java                 # /login, /refresh
 │   ├── AuthService.java                    # Service interface
 │   ├── AuthServiceImpl.java                # Credential checks, token issuing
 │   ├── JwtTokenProvider.java               # Token creation and validation
@@ -74,8 +74,8 @@ com.travel.insurance/
 │   ├── UserServiceImpl.java                # @Service implementation
 │   ├── UserRepository.java                 # Data access (extends JpaRepository)
 │   ├── User.java                           # Domain entity (@Entity)
-│   ├── Role.java                           # Enum: ADMIN, AGENT, CUSTOMER,
-│   │                                       #       INSURER_USER, PROVIDER_USER
+│   ├── Role.java                           # Enum: ADMIN, INSURER_USER,
+│   │                                       #       PROVIDER_USER
 │   ├── UserMapper.java                     # Entity ⇄ DTO mapping
 │   └── 📁 dto/
 │       ├── UserRequest.java

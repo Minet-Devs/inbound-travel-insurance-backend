@@ -2,12 +2,9 @@ package com.travel.insurance.auth;
 
 import com.travel.insurance.auth.dto.LoginRequest;
 import com.travel.insurance.auth.dto.RefreshRequest;
-import com.travel.insurance.auth.dto.RegisterRequest;
 import com.travel.insurance.auth.dto.TokenResponse;
-import com.travel.insurance.user.dto.UserResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,11 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
-
-    @PostMapping("/register")
-    public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(authService.register(request));
-    }
 
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
