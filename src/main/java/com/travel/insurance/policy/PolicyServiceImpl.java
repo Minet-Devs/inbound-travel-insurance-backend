@@ -80,8 +80,10 @@ public class PolicyServiceImpl implements PolicyService {
     }
 
     private void validateRequest(PolicyRequest request) {
-        if (!insurerService.exists(request.insurerId())) {
-            throw new IllegalArgumentException("Unknown insurer: " + request.insurerId());
+        for (UUID insurerId : request.insurerIds()) {
+            if (!insurerService.exists(insurerId)) {
+                throw new IllegalArgumentException("Unknown insurer: " + insurerId);
+            }
         }
         if (request.coverEndDate().isBefore(request.coverStartDate())) {
             throw new IllegalArgumentException("Cover end date must not be before cover start date");
@@ -94,10 +96,7 @@ public class PolicyServiceImpl implements PolicyService {
             return policyRepository.findAll(pageable);
         }
         if (user.roles().contains("INSURER_USER")) {
-            return policyRepository.findAllByInsurerId(user.organizationId(), pageable);
-        }
-        if (user.roles().contains("CUSTOMER")) {
-            return policyRepository.findAllByCustomerId(user.userId(), pageable);
+            return policyRepository.findAllByInsurerIdsContains(user.organizationId(), pageable);
         }
         return policyRepository.findAll(pageable);
     }
@@ -107,11 +106,8 @@ public class PolicyServiceImpl implements PolicyService {
         if (user == null) {
             return;
         }
-        if (user.roles().contains("INSURER_USER") && !policy.getInsurerId().equals(user.organizationId())) {
+        if (user.roles().contains("INSURER_USER") && !policy.getInsurerIds().contains(user.organizationId())) {
             throw new AccessDeniedException("Policy belongs to another insurer");
-        }
-        if (user.roles().contains("CUSTOMER") && !policy.getCustomerId().equals(user.userId())) {
-            throw new AccessDeniedException("Policy belongs to another customer");
         }
     }
 
@@ -120,8 +116,7 @@ public class PolicyServiceImpl implements PolicyService {
             eventPublisher.publish(RabbitConfig.POLICY_ACTIVATED_KEY, Map.of(
                     "policyId", policy.getId().toString(),
                     "policyNumber", policy.getPolicyNumber(),
-                    "insurerId", policy.getInsurerId().toString(),
-                    "customerId", policy.getCustomerId().toString()));
+                    "insurerIds", policy.getInsurerIds().stream().map(UUID::toString).toList()));
         }
     }
 }

@@ -15,8 +15,8 @@ public class PolicyMapper {
 
     public void updateEntity(Policy policy, PolicyRequest request) {
         policy.setPolicyNumber(request.policyNumber());
-        policy.setInsurerId(request.insurerId());
-        policy.setCustomerId(request.customerId());
+        policy.getInsurerIds().clear();
+        policy.getInsurerIds().addAll(request.insurerIds());
         policy.setCoverStartDate(request.coverStartDate());
         policy.setCoverEndDate(request.coverEndDate());
         policy.setStatus(request.status() != null ? request.status() : PolicyStatus.DRAFT);
@@ -26,8 +26,7 @@ public class PolicyMapper {
         return new PolicyResponse(
                 policy.getId(),
                 policy.getPolicyNumber(),
-                policy.getInsurerId(),
-                policy.getCustomerId(),
+                policy.getInsurerIds(),
                 policy.getCoverStartDate(),
                 policy.getCoverEndDate(),
                 policy.getStatus(),

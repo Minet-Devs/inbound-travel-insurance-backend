@@ -8,9 +8,7 @@ import java.util.UUID;
 
 public interface PolicyRepository extends JpaRepository<Policy, UUID> {
 
-    Page<Policy> findAllByInsurerId(UUID insurerId, Pageable pageable);
-
-    Page<Policy> findAllByCustomerId(UUID customerId, Pageable pageable);
+    Page<Policy> findAllByInsurerIdsContains(UUID insurerId, Pageable pageable);
 
     boolean existsByPolicyNumber(String policyNumber);
 }

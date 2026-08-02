@@ -108,7 +108,7 @@ com.travel.insurance/
 │   ├── PolicyService.java                  # Interface
 │   ├── PolicyServiceImpl.java
 │   ├── PolicyRepository.java
-│   ├── Policy.java                         # insurerId, customerId (user ID), cover dates
+│   ├── Policy.java                         # insurerIds (set), cover dates
 │   ├── PolicyStatus.java                   # Enum: DRAFT, ACTIVE, EXPIRED, CANCELLED
 │   ├── PolicyMapper.java
 │   └── 📁 dto/
@@ -173,8 +173,8 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
                                             of out-of-pocket costs)
 ```
 
-- A **Policy** is the insurance contract. It links a customer (`customerId` =
-  user ID) to an `insurerId` and carries cover dates and a status. It holds no
+- A **Policy** is the insurance contract. It references a set of backing
+  insurers (`insurerIds`) and carries cover dates and a status. It holds no
   treatment-level detail.
 - **Benefit** rows belong to a policy and track `limitAmount` against
   `usedAmount`. Approving a pre-authorization or claim draws down the benefit
@@ -206,7 +206,7 @@ entities:
   `user` package stays decoupled from `insurer` and `serviceprovider`.
 - Data scoping is enforced in the service layer: for example, an
   `INSURER_USER` may only see policies and claims where
-  `insurerId == user.organizationId`. Roles gate *which endpoints* a user can
+  `insurerIds` contains `user.organizationId`. Roles gate *which endpoints* a user can
   call; `organizationId` gates *which rows* they can see.
 - The `auth` feature owns login and JWT concerns and depends on `user`
   (service → service); `config/SecurityConfig` wires the JWT filter and

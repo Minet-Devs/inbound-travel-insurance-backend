@@ -138,7 +138,7 @@ public class ClaimServiceImpl implements ClaimService {
         eventPublisher.publish(RabbitConfig.CLAIM_APPROVED_KEY, Map.of(
                 "claimId", claim.getId().toString(),
                 "policyId", claim.getPolicyId().toString(),
-                "insurerId", policy.getInsurerId().toString(),
+                "insurerIds", policy.getInsurerIds().stream().map(UUID::toString).toList(),
                 "approvedAmount", claim.getApprovedAmount().toPlainString(),
                 "status", claim.getStatus().name()));
     }

@@ -4,13 +4,13 @@ import com.travel.insurance.policy.PolicyStatus;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Set;
 import java.util.UUID;
 
 public record PolicyResponse(
         UUID id,
         String policyNumber,
-        UUID insurerId,
-        UUID customerId,
+        Set<UUID> insurerIds,
         LocalDate coverStartDate,
         LocalDate coverEndDate,
         PolicyStatus status,
