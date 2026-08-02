@@ -17,7 +17,7 @@ public class OpenApiConfig {
     public OpenAPI openApi() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("Minet Travel Insurance API")
+                        .title("Inbound Travel Medical Insurance API")
                         .description("Backend API for policies, benefits, pre-authorizations and claims")
                         .version("v1"))
                 .components(new Components().addSecuritySchemes(BEARER_SCHEME,
