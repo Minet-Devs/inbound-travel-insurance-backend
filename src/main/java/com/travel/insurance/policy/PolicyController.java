@@ -1,5 +1,7 @@
 package com.travel.insurance.policy;
 
+import com.travel.insurance.benefit.BenefitService;
+import com.travel.insurance.policy.dto.PolicyDetailResponse;
 import com.travel.insurance.policy.dto.PolicyRequest;
 import com.travel.insurance.policy.dto.PolicyResponse;
 import jakarta.validation.Valid;
@@ -25,6 +27,7 @@ import java.util.UUID;
 public class PolicyController {
 
     private final PolicyService policyService;
+    private final BenefitService benefitService;
 
     @PostMapping
     public ResponseEntity<PolicyResponse> create(@Valid @RequestBody PolicyRequest request) {
@@ -32,8 +35,9 @@ public class PolicyController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<PolicyResponse> getById(@PathVariable UUID id) {
-        return ResponseEntity.ok(policyService.getById(id));
+    public ResponseEntity<PolicyDetailResponse> getById(@PathVariable UUID id) {
+        PolicyResponse policy = policyService.getById(id);
+        return ResponseEntity.ok(PolicyDetailResponse.of(policy, benefitService.listAllByPolicy(id)));
     }
 
     @GetMapping

@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -44,6 +45,14 @@ public class BenefitServiceImpl implements BenefitService {
                 ? benefitRepository.findAllByPolicyId(policyId, pageable)
                 : benefitRepository.findAll(pageable);
         return page.map(benefitMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BenefitResponse> listAllByPolicy(UUID policyId) {
+        return benefitRepository.findAllByPolicyId(policyId).stream()
+                .map(benefitMapper::toResponse)
+                .toList();
     }
 
     @Override
