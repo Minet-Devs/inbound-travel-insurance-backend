@@ -1,6 +1,6 @@
 # Travel Insurance — Backend Architecture
 
-This document describes the architecture of the Minet Travel Insurance backend.
+This document describes the architecture of the Inbound Travel Medical Insurance backend.
 It is the reference for how the codebase is organized, how the domain model fits
 together, and the conventions every contribution is expected to follow. Read it
 before writing your first feature.
@@ -180,7 +180,7 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
   `usedAmount`. Approving a pre-authorization or claim draws down the benefit
   via `BenefitService`.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
-  service and is decided by an `INSURER_USER` (or a Minet agent). Approval
+  service and is decided by an `INSURER_USER` (or a admin agent). Approval
   reserves an amount against the benefit.
 - A **Claim** is the request for payment. It is either provider-submitted
   against an approved pre-authorization, or customer-submitted for
@@ -193,7 +193,7 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
 
 ## Users, Roles & Organizations
 
-A single `User` entity serves everyone — Minet staff, insurer staff, and
+A single `User` entity serves everyone — admin staff, insurer staff, and
 service provider staff. Users are distinguished by role, not by separate
 entities:
 
