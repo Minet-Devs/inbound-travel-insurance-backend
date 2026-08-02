@@ -10,7 +10,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.UUID;
 
 @Service
@@ -25,6 +24,10 @@ public class BenefitServiceImpl implements BenefitService {
     @Override
     public BenefitResponse create(BenefitRequest request) {
         policyService.getEntityById(request.policyId());
+        if (benefitRepository.existsByPolicyIdAndNameIgnoreCase(request.policyId(), request.name())) {
+            throw new IllegalStateException(
+                    "Benefit already exists for this policy: " + request.name());
+        }
         return benefitMapper.toResponse(benefitRepository.save(benefitMapper.toEntity(request)));
     }
 
@@ -46,6 +49,11 @@ public class BenefitServiceImpl implements BenefitService {
     @Override
     public BenefitResponse update(UUID id, BenefitRequest request) {
         Benefit benefit = getEntityById(id);
+        if (benefitRepository.existsByPolicyIdAndNameIgnoreCaseAndIdNot(
+                request.policyId(), request.name(), id)) {
+            throw new IllegalStateException(
+                    "Benefit already exists for this policy: " + request.name());
+        }
         benefitMapper.updateEntity(benefit, request);
         return benefitMapper.toResponse(benefitRepository.save(benefit));
     }
@@ -60,19 +68,5 @@ public class BenefitServiceImpl implements BenefitService {
     public Benefit getEntityById(UUID id) {
         return benefitRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Benefit", id));
-    }
-
-    @Override
-    public void drawDown(UUID benefitId, BigDecimal amount) {
-        if (amount == null || amount.signum() <= 0) {
-            throw new IllegalArgumentException("Draw-down amount must be positive");
-        }
-        Benefit benefit = getEntityById(benefitId);
-        BigDecimal newUsed = benefit.getUsedAmount().add(amount);
-        if (newUsed.compareTo(benefit.getLimitAmount()) > 0) {
-            throw new IllegalStateException("Amount exceeds remaining benefit limit for " + benefit.getName());
-        }
-        benefit.setUsedAmount(newUsed);
-        benefitRepository.save(benefit);
     }
 }

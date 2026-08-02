@@ -9,4 +9,8 @@ import java.util.UUID;
 public interface BenefitRepository extends JpaRepository<Benefit, UUID> {
 
     Page<Benefit> findAllByPolicyId(UUID policyId, Pageable pageable);
+
+    boolean existsByPolicyIdAndNameIgnoreCase(UUID policyId, String name);
+
+    boolean existsByPolicyIdAndNameIgnoreCaseAndIdNot(UUID policyId, String name, UUID id);
 }

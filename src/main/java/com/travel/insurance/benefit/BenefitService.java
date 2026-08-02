@@ -5,7 +5,6 @@ import com.travel.insurance.benefit.dto.BenefitResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import java.math.BigDecimal;
 import java.util.UUID;
 
 public interface BenefitService {
@@ -21,6 +20,4 @@ public interface BenefitService {
     void delete(UUID id);
 
     Benefit getEntityById(UUID id);
-
-    void drawDown(UUID benefitId, BigDecimal amount);
 }

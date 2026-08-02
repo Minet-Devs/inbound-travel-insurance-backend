@@ -9,8 +9,6 @@ public record BenefitResponse(
         UUID policyId,
         String name,
         BigDecimal limitAmount,
-        BigDecimal usedAmount,
-        BigDecimal remainingAmount,
         Instant createdDate,
         Instant updatedDate
 ) {

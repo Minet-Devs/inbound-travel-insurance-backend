@@ -25,8 +25,6 @@ public class BenefitMapper {
                 benefit.getPolicyId(),
                 benefit.getName(),
                 benefit.getLimitAmount(),
-                benefit.getUsedAmount(),
-                benefit.getLimitAmount().subtract(benefit.getUsedAmount()),
                 benefit.getCreatedDate(),
                 benefit.getUpdatedDate()
         );

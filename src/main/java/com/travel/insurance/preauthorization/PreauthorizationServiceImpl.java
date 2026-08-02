@@ -101,7 +101,6 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
             throw new IllegalArgumentException("Approved amount cannot exceed requested amount");
         }
         preauthorization.setApprovedAmount(approved);
-        benefitService.drawDown(preauthorization.getBenefitId(), approved);
     }
 
     private void validatePolicyActive(UUID policyId) {

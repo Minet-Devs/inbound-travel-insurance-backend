@@ -120,7 +120,7 @@ com.travel.insurance/
 │   ├── BenefitService.java                 # Interface
 │   ├── BenefitServiceImpl.java
 │   ├── BenefitRepository.java
-│   ├── Benefit.java                        # policyId, name, limitAmount, usedAmount
+│   ├── Benefit.java                        # policyId, name, limitAmount
 │   ├── BenefitMapper.java
 │   └── 📁 dto/
 │       ├── BenefitRequest.java
@@ -176,12 +176,10 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
 - A **Policy** is the insurance contract. It references a set of backing
   insurers (`insurerIds`) and carries cover dates and a status. It holds no
   treatment-level detail.
-- **Benefit** rows belong to a policy and track `limitAmount` against
-  `usedAmount`. Approving a pre-authorization or claim draws down the benefit
-  via `BenefitService`.
+- **Benefit** rows belong to a policy and carry a `limitAmount`. Consumption
+  is not tracked against the limit.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
-  service and is decided by an `INSURER_USER` (or a admin agent). Approval
-  reserves an amount against the benefit.
+  service and is decided by an `INSURER_USER` (or a admin agent).
 - A **Claim** is the request for payment. It is either provider-submitted
   against an approved pre-authorization, or customer-submitted for
   reimbursement (no pre-authorization). Decisions are made by the insurer;

@@ -110,9 +110,6 @@ public class ClaimServiceImpl implements ClaimService {
             throw new IllegalArgumentException("Approved amount cannot exceed claimed amount");
         }
         claim.setApprovedAmount(approved);
-        if (claim.getPreauthorizationId() == null) {
-            benefitService.drawDown(claim.getBenefitId(), approved);
-        }
     }
 
     private void validateReferences(ClaimRequest request) {
