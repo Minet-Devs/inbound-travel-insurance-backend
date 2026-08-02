@@ -1,0 +1,90 @@
+package com.travel.insurance.insurer;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.travel.insurance.auth.JwtTokenProvider;
+import com.travel.insurance.insurer.dto.InsurerRequest;
+import com.travel.insurance.insurer.dto.InsurerResponse;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Instant;
+import java.util.UUID;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@WebMvcTest(InsurerController.class)
+class InsurerControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @MockBean
+    private InsurerService insurerService;
+
+    @MockBean
+    private JwtTokenProvider jwtTokenProvider;
+
+    private final UUID insurerId = UUID.randomUUID();
+
+    private InsurerResponse sampleResponse() {
+        return new InsurerResponse(insurerId, "Acme Insurance", "contact@acme.example",
+                null, null, Instant.now(), Instant.now());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void getByIdReturnsInsurer() throws Exception {
+        when(insurerService.getById(insurerId)).thenReturn(sampleResponse());
+
+        mockMvc.perform(get("/api/v1/insurers/{id}", insurerId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(insurerId.toString()))
+                .andExpect(jsonPath("$.name").value("Acme Insurance"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createReturnsCreated() throws Exception {
+        when(insurerService.create(any(InsurerRequest.class))).thenReturn(sampleResponse());
+
+        InsurerRequest request = new InsurerRequest("Acme Insurance", "contact@acme.example", null, null);
+        mockMvc.perform(post("/api/v1/insurers")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Acme Insurance"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createRejectsInvalidBody() throws Exception {
+        InsurerRequest request = new InsurerRequest("", "not-an-email", null, null);
+        mockMvc.perform(post("/api/v1/insurers")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+    }
+
+    @Test
+    void getWithoutAuthenticationIsRejected() throws Exception {
+        mockMvc.perform(get("/api/v1/insurers/{id}", insurerId))
+                .andExpect(status().isUnauthorized());
+    }
+}
