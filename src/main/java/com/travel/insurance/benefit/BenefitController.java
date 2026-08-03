@@ -3,6 +3,7 @@ package com.travel.insurance.benefit;
 import com.travel.insurance.benefit.dto.BenefitRequest;
 import com.travel.insurance.benefit.dto.BenefitResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -28,8 +30,9 @@ public class BenefitController {
     private final BenefitService benefitService;
 
     @PostMapping
-    public ResponseEntity<BenefitResponse> create(@Valid @RequestBody BenefitRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(benefitService.create(request));
+    public ResponseEntity<List<BenefitResponse>> create(
+            @RequestBody @NotEmpty List<@Valid BenefitRequest> requests) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(benefitService.create(requests));
     }
 
     @GetMapping("/{id}")

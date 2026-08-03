@@ -1,6 +1,7 @@
 package com.travel.insurance.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -11,6 +12,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import java.util.List;
 
@@ -26,6 +28,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         List<String> details = ex.getBindingResult().getFieldErrors().stream()
                 .map(error -> "%s: %s".formatted(error.getField(), error.getDefaultMessage()))
+                .toList();
+        ApiError body = ApiError.of(HttpStatus.BAD_REQUEST.value(), HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                "Validation failed", request.getRequestURI(), details);
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiError> handleMethodValidation(
+            HandlerMethodValidationException ex, HttpServletRequest request) {
+        List<String> details = ex.getAllErrors().stream()
+                .map(MessageSourceResolvable::getDefaultMessage)
                 .toList();
         ApiError body = ApiError.of(HttpStatus.BAD_REQUEST.value(), HttpStatus.BAD_REQUEST.getReasonPhrase(),
                 "Validation failed", request.getRequestURI(), details);

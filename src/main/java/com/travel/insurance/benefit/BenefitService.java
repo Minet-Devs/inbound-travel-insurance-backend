@@ -12,7 +12,7 @@ import java.util.UUID;
 
 public interface BenefitService {
 
-    BenefitResponse create(BenefitRequest request);
+    List<BenefitResponse> create(List<BenefitRequest> requests);
 
     BenefitResponse getById(UUID id);
 

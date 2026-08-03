@@ -11,12 +11,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,17 +48,19 @@ class BenefitServiceImplTest {
     }
 
     @Test
-    void createSavesWhenNameUniqueForPolicy() {
+    void createSavesAllWhenNamesUniqueForPolicy() {
+        BenefitRequest second = new BenefitRequest(policyId, "Baggage Loss", new BigDecimal("50000.00"));
         when(policyService.getEntityById(policyId)).thenReturn(new Policy());
-        when(benefitRepository.existsByPolicyIdAndNameIgnoreCase(policyId, "Emergency Medical"))
-                .thenReturn(false);
-        when(benefitRepository.save(any(Benefit.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(benefitRepository.existsByPolicyIdAndNameIgnoreCase(eq(policyId), any())).thenReturn(false);
+        when(benefitRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        BenefitResponse response = benefitService.create(request);
+        List<BenefitResponse> responses = benefitService.create(List.of(request, second));
 
-        assertThat(response.name()).isEqualTo("Emergency Medical");
-        assertThat(response.policyId()).isEqualTo(policyId);
-        verify(benefitRepository).save(any(Benefit.class));
+        assertThat(responses).hasSize(2);
+        assertThat(responses).extracting(BenefitResponse::name)
+                .containsExactly("Emergency Medical", "Baggage Loss");
+        assertThat(responses).allSatisfy(response -> assertThat(response.policyId()).isEqualTo(policyId));
+        verify(benefitRepository).saveAll(anyList());
     }
 
     @Test
@@ -64,10 +69,23 @@ class BenefitServiceImplTest {
         when(benefitRepository.existsByPolicyIdAndNameIgnoreCase(policyId, "Emergency Medical"))
                 .thenReturn(true);
 
-        assertThatThrownBy(() -> benefitService.create(request))
+        assertThatThrownBy(() -> benefitService.create(List.of(request)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Emergency Medical");
-        verify(benefitRepository, never()).save(any());
+        verify(benefitRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void createRejectsDuplicateNamesWithinBatch() {
+        BenefitRequest duplicate = new BenefitRequest(policyId, "emergency medical", new BigDecimal("200000.00"));
+        when(policyService.getEntityById(policyId)).thenReturn(new Policy());
+        when(benefitRepository.existsByPolicyIdAndNameIgnoreCase(policyId, "Emergency Medical"))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> benefitService.create(List.of(request, duplicate)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("emergency medical");
+        verify(benefitRepository, never()).saveAll(anyList());
     }
 
     @Test
