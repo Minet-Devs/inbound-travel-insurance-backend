@@ -1,0 +1,58 @@
+services:
+  app:
+    build: .
+    image: travel-insurance:latest
+    container_name: travel-insurance-app
+    ports:
+      - "8080:8080"
+    env_file:
+      - local.env
+    environment:
+      # In-network endpoints; override the host-oriented values in local.env
+      DB_URL: jdbc:postgresql://postgres:5432/travel_insurance
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: travel-insurance-postgres
+    environment:
+      POSTGRES_DB: travel_insurance
+      POSTGRES_USER: travel
+      POSTGRES_PASSWORD: travel
+    ports:
+      # 5433 on the host: leaves any locally installed PostgreSQL on 5432 untouched
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travel -d travel_insurance"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: travel-insurance-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: travel
+      RABBITMQ_DEFAULT_PASS: travel
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+      
+
+volumes:
+  postgres-data:

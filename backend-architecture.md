@@ -1,6 +1,6 @@
 # Travel Insurance — Backend Architecture
 
-This document describes the architecture of the Minet Travel Insurance backend.
+This document describes the architecture of the Inbound Travel Medical Insurance backend.
 It is the reference for how the codebase is organized, how the domain model fits
 together, and the conventions every contribution is expected to follow. Read it
 before writing your first feature.
@@ -60,7 +60,7 @@ com.travel.insurance/
 │   └── 📁 util/
 │
 ├── 📁 auth/                                # Feature: Authentication
-│   ├── AuthController.java                 # /login, /refresh, /register
+│   ├── AuthController.java                 # /login, /refresh
 │   ├── AuthService.java                    # Service interface
 │   ├── AuthServiceImpl.java                # Credential checks, token issuing
 │   ├── JwtTokenProvider.java               # Token creation and validation
@@ -74,8 +74,8 @@ com.travel.insurance/
 │   ├── UserServiceImpl.java                # @Service implementation
 │   ├── UserRepository.java                 # Data access (extends JpaRepository)
 │   ├── User.java                           # Domain entity (@Entity)
-│   ├── Role.java                           # Enum: ADMIN, AGENT, CUSTOMER,
-│   │                                       #       INSURER_USER, PROVIDER_USER
+│   ├── Role.java                           # Enum: ADMIN, INSURER_USER,
+│   │                                       #       PROVIDER_USER
 │   ├── UserMapper.java                     # Entity ⇄ DTO mapping
 │   └── 📁 dto/
 │       ├── UserRequest.java
@@ -108,23 +108,48 @@ com.travel.insurance/
 │   ├── PolicyService.java                  # Interface
 │   ├── PolicyServiceImpl.java
 │   ├── PolicyRepository.java
-│   ├── Policy.java                         # insurerId, customerId (user ID), cover dates
+│   ├── Policy.java                         # insurerIds (set), cover dates
 │   ├── PolicyStatus.java                   # Enum: DRAFT, ACTIVE, EXPIRED, CANCELLED
 │   ├── PolicyMapper.java
 │   └── 📁 dto/
 │       ├── PolicyRequest.java
-│       └── PolicyResponse.java
+│       ├── PolicyResponse.java
+│       └── PolicyDetailResponse.java       # PolicyResponse + attached benefits
 │
 ├── 📁 benefit/                             # Feature: Benefit Catalog
 │   ├── BenefitController.java
 │   ├── BenefitService.java                 # Interface
 │   ├── BenefitServiceImpl.java
 │   ├── BenefitRepository.java
-│   ├── Benefit.java                        # policyId, name, limitAmount, usedAmount
+│   ├── Benefit.java                        # policyId, name, limitAmount
 │   ├── BenefitMapper.java
 │   └── 📁 dto/
 │       ├── BenefitRequest.java
 │       └── BenefitResponse.java
+│
+├── 📁 visitor/                             # Feature: Visitor (insured traveler) Management
+│   ├── VisitorController.java
+│   ├── VisitorService.java                 # Interface
+│   ├── VisitorServiceImpl.java
+│   ├── VisitorRepository.java
+│   ├── Visitor.java                        # policyId + passport-based KYC attributes
+│   ├── Gender.java                         # Enum: MALE, FEMALE, OTHER
+│   ├── MaritalStatus.java                  # Enum: SINGLE, MARRIED, DIVORCED, WIDOWED
+│   ├── VisitorMapper.java
+│   └── 📁 dto/
+│       ├── VisitorRequest.java
+│       └── VisitorResponse.java
+│
+├── 📁 visitorbenefit/                      # Feature: Benefits assigned to a visitor
+│   ├── VisitorBenefitController.java
+│   ├── VisitorBenefitService.java          # Interface
+│   ├── VisitorBenefitServiceImpl.java
+│   ├── VisitorBenefitRepository.java
+│   ├── VisitorBenefit.java                 # visitorId, benefitId, limitAmount
+│   ├── VisitorBenefitMapper.java
+│   └── 📁 dto/
+│       ├── VisitorBenefitRequest.java
+│       └── VisitorBenefitResponse.java
 │
 ├── 📁 preauthorization/                    # Feature: Pre-authorization Requests
 │   ├── PreauthorizationController.java
@@ -165,6 +190,10 @@ com.travel.insurance/
 ```
 Policy ──1:N── Benefit                    (a policy carries a set of benefits with limits)
    │
+   ├──1:1── Visitor ──1:N── VisitorBenefit  (the insured traveler and the benefits
+   │            (KYC record;   assigned to them; each row references a catalog
+   │             holds policyId) Benefit and snapshots its own limitAmount)
+   │
    ├──1:N── Preauthorization ──0:1── Claim
    │            (provider asks for approval  (a claim may reference the
    │             before rendering a service)  pre-authorization that authorized it)
@@ -173,15 +202,28 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
                                             of out-of-pocket costs)
 ```
 
-- A **Policy** is the insurance contract. It links a customer (`customerId` =
-  user ID) to an `insurerId` and carries cover dates and a status. It holds no
-  treatment-level detail.
-- **Benefit** rows belong to a policy and track `limitAmount` against
-  `usedAmount`. Approving a pre-authorization or claim draws down the benefit
-  via `BenefitService`.
+- A **Policy** is the insurance contract. It references a set of backing
+  insurers (`insurerIds`) and carries cover dates and a status. It holds no
+  treatment-level detail. `GET /api/v1/policies/{id}` returns a
+  `PolicyDetailResponse` that embeds the policy's benefits; the paged list
+  endpoint returns plain `PolicyResponse` rows without them.
+- **Benefit** rows belong to a policy and carry a `limitAmount`. Consumption
+  is not tracked against the limit.
+- A **Visitor** is the insured traveler behind a policy. It carries a
+  `policyId` (ID-only reference — one policy covers one visitor) plus the
+  passport-based basic KYC attributes captured at onboarding: full name,
+  passport number (unique), date of birth, gender, nationality, email, phone
+  number, date in / date out of the country, marital status, and next of kin
+  (name + phone). `Gender` and `MaritalStatus` are string-mapped enums.
+- A **VisitorBenefit** assigns a catalog benefit to a visitor. It carries
+  `visitorId`, `benefitId`, and its own `limitAmount` — snapshotted from the
+  policy `Benefit` at assignment time unless an explicit limit is supplied —
+  so later catalog edits do not alter benefits already assigned to a visitor.
+  The referenced benefit must belong to the visitor's policy. A visitor may hold each catalog
+  benefit at most once (`visitorId` + `benefitId` unique). Usage tracking
+  against the limit is out of scope for now.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
-  service and is decided by an `INSURER_USER` (or a Minet agent). Approval
-  reserves an amount against the benefit.
+  service and is decided by an `INSURER_USER` (or a admin agent).
 - A **Claim** is the request for payment. It is either provider-submitted
   against an approved pre-authorization, or customer-submitted for
   reimbursement (no pre-authorization). Decisions are made by the insurer;
@@ -193,7 +235,7 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
 
 ## Users, Roles & Organizations
 
-A single `User` entity serves everyone — Minet staff, insurer staff, and
+A single `User` entity serves everyone — admin staff, insurer staff, and
 service provider staff. Users are distinguished by role, not by separate
 entities:
 
@@ -206,7 +248,7 @@ entities:
   `user` package stays decoupled from `insurer` and `serviceprovider`.
 - Data scoping is enforced in the service layer: for example, an
   `INSURER_USER` may only see policies and claims where
-  `insurerId == user.organizationId`. Roles gate *which endpoints* a user can
+  `insurerIds` contains `user.organizationId`. Roles gate *which endpoints* a user can
   call; `organizationId` gates *which rows* they can see.
 - The `auth` feature owns login and JWT concerns and depends on `user`
   (service → service); `config/SecurityConfig` wires the JWT filter and
@@ -271,6 +313,8 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Service Provider  | `/api/v1/service-providers`   | `service_providers` |
 | Policy            | `/api/v1/policies`            | `policies`          |
 | Benefit           | `/api/v1/benefits`            | `benefits`          |
+| Visitor           | `/api/v1/visitors`            | `visitors`          |
+| Visitor Benefit   | `/api/v1/visitor-benefits`    | `visitor_benefits`  |
 | Pre-authorization | `/api/v1/preauthorizations`   | `preauthorizations` |
 | Claim             | `/api/v1/claims`              | `claims`            |
 
