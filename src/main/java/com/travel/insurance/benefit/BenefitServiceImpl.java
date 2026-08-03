@@ -10,8 +10,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -53,6 +56,16 @@ public class BenefitServiceImpl implements BenefitService {
         return benefitRepository.findAllByPolicyId(policyId).stream()
                 .map(benefitMapper::toResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, String> namesByIds(Collection<UUID> benefitIds) {
+        if (benefitIds.isEmpty()) {
+            return Map.of();
+        }
+        return benefitRepository.findAllById(benefitIds).stream()
+                .collect(Collectors.toMap(Benefit::getId, Benefit::getName));
     }
 
     @Override

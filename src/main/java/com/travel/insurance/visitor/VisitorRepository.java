@@ -2,16 +2,15 @@ package com.travel.insurance.visitor;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface VisitorRepository extends JpaRepository<Visitor, UUID> {
 
-    Optional<Visitor> findByPolicyId(UUID policyId);
+    List<Visitor> findAllByPolicyId(UUID policyId);
 
-    boolean existsByPolicyId(UUID policyId);
-
-    boolean existsByPolicyIdAndIdNot(UUID policyId, UUID id);
+    Optional<Visitor> findByPassportNumberIgnoreCase(String passportNumber);
 
     boolean existsByPassportNumberIgnoreCase(String passportNumber);
 

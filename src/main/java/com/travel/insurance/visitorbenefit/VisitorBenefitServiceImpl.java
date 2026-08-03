@@ -9,12 +9,16 @@ import com.travel.insurance.visitorbenefit.dto.VisitorBenefitRequest;
 import com.travel.insurance.visitorbenefit.dto.VisitorBenefitResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,13 +40,14 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
         }
         VisitorBenefit visitorBenefit = new VisitorBenefit();
         applyRequest(visitorBenefit, request, benefit);
-        return visitorBenefitMapper.toResponse(visitorBenefitRepository.save(visitorBenefit));
+        return visitorBenefitMapper.toResponse(
+                visitorBenefitRepository.save(visitorBenefit), benefit.getName());
     }
 
     @Override
     @Transactional(readOnly = true)
     public VisitorBenefitResponse getById(UUID id) {
-        return visitorBenefitMapper.toResponse(getEntityById(id));
+        return toResponses(List.of(getEntityById(id))).getFirst();
     }
 
     @Override
@@ -51,15 +56,13 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
         Page<VisitorBenefit> page = visitorId != null
                 ? visitorBenefitRepository.findAllByVisitorId(visitorId, pageable)
                 : visitorBenefitRepository.findAll(pageable);
-        return page.map(visitorBenefitMapper::toResponse);
+        return new PageImpl<>(toResponses(page.getContent()), pageable, page.getTotalElements());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<VisitorBenefitResponse> listAllByVisitor(UUID visitorId) {
-        return visitorBenefitRepository.findAllByVisitorId(visitorId).stream()
-                .map(visitorBenefitMapper::toResponse)
-                .toList();
+        return toResponses(visitorBenefitRepository.findAllByVisitorId(visitorId));
     }
 
     @Override
@@ -72,7 +75,8 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
                     "Benefit already assigned to this visitor: " + request.benefitId());
         }
         applyRequest(visitorBenefit, request, benefit);
-        return visitorBenefitMapper.toResponse(visitorBenefitRepository.save(visitorBenefit));
+        return visitorBenefitMapper.toResponse(
+                visitorBenefitRepository.save(visitorBenefit), benefit.getName());
     }
 
     @Override
@@ -85,6 +89,17 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
     public VisitorBenefit getEntityById(UUID id) {
         return visitorBenefitRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("VisitorBenefit", id));
+    }
+
+    private List<VisitorBenefitResponse> toResponses(List<VisitorBenefit> visitorBenefits) {
+        Set<UUID> benefitIds = visitorBenefits.stream()
+                .map(VisitorBenefit::getBenefitId)
+                .collect(Collectors.toSet());
+        Map<UUID, String> namesByIds = benefitService.namesByIds(benefitIds);
+        return visitorBenefits.stream()
+                .map(visitorBenefit -> visitorBenefitMapper.toResponse(
+                        visitorBenefit, namesByIds.get(visitorBenefit.getBenefitId())))
+                .toList();
     }
 
     private Benefit validateAssignment(VisitorBenefitRequest request) {

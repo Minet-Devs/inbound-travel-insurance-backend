@@ -5,11 +5,13 @@ import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -20,19 +22,18 @@ public class VisitorServiceImpl implements VisitorService {
     private final VisitorRepository visitorRepository;
     private final VisitorMapper visitorMapper;
     private final PolicyService policyService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public VisitorResponse create(VisitorRequest request) {
         policyService.getEntityById(request.policyId());
-        if (visitorRepository.existsByPolicyId(request.policyId())) {
-            throw new IllegalStateException(
-                    "Policy already has a visitor: " + request.policyId());
-        }
         if (visitorRepository.existsByPassportNumberIgnoreCase(request.passportNumber())) {
             throw new IllegalStateException(
                     "Visitor already exists with passport number: " + request.passportNumber());
         }
-        return visitorMapper.toResponse(visitorRepository.save(visitorMapper.toEntity(request)));
+        Visitor visitor = visitorRepository.save(visitorMapper.toEntity(request));
+        eventPublisher.publishEvent(new VisitorCreatedEvent(visitor.getId(), visitor.getPolicyId()));
+        return visitorMapper.toResponse(visitor);
     }
 
     @Override
@@ -43,10 +44,19 @@ public class VisitorServiceImpl implements VisitorService {
 
     @Override
     @Transactional(readOnly = true)
-    public VisitorResponse getByPolicyId(UUID policyId) {
-        return visitorRepository.findByPolicyId(policyId)
+    public List<VisitorResponse> listByPolicyId(UUID policyId) {
+        return visitorRepository.findAllByPolicyId(policyId).stream()
                 .map(visitorMapper::toResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("Visitor", policyId));
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public VisitorResponse getByPassportNumber(String passportNumber) {
+        return visitorRepository.findByPassportNumberIgnoreCase(passportNumber)
+                .map(visitorMapper::toResponse)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Visitor not found: " + passportNumber));
     }
 
     @Override
@@ -59,10 +69,6 @@ public class VisitorServiceImpl implements VisitorService {
     public VisitorResponse update(UUID id, VisitorRequest request) {
         Visitor visitor = getEntityById(id);
         policyService.getEntityById(request.policyId());
-        if (visitorRepository.existsByPolicyIdAndIdNot(request.policyId(), id)) {
-            throw new IllegalStateException(
-                    "Policy already has a visitor: " + request.policyId());
-        }
         if (visitorRepository.existsByPassportNumberIgnoreCaseAndIdNot(request.passportNumber(), id)) {
             throw new IllegalStateException(
                     "Visitor already exists with passport number: " + request.passportNumber());

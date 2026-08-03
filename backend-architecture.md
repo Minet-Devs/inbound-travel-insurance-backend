@@ -133,12 +133,14 @@ com.travel.insurance/
 │   ├── VisitorServiceImpl.java
 │   ├── VisitorRepository.java
 │   ├── Visitor.java                        # policyId + passport-based KYC attributes
+│   ├── VisitorCreatedEvent.java            # In-process event published on visitor creation
 │   ├── Gender.java                         # Enum: MALE, FEMALE, OTHER
 │   ├── MaritalStatus.java                  # Enum: SINGLE, MARRIED, DIVORCED, WIDOWED
 │   ├── VisitorMapper.java
 │   └── 📁 dto/
 │       ├── VisitorRequest.java
-│       └── VisitorResponse.java
+│       ├── VisitorResponse.java
+│       └── VisitorDetailResponse.java      # KYC + assigned visitor benefits
 │
 ├── 📁 visitorbenefit/                      # Feature: Benefits assigned to a visitor
 │   ├── VisitorBenefitController.java
@@ -146,6 +148,7 @@ com.travel.insurance/
 │   ├── VisitorBenefitServiceImpl.java
 │   ├── VisitorBenefitRepository.java
 │   ├── VisitorBenefit.java                 # visitorId, benefitId, limitAmount
+│   ├── VisitorCreatedListener.java         # Seeds VisitorBenefit rows on VisitorCreatedEvent
 │   ├── VisitorBenefitMapper.java
 │   └── 📁 dto/
 │       ├── VisitorBenefitRequest.java
@@ -190,7 +193,7 @@ com.travel.insurance/
 ```
 Policy ──1:N── Benefit                    (a policy carries a set of benefits with limits)
    │
-   ├──1:1── Visitor ──1:N── VisitorBenefit  (the insured traveler and the benefits
+   ├──1:N── Visitor ──1:N── VisitorBenefit  (the insured travelers and the benefits
    │            (KYC record;   assigned to them; each row references a catalog
    │             holds policyId) Benefit and snapshots its own limitAmount)
    │
@@ -209,19 +212,39 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
   endpoint returns plain `PolicyResponse` rows without them.
 - **Benefit** rows belong to a policy and carry a `limitAmount`. Consumption
   is not tracked against the limit.
-- A **Visitor** is the insured traveler behind a policy. It carries a
-  `policyId` (ID-only reference — one policy covers one visitor) plus the
+- A **Visitor** is an insured traveler behind a policy. It carries a
+  `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,
   passport number (unique), date of birth, gender, nationality, email, phone
   number, date in / date out of the country, marital status, and next of kin
   (name + phone). `Gender` and `MaritalStatus` are string-mapped enums.
+  `GET /api/v1/visitors/{id}` and
+  `GET /api/v1/visitors/by-passport?passportNumber=…` return a
+  `VisitorDetailResponse` that embeds the visitor's assigned benefits
+  (`visitorBenefits`), and `GET /api/v1/visitors/by-policy?policyId=…`
+  returns a list of them (one per visitor on the policy) — composed in
+  `VisitorController` from `VisitorBenefitService` (the same
+  controller-level composition used for `PolicyDetailResponse`, which
+  keeps service dependencies acyclic). The paged list and create/update
+  endpoints return plain `VisitorResponse` rows without benefits.
+- Creating a visitor **auto-assigns the policy's benefits**: `VisitorServiceImpl`
+  publishes an in-process `VisitorCreatedEvent` (Spring `ApplicationEventPublisher`,
+  synchronous — it runs inside the same transaction as the visitor insert), and
+  `VisitorCreatedListener` in the `visitorbenefit` package creates one
+  `VisitorBenefit` row per catalog `Benefit` of the visitor's policy, snapshotting
+  each benefit's `limitAmount`. The event keeps the dependency graph acyclic
+  (`visitorbenefit` already depends on `VisitorService`, so the visitor feature
+  cannot call `VisitorBenefitService` directly).
 - A **VisitorBenefit** assigns a catalog benefit to a visitor. It carries
   `visitorId`, `benefitId`, and its own `limitAmount` — snapshotted from the
   policy `Benefit` at assignment time unless an explicit limit is supplied —
   so later catalog edits do not alter benefits already assigned to a visitor.
   The referenced benefit must belong to the visitor's policy. A visitor may hold each catalog
   benefit at most once (`visitorId` + `benefitId` unique). Usage tracking
-  against the limit is out of scope for now.
+  against the limit is out of scope for now. `VisitorBenefitResponse`
+  additionally carries the catalog benefit's `benefitName` (resolved through
+  `BenefitService`; `null` if the catalog benefit has since been deleted) so
+  clients can display assignments without extra lookups.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
   service and is decided by an `INSURER_USER` (or a admin agent).
 - A **Claim** is the request for payment. It is either provider-submitted

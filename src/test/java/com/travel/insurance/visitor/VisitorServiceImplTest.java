@@ -1,5 +1,6 @@
 package com.travel.insurance.visitor;
 
+import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
 import java.util.Optional;
@@ -30,6 +32,9 @@ class VisitorServiceImplTest {
     @Mock
     private PolicyService policyService;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private final VisitorMapper visitorMapper = new VisitorMapper();
 
     private VisitorServiceImpl visitorService;
@@ -39,7 +44,8 @@ class VisitorServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        visitorService = new VisitorServiceImpl(visitorRepository, visitorMapper, policyService);
+        visitorService = new VisitorServiceImpl(
+                visitorRepository, visitorMapper, policyService, eventPublisher);
         policyId = UUID.randomUUID();
         request = new VisitorRequest(
                 policyId,
@@ -60,7 +66,6 @@ class VisitorServiceImplTest {
     @Test
     void createSavesWhenPolicyFreeAndPassportUnique() {
         when(policyService.getEntityById(policyId)).thenReturn(new Policy());
-        when(visitorRepository.existsByPolicyId(policyId)).thenReturn(false);
         when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -69,23 +74,39 @@ class VisitorServiceImplTest {
         assertThat(response.fullName()).isEqualTo("Jane Traveler");
         assertThat(response.policyId()).isEqualTo(policyId);
         verify(visitorRepository).save(any(Visitor.class));
+        verify(eventPublisher).publishEvent(any(VisitorCreatedEvent.class));
     }
 
     @Test
-    void createRejectsSecondVisitorForPolicy() {
+    void createAllowsSecondVisitorOnSamePolicy() {
         when(policyService.getEntityById(policyId)).thenReturn(new Policy());
-        when(visitorRepository.existsByPolicyId(policyId)).thenReturn(true);
+        when(visitorRepository.existsByPassportNumberIgnoreCase("P7654321")).thenReturn(false);
+        when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> visitorService.create(request))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(policyId.toString());
-        verify(visitorRepository, never()).save(any());
+        VisitorRequest secondVisitor = new VisitorRequest(
+                policyId,
+                "John Traveler",
+                "P7654321",
+                LocalDate.of(1988, 2, 3),
+                Gender.MALE,
+                "Germany",
+                "john.traveler@example.com",
+                "+254722222222",
+                LocalDate.of(2026, 8, 1),
+                LocalDate.of(2026, 11, 1),
+                MaritalStatus.MARRIED,
+                "Jane Traveler",
+                "+254700000000");
+
+        VisitorResponse response = visitorService.create(secondVisitor);
+
+        assertThat(response.policyId()).isEqualTo(policyId);
+        verify(visitorRepository).save(any(Visitor.class));
     }
 
     @Test
     void createRejectsDuplicatePassportNumber() {
         when(policyService.getEntityById(policyId)).thenReturn(new Policy());
-        when(visitorRepository.existsByPolicyId(policyId)).thenReturn(false);
         when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(true);
 
         assertThatThrownBy(() -> visitorService.create(request))
@@ -95,12 +116,34 @@ class VisitorServiceImplTest {
     }
 
     @Test
+    void getByPassportNumberReturnsVisitorKyc() {
+        Visitor existing = visitorMapper.toEntity(request);
+        when(visitorRepository.findByPassportNumberIgnoreCase("P1234567"))
+                .thenReturn(Optional.of(existing));
+
+        VisitorResponse response = visitorService.getByPassportNumber("P1234567");
+
+        assertThat(response.passportNumber()).isEqualTo("P1234567");
+        assertThat(response.fullName()).isEqualTo("Jane Traveler");
+        assertThat(response.policyId()).isEqualTo(policyId);
+    }
+
+    @Test
+    void getByPassportNumberThrowsWhenUnknown() {
+        when(visitorRepository.findByPassportNumberIgnoreCase("UNKNOWN"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> visitorService.getByPassportNumber("UNKNOWN"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("UNKNOWN");
+    }
+
+    @Test
     void updateRejectsPassportUsedByAnotherVisitor() {
         UUID id = UUID.randomUUID();
         Visitor existing = visitorMapper.toEntity(request);
         when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
         when(policyService.getEntityById(policyId)).thenReturn(new Policy());
-        when(visitorRepository.existsByPolicyIdAndIdNot(policyId, id)).thenReturn(false);
         when(visitorRepository.existsByPassportNumberIgnoreCaseAndIdNot("P1234567", id)).thenReturn(true);
 
         assertThatThrownBy(() -> visitorService.update(id, request))
@@ -115,7 +158,6 @@ class VisitorServiceImplTest {
         Visitor existing = visitorMapper.toEntity(request);
         when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
         when(policyService.getEntityById(policyId)).thenReturn(new Policy());
-        when(visitorRepository.existsByPolicyIdAndIdNot(policyId, id)).thenReturn(false);
         when(visitorRepository.existsByPassportNumberIgnoreCaseAndIdNot("P1234567", id)).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

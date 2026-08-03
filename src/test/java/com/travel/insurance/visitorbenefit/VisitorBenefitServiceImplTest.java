@@ -13,6 +13,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,6 +58,7 @@ class VisitorBenefitServiceImplTest {
         visitor.setPolicyId(policyId);
         benefit = new Benefit();
         benefit.setPolicyId(policyId);
+        benefit.setName("Inpatient Cover");
         benefit.setLimitAmount(new BigDecimal("100000.00"));
     }
 
@@ -73,6 +77,25 @@ class VisitorBenefitServiceImplTest {
         assertThat(response.limitAmount()).isEqualByComparingTo("100000.00");
         assertThat(response.visitorId()).isEqualTo(visitorId);
         assertThat(response.benefitId()).isEqualTo(benefitId);
+        assertThat(response.benefitName()).isEqualTo("Inpatient Cover");
+    }
+
+    @Test
+    void listAllByVisitorResolvesBenefitNames() {
+        VisitorBenefit visitorBenefit = new VisitorBenefit();
+        visitorBenefit.setVisitorId(visitorId);
+        visitorBenefit.setBenefitId(benefitId);
+        visitorBenefit.setLimitAmount(new BigDecimal("100000.00"));
+        when(visitorBenefitRepository.findAllByVisitorId(visitorId))
+                .thenReturn(List.of(visitorBenefit));
+        when(benefitService.namesByIds(Set.of(benefitId)))
+                .thenReturn(Map.of(benefitId, "Inpatient Cover"));
+
+        List<VisitorBenefitResponse> responses = visitorBenefitService.listAllByVisitor(visitorId);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().benefitName()).isEqualTo("Inpatient Cover");
+        assertThat(responses.getFirst().limitAmount()).isEqualByComparingTo("100000.00");
     }
 
     @Test

@@ -5,7 +5,9 @@ import com.travel.insurance.benefit.dto.BenefitResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public interface BenefitService {
@@ -17,6 +19,8 @@ public interface BenefitService {
     Page<BenefitResponse> list(UUID policyId, Pageable pageable);
 
     List<BenefitResponse> listAllByPolicy(UUID policyId);
+
+    Map<UUID, String> namesByIds(Collection<UUID> benefitIds);
 
     BenefitResponse update(UUID id, BenefitRequest request);
 

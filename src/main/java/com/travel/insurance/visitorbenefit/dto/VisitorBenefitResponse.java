@@ -8,6 +8,7 @@ public record VisitorBenefitResponse(
         UUID id,
         UUID visitorId,
         UUID benefitId,
+        String benefitName,
         BigDecimal limitAmount,
         Instant createdDate,
         Instant updatedDate
