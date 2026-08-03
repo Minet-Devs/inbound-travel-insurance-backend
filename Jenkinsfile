@@ -131,7 +131,7 @@ pipeline {
                         sh """
                             # Save the version we're about to deploy
                             ssh -o StrictHostKeyChecking=no ${remoteUser}@${remoteHost} \
-                                "sed -i 's|^SCHEME_IMAGE_TAG=.*|SCHEME_IMAGE_TAG=${VERSION_TAG_DATE_BUILD}|' .env"
+                                "sed -i 's|^PRISM_BACKEND_IMAGE_TAG=.*|PRISM_BACKEND_IMAGE_TAG=${VERSION_TAG_DATE_BUILD}|' .env"
 
                             # Deploy
                              ssh -o StrictHostKeyChecking=no ${remoteUser}@${remoteHost} \
