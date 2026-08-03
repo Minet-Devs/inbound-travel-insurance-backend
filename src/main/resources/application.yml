@@ -26,8 +26,8 @@ spring:
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:travel}
-    password: ${RABBITMQ_PASSWORD:travel}
+    username: ${RABBITMQ_USER:travel}
+    password: ${RABBITMQ_PASS:travel}
 
 app:
   jwt:
