@@ -1,5 +1,6 @@
 target/
 .env
+local.env
 *.iml
 .idea/
 .vscode/
