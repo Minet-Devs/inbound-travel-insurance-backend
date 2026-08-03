@@ -8,16 +8,15 @@ pipeline {
     parameters {
         choice(
             name: 'ENVIRONMENT',
-            choices: ['dev', 'uat', 'production'],
+            choices: ['dev'],
             description: 'Select deployment environment',
         )
     }
     
     environment {
         ACR_NAME = "hcsbin.azurecr.io"
-        SERVICE_NAME = "scheme"
+        SERVICE_NAME = "prism-backend"
         IMAGE_REPO = "${ACR_NAME}/${env.SERVICE_NAME}"
-        REMOTE_DIR = "/home/devserver"
         DOCKER_REGISTRY_CREDENTIALS = 'acr-creds'
         ADMIN_EMAIL = "hussein.mishobo@minet.co.ke"
     }
@@ -43,14 +42,12 @@ pipeline {
                 script {
                     def targetBranch = getBranchForEnvironment()
                     echo "Checking out branch: ${targetBranch}"
-
                     checkout([
                         $class: 'GitSCM',
                         branches: [[name: "*/${targetBranch}"]],
                         extensions: [[$class: 'CleanCheckout']],
                         userRemoteConfigs: [[
-                            url: 'https://dev.azure.com/MedicareSystem/Healthcare/_git/scheme',
-                            credentialsId: 'azure-devops-pat'
+                            url: 'https://github.com/iamkibeh/travel-insurance.git'
                         ]]
                     ])
                 }
@@ -208,13 +205,13 @@ pipeline {
 def getBranchForEnvironment() {
     switch(env.ENVIRONMENT) {
         case 'dev':
-            return 'dev'
+            return 'master'
         case 'uat':
             return 'uat'
         case 'production':
             return 'production'
         default:
-            return 'dev'
+            return 'master'
     }
 }
 
