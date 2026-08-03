@@ -1,0 +1,14 @@
+target/
+.git/
+.idea/
+*.iml
+screenshots/
+*.pdf
+*.xlsx
+*.md
+*.html
+local.env
+.env
+docker-compose.yml
+Dockerfile
+.dockerignore

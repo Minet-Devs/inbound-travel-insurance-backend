@@ -127,6 +127,30 @@ com.travel.insurance/
 │       ├── BenefitRequest.java
 │       └── BenefitResponse.java
 │
+├── 📁 visitor/                             # Feature: Visitor (insured traveler) Management
+│   ├── VisitorController.java
+│   ├── VisitorService.java                 # Interface
+│   ├── VisitorServiceImpl.java
+│   ├── VisitorRepository.java
+│   ├── Visitor.java                        # policyId + passport-based KYC attributes
+│   ├── Gender.java                         # Enum: MALE, FEMALE, OTHER
+│   ├── MaritalStatus.java                  # Enum: SINGLE, MARRIED, DIVORCED, WIDOWED
+│   ├── VisitorMapper.java
+│   └── 📁 dto/
+│       ├── VisitorRequest.java
+│       └── VisitorResponse.java
+│
+├── 📁 visitorbenefit/                      # Feature: Benefits assigned to a visitor
+│   ├── VisitorBenefitController.java
+│   ├── VisitorBenefitService.java          # Interface
+│   ├── VisitorBenefitServiceImpl.java
+│   ├── VisitorBenefitRepository.java
+│   ├── VisitorBenefit.java                 # visitorId, benefitId, limitAmount
+│   ├── VisitorBenefitMapper.java
+│   └── 📁 dto/
+│       ├── VisitorBenefitRequest.java
+│       └── VisitorBenefitResponse.java
+│
 ├── 📁 preauthorization/                    # Feature: Pre-authorization Requests
 │   ├── PreauthorizationController.java
 │   ├── PreauthorizationService.java        # Interface
@@ -166,6 +190,10 @@ com.travel.insurance/
 ```
 Policy ──1:N── Benefit                    (a policy carries a set of benefits with limits)
    │
+   ├──1:1── Visitor ──1:N── VisitorBenefit  (the insured traveler and the benefits
+   │            (KYC record;   assigned to them; each row references a catalog
+   │             holds policyId) Benefit and snapshots its own limitAmount)
+   │
    ├──1:N── Preauthorization ──0:1── Claim
    │            (provider asks for approval  (a claim may reference the
    │             before rendering a service)  pre-authorization that authorized it)
@@ -181,6 +209,19 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
   endpoint returns plain `PolicyResponse` rows without them.
 - **Benefit** rows belong to a policy and carry a `limitAmount`. Consumption
   is not tracked against the limit.
+- A **Visitor** is the insured traveler behind a policy. It carries a
+  `policyId` (ID-only reference — one policy covers one visitor) plus the
+  passport-based basic KYC attributes captured at onboarding: full name,
+  passport number (unique), date of birth, gender, nationality, email, phone
+  number, date in / date out of the country, marital status, and next of kin
+  (name + phone). `Gender` and `MaritalStatus` are string-mapped enums.
+- A **VisitorBenefit** assigns a catalog benefit to a visitor. It carries
+  `visitorId`, `benefitId`, and its own `limitAmount` — snapshotted from the
+  policy `Benefit` at assignment time unless an explicit limit is supplied —
+  so later catalog edits do not alter benefits already assigned to a visitor.
+  The referenced benefit must belong to the visitor's policy. A visitor may hold each catalog
+  benefit at most once (`visitorId` + `benefitId` unique). Usage tracking
+  against the limit is out of scope for now.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
   service and is decided by an `INSURER_USER` (or a admin agent).
 - A **Claim** is the request for payment. It is either provider-submitted
@@ -272,6 +313,8 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Service Provider  | `/api/v1/service-providers`   | `service_providers` |
 | Policy            | `/api/v1/policies`            | `policies`          |
 | Benefit           | `/api/v1/benefits`            | `benefits`          |
+| Visitor           | `/api/v1/visitors`            | `visitors`          |
+| Visitor Benefit   | `/api/v1/visitor-benefits`    | `visitor_benefits`  |
 | Pre-authorization | `/api/v1/preauthorizations`   | `preauthorizations` |
 | Claim             | `/api/v1/claims`              | `claims`            |
 
