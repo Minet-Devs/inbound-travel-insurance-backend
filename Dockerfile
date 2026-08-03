@@ -23,7 +23,7 @@ COPY --from=build --chown=app:app /workspace/target/extracted/snapshot-dependenc
 COPY --from=build --chown=app:app /workspace/target/extracted/application/ ./
 
 USER app
-EXPOSE 8080
+EXPOSE 8081
 
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
 
