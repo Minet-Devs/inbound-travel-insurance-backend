@@ -32,7 +32,7 @@ spring:
 app:
   jwt:
     secret: ${JWT_SECRET}
-    access-token-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:900}
+    access-token-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:108000}
     refresh-token-ttl-seconds: ${JWT_REFRESH_TTL_SECONDS:604800}
 
 springdoc:
