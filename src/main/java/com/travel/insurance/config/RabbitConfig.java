@@ -18,10 +18,12 @@ public class RabbitConfig {
     public static final String CLAIM_APPROVED_KEY = "claim.approved";
     public static final String PREAUTHORIZATION_DECIDED_KEY = "preauthorization.decided";
     public static final String POLICY_ACTIVATED_KEY = "policy.activated";
+    public static final String BIOMETRIC_VERIFICATION_RESOLVED_KEY = "biometric-verification.resolved";
 
     public static final String CLAIM_APPROVED_QUEUE = "travel.claim.approved";
     public static final String PREAUTHORIZATION_DECIDED_QUEUE = "travel.preauthorization.decided";
     public static final String POLICY_ACTIVATED_QUEUE = "travel.policy.activated";
+    public static final String BIOMETRIC_VERIFICATION_RESOLVED_QUEUE = "travel.biometric-verification.resolved";
 
     @Bean
     public TopicExchange domainEventsExchange() {
@@ -57,6 +59,17 @@ public class RabbitConfig {
     @Bean
     public Binding policyActivatedBinding() {
         return BindingBuilder.bind(policyActivatedQueue()).to(domainEventsExchange()).with(POLICY_ACTIVATED_KEY);
+    }
+
+    @Bean
+    public Queue biometricVerificationResolvedQueue() {
+        return new Queue(BIOMETRIC_VERIFICATION_RESOLVED_QUEUE, true);
+    }
+
+    @Bean
+    public Binding biometricVerificationResolvedBinding() {
+        return BindingBuilder.bind(biometricVerificationResolvedQueue()).to(domainEventsExchange())
+                .with(BIOMETRIC_VERIFICATION_RESOLVED_KEY);
     }
 
     @Bean
