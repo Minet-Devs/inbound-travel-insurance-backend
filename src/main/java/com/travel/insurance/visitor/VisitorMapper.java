@@ -43,6 +43,7 @@ public class VisitorMapper {
                 visitor.getDateIn(),
                 visitor.getDateOut(),
                 visitor.getMaritalStatus(),
+                visitor.getVisitorStatus(),
                 visitor.getNextOfKinName(),
                 visitor.getNextOfKinPhone(),
                 visitor.getCreatedDate(),

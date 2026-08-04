@@ -59,6 +59,10 @@ public class Visitor extends BaseEntity {
     @Column(nullable = false)
     private MaritalStatus maritalStatus;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private VisitorStatus visitorStatus = VisitorStatus.PENDING;
+
     private String nextOfKinName;
 
     private String nextOfKinPhone;

@@ -2,6 +2,7 @@ package com.travel.insurance.visitor;
 
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
+import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -25,4 +26,8 @@ public interface VisitorService {
     void delete(UUID id);
 
     Visitor getEntityById(UUID id);
+
+    Visitor getEntityByPassportNumber(String passportNumber);
+
+    VisitorResponse updateVisitorStatus(UUID id, VisitorStatusUpdate visitorStatusUpdate);
 }

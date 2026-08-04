@@ -5,9 +5,11 @@ import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
+import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -159,10 +161,63 @@ class VisitorServiceImplTest {
         when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
         when(policyService.getEntityById(policyId)).thenReturn(new Policy());
         when(visitorRepository.existsByPassportNumberIgnoreCaseAndIdNot("P1234567", id)).thenReturn(false);
-        when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         VisitorResponse response = visitorService.update(id, request);
 
         assertThat(response.passportNumber()).isEqualTo("P1234567");
+    }
+
+    @Test
+    void updateVisitorStatusAppliesAllowedTransitionAndPublishesEvent() {
+        UUID id = UUID.randomUUID();
+        Visitor existing = visitorMapper.toEntity(request);
+        when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
+
+        visitorService.updateVisitorStatus(id, new VisitorStatusUpdate(VisitorStatus.ACTIVE));
+
+        assertThat(existing.getVisitorStatus()).isEqualTo(VisitorStatus.ACTIVE);
+        ArgumentCaptor<VisitorStatusChangedEvent> captor =
+                ArgumentCaptor.forClass(VisitorStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().newStatus()).isEqualTo(VisitorStatus.ACTIVE);
+    }
+
+    @Test
+    void updateVisitorStatusRejectsInvalidTransition() {
+        UUID id = UUID.randomUUID();
+        Visitor existing = visitorMapper.toEntity(request);
+        existing.setVisitorStatus(VisitorStatus.DEACTIVATED);
+        when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> visitorService.updateVisitorStatus(
+                id, new VisitorStatusUpdate(VisitorStatus.ACTIVE)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("DEACTIVATED")
+                .hasMessageContaining("ACTIVE");
+        assertThat(existing.getVisitorStatus()).isEqualTo(VisitorStatus.DEACTIVATED);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void updateVisitorStatusRejectsSameStatus() {
+        UUID id = UUID.randomUUID();
+        Visitor existing = visitorMapper.toEntity(request);
+        when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> visitorService.updateVisitorStatus(
+                id, new VisitorStatusUpdate(VisitorStatus.PENDING)))
+                .isInstanceOf(IllegalStateException.class);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void updateVisitorStatusThrowsWhenVisitorUnknown() {
+        UUID id = UUID.randomUUID();
+        when(visitorRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> visitorService.updateVisitorStatus(
+                id, new VisitorStatusUpdate(VisitorStatus.ACTIVE)))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(eventPublisher, never()).publishEvent(any());
     }
 }

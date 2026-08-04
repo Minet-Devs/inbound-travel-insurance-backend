@@ -46,13 +46,14 @@ class VisitorControllerTest {
                 LocalDate.of(1990, 5, 12), Gender.FEMALE, "Germany",
                 "jane.traveler@example.com", "+254700000000",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
-                MaritalStatus.SINGLE, "John Traveler", "+254711111111",
+                MaritalStatus.SINGLE, VisitorStatus.PENDING, "John Traveler", "+254711111111",
                 Instant.now(), Instant.now());
     }
 
     private VisitorBenefitResponse sampleBenefit() {
         return new VisitorBenefitResponse(UUID.randomUUID(), visitorId, benefitId,
-                "Inpatient Cover", new BigDecimal("100000.00"), Instant.now(), Instant.now());
+                "Inpatient Cover", new BigDecimal("100000.00"), VisitorStatus.PENDING,
+                Instant.now(), Instant.now());
     }
 
     @Test

@@ -8,6 +8,10 @@ public class ResourceNotFoundException extends RuntimeException {
         super("%s not found: %s".formatted(resource, id));
     }
 
+    public ResourceNotFoundException(String resource, String passportNumber) {
+        super("%s not found: %s".formatted(resource, passportNumber));
+    }
+
     public ResourceNotFoundException(String message) {
         super(message);
     }

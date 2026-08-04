@@ -1,8 +1,11 @@
 package com.travel.insurance.visitorbenefit;
 
 import com.travel.insurance.common.domain.BaseEntity;
+import com.travel.insurance.visitor.VisitorStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,4 +33,8 @@ public class VisitorBenefit extends BaseEntity {
 
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal limitAmount;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private VisitorStatus status = VisitorStatus.PENDING;
 }

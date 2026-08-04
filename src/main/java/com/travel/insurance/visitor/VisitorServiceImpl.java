@@ -4,6 +4,7 @@ import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
+import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -74,7 +75,7 @@ public class VisitorServiceImpl implements VisitorService {
                     "Visitor already exists with passport number: " + request.passportNumber());
         }
         visitorMapper.updateEntity(visitor, request);
-        return visitorMapper.toResponse(visitorRepository.save(visitor));
+        return visitorMapper.toResponse(visitor);
     }
 
     @Override
@@ -87,5 +88,26 @@ public class VisitorServiceImpl implements VisitorService {
     public Visitor getEntityById(UUID id) {
         return visitorRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Visitor", id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Visitor getEntityByPassportNumber(String passportNumber) {
+        return visitorRepository.findByPassportNumberIgnoreCase(passportNumber)
+                .orElseThrow(() -> new ResourceNotFoundException("Visitor", passportNumber));
+    }
+
+    @Override
+    public VisitorResponse updateVisitorStatus(UUID id, VisitorStatusUpdate visitorStatusUpdate) {
+        Visitor visitor = getEntityById(id);
+        VisitorStatus current = visitor.getVisitorStatus();
+        VisitorStatus target = visitorStatusUpdate.visitorStatus();
+        if (!current.canTransitionTo(target)) {
+            throw new IllegalStateException(
+                    "Cannot change visitor status from " + current + " to " + target);
+        }
+        visitor.setVisitorStatus(target);
+        eventPublisher.publishEvent(new VisitorStatusChangedEvent(visitor.getId(), target));
+        return visitorMapper.toResponse(visitor);
     }
 }

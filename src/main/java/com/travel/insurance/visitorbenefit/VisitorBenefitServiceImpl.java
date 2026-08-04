@@ -32,14 +32,15 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
 
     @Override
     public VisitorBenefitResponse create(VisitorBenefitRequest request) {
-        Benefit benefit = validateAssignment(request);
+        Visitor visitor = visitorService.getEntityById(request.visitorId());
+        Benefit benefit = validateAssignment(visitor, request);
         if (visitorBenefitRepository.existsByVisitorIdAndBenefitId(
                 request.visitorId(), request.benefitId())) {
             throw new IllegalStateException(
                     "Benefit already assigned to this visitor: " + request.benefitId());
         }
         VisitorBenefit visitorBenefit = new VisitorBenefit();
-        applyRequest(visitorBenefit, request, benefit);
+        applyRequest(visitorBenefit, request, benefit, visitor);
         return visitorBenefitMapper.toResponse(
                 visitorBenefitRepository.save(visitorBenefit), benefit.getName());
     }
@@ -68,15 +69,15 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
     @Override
     public VisitorBenefitResponse update(UUID id, VisitorBenefitRequest request) {
         VisitorBenefit visitorBenefit = getEntityById(id);
-        Benefit benefit = validateAssignment(request);
+        Visitor visitor = visitorService.getEntityById(request.visitorId());
+        Benefit benefit = validateAssignment(visitor, request);
         if (visitorBenefitRepository.existsByVisitorIdAndBenefitIdAndIdNot(
                 request.visitorId(), request.benefitId(), id)) {
             throw new IllegalStateException(
                     "Benefit already assigned to this visitor: " + request.benefitId());
         }
-        applyRequest(visitorBenefit, request, benefit);
-        return visitorBenefitMapper.toResponse(
-                visitorBenefitRepository.save(visitorBenefit), benefit.getName());
+        applyRequest(visitorBenefit, request, benefit, visitor);
+        return visitorBenefitMapper.toResponse(visitorBenefit, benefit.getName());
     }
 
     @Override
@@ -102,8 +103,7 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
                 .toList();
     }
 
-    private Benefit validateAssignment(VisitorBenefitRequest request) {
-        Visitor visitor = visitorService.getEntityById(request.visitorId());
+    private Benefit validateAssignment(Visitor visitor, VisitorBenefitRequest request) {
         Benefit benefit = benefitService.getEntityById(request.benefitId());
         if (!benefit.getPolicyId().equals(visitor.getPolicyId())) {
             throw new IllegalStateException(
@@ -113,10 +113,11 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
     }
 
     private void applyRequest(VisitorBenefit visitorBenefit, VisitorBenefitRequest request,
-                              Benefit benefit) {
+                              Benefit benefit, Visitor visitor) {
         visitorBenefit.setVisitorId(request.visitorId());
         visitorBenefit.setBenefitId(request.benefitId());
         visitorBenefit.setLimitAmount(
                 request.limitAmount() != null ? request.limitAmount() : benefit.getLimitAmount());
+        visitorBenefit.setStatus(visitor.getVisitorStatus());
     }
 }

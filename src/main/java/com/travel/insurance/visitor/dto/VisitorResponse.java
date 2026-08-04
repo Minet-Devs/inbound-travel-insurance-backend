@@ -2,6 +2,7 @@ package com.travel.insurance.visitor.dto;
 
 import com.travel.insurance.visitor.Gender;
 import com.travel.insurance.visitor.MaritalStatus;
+import com.travel.insurance.visitor.VisitorStatus;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -20,6 +21,7 @@ public record VisitorResponse(
         LocalDate dateIn,
         LocalDate dateOut,
         MaritalStatus maritalStatus,
+        VisitorStatus visitorStatus,
         String nextOfKinName,
         String nextOfKinPhone,
         Instant createdDate,

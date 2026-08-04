@@ -3,6 +3,7 @@ package com.travel.insurance.visitor;
 import com.travel.insurance.visitor.dto.VisitorDetailResponse;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
+import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
 import com.travel.insurance.visitorbenefit.VisitorBenefitService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -63,6 +65,12 @@ public class VisitorController {
     public ResponseEntity<VisitorResponse> update(@PathVariable UUID id,
                                                   @Valid @RequestBody VisitorRequest request) {
         return ResponseEntity.ok(visitorService.update(id, request));
+    }
+
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<VisitorResponse> updateVisitorStatus(@PathVariable UUID id,
+                                                  @Valid @RequestBody VisitorStatusUpdate visitorStatusUpdate) {
+        return ResponseEntity.ok(visitorService.updateVisitorStatus(id, visitorStatusUpdate));
     }
 
     @DeleteMapping("/{id}")

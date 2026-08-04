@@ -13,6 +13,7 @@ public class VisitorBenefitMapper {
                 visitorBenefit.getBenefitId(),
                 benefitName,
                 visitorBenefit.getLimitAmount(),
+                visitorBenefit.getStatus(),
                 visitorBenefit.getCreatedDate(),
                 visitorBenefit.getUpdatedDate()
         );
