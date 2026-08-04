@@ -31,6 +31,14 @@ app:
     secret: ${JWT_SECRET}
     access-token-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:900}
     refresh-token-ttl-seconds: ${JWT_REFRESH_TTL_SECONDS:604800}
+  ekyc:
+    client-id: ${EKYC_CLIENT_ID:}
+    client-secret: ${EKYC_CLIENT_SECRET:}
+    access-token-url: ${EKYC_ACCESS_TOKEN_URL:https://dev.hakika.ecs.africa/api/v2/auth/access-token}
+    verification-url: ${EKYC_VERIFICATION_URL:https://dev.hakika.ecs.africa/api/v3/requests/embeded}
+    callback-resend-url: ${EKYC_CALLBACK_RESEND_URL:https://dev.hakika.ecs.africa/api/v3/requests/callback/resend}
+    notification-callback-url: ${EKYC_NOTIFICATION_CALLBACK_URL:}
+    callback-allowed-ips: ${EKYC_CALLBACK_ALLOWED_IPS:167.71.142.137,167.71.128.93}
 
 springdoc:
   swagger-ui:
