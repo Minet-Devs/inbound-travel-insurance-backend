@@ -227,6 +227,12 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
   controller-level composition used for `PolicyDetailResponse`, which
   keeps service dependencies acyclic). The paged list and create/update
   endpoints return plain `VisitorResponse` rows without benefits.
+- A visitor carries a `VisitorStatus` with guarded transitions
+  (`canTransitionTo`). It is updated via
+  `PATCH /api/v1/visitors/{id}/status` or
+  `PATCH /api/v1/visitors/by-passport/status?passportNumber=…`, both taking a
+  `VisitorStatusUpdate` body; an allowed transition publishes a
+  `VisitorStatusChangedEvent`, an invalid one is rejected with `409 Conflict`.
 - Creating a visitor **auto-assigns the policy's benefits**: `VisitorServiceImpl`
   publishes an in-process `VisitorCreatedEvent` (Spring `ApplicationEventPublisher`,
   synchronous — it runs inside the same transaction as the visitor insert), and

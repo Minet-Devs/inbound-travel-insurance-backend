@@ -99,7 +99,16 @@ public class VisitorServiceImpl implements VisitorService {
 
     @Override
     public VisitorResponse updateVisitorStatus(UUID id, VisitorStatusUpdate visitorStatusUpdate) {
-        Visitor visitor = getEntityById(id);
+        return applyStatusUpdate(getEntityById(id), visitorStatusUpdate);
+    }
+
+    @Override
+    public VisitorResponse updateVisitorStatusByPassportNumber(String passportNumber,
+                                                               VisitorStatusUpdate visitorStatusUpdate) {
+        return applyStatusUpdate(getEntityByPassportNumber(passportNumber), visitorStatusUpdate);
+    }
+
+    private VisitorResponse applyStatusUpdate(Visitor visitor, VisitorStatusUpdate visitorStatusUpdate) {
         VisitorStatus current = visitor.getVisitorStatus();
         VisitorStatus target = visitorStatusUpdate.visitorStatus();
         if (!current.canTransitionTo(target)) {

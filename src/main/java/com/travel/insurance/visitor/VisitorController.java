@@ -73,6 +73,14 @@ public class VisitorController {
         return ResponseEntity.ok(visitorService.updateVisitorStatus(id, visitorStatusUpdate));
     }
 
+    @PatchMapping("/by-passport/status")
+    public ResponseEntity<VisitorResponse> updateVisitorStatusByPassportNumber(
+            @RequestParam String passportNumber,
+            @Valid @RequestBody VisitorStatusUpdate visitorStatusUpdate) {
+        return ResponseEntity.ok(
+                visitorService.updateVisitorStatusByPassportNumber(passportNumber, visitorStatusUpdate));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         visitorService.delete(id);

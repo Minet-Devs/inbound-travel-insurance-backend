@@ -30,4 +30,7 @@ public interface VisitorService {
     Visitor getEntityByPassportNumber(String passportNumber);
 
     VisitorResponse updateVisitorStatus(UUID id, VisitorStatusUpdate visitorStatusUpdate);
+
+    VisitorResponse updateVisitorStatusByPassportNumber(String passportNumber,
+                                                        VisitorStatusUpdate visitorStatusUpdate);
 }

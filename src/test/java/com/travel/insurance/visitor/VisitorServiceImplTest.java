@@ -211,6 +211,49 @@ class VisitorServiceImplTest {
     }
 
     @Test
+    void updateVisitorStatusByPassportNumberAppliesAllowedTransitionAndPublishesEvent() {
+        Visitor existing = visitorMapper.toEntity(request);
+        when(visitorRepository.findByPassportNumberIgnoreCase("P1234567"))
+                .thenReturn(Optional.of(existing));
+
+        visitorService.updateVisitorStatusByPassportNumber(
+                "P1234567", new VisitorStatusUpdate(VisitorStatus.ACTIVE));
+
+        assertThat(existing.getVisitorStatus()).isEqualTo(VisitorStatus.ACTIVE);
+        ArgumentCaptor<VisitorStatusChangedEvent> captor =
+                ArgumentCaptor.forClass(VisitorStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().newStatus()).isEqualTo(VisitorStatus.ACTIVE);
+    }
+
+    @Test
+    void updateVisitorStatusByPassportNumberRejectsInvalidTransition() {
+        Visitor existing = visitorMapper.toEntity(request);
+        existing.setVisitorStatus(VisitorStatus.DEACTIVATED);
+        when(visitorRepository.findByPassportNumberIgnoreCase("P1234567"))
+                .thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> visitorService.updateVisitorStatusByPassportNumber(
+                "P1234567", new VisitorStatusUpdate(VisitorStatus.ACTIVE)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("DEACTIVATED")
+                .hasMessageContaining("ACTIVE");
+        assertThat(existing.getVisitorStatus()).isEqualTo(VisitorStatus.DEACTIVATED);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void updateVisitorStatusByPassportNumberThrowsWhenVisitorUnknown() {
+        when(visitorRepository.findByPassportNumberIgnoreCase("UNKNOWN"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> visitorService.updateVisitorStatusByPassportNumber(
+                "UNKNOWN", new VisitorStatusUpdate(VisitorStatus.ACTIVE)))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
     void updateVisitorStatusThrowsWhenVisitorUnknown() {
         UUID id = UUID.randomUUID();
         when(visitorRepository.findById(id)).thenReturn(Optional.empty());

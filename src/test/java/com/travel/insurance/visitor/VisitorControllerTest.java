@@ -2,12 +2,14 @@ package com.travel.insurance.visitor;
 
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.visitor.dto.VisitorResponse;
+import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
 import com.travel.insurance.visitorbenefit.VisitorBenefitService;
 import com.travel.insurance.visitorbenefit.dto.VisitorBenefitResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -17,8 +19,12 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -98,6 +104,22 @@ class VisitorControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].policyId").value(policyId.toString()))
                 .andExpect(jsonPath("$[0].visitorBenefits[0].benefitName").value("Inpatient Cover"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void updateStatusByPassportNumberReturnsUpdatedVisitor() throws Exception {
+        when(visitorService.updateVisitorStatusByPassportNumber(
+                eq("P1234567"), any(VisitorStatusUpdate.class)))
+                .thenReturn(sampleVisitor());
+
+        mockMvc.perform(patch("/api/v1/visitors/by-passport/status")
+                        .with(csrf())
+                        .param("passportNumber", "P1234567")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visitorStatus\":\"ACTIVE\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.passportNumber").value("P1234567"));
     }
 
     @Test
