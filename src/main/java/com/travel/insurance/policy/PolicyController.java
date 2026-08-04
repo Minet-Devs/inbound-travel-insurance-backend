@@ -41,8 +41,9 @@ public class PolicyController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<PolicyResponse>> list(Pageable pageable) {
-        return ResponseEntity.ok(policyService.list(pageable));
+    public ResponseEntity<Page<PolicyDetailResponse>> list(Pageable pageable) {
+        return ResponseEntity.ok(policyService.list(pageable).map(policy ->
+                PolicyDetailResponse.of(policy, benefitService.listAllByPolicy(policy.id()))));
     }
 
     @PutMapping("/{id}")

@@ -207,9 +207,10 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
 
 - A **Policy** is the insurance contract. It references a set of backing
   insurers (`insurerIds`) and carries cover dates and a status. It holds no
-  treatment-level detail. `GET /api/v1/policies/{id}` returns a
-  `PolicyDetailResponse` that embeds the policy's benefits; the paged list
-  endpoint returns plain `PolicyResponse` rows without them.
+  treatment-level detail. `GET /api/v1/policies/{id}` and the paged
+  `GET /api/v1/policies` list both return `PolicyDetailResponse` rows that
+  embed the policy's benefits; create/update return plain `PolicyResponse`
+  rows without them.
 - **Benefit** rows belong to a policy and carry a `limitAmount`. Consumption
   is not tracked against the limit.
 - A **Visitor** is an insured traveler behind a policy. It carries a
