@@ -1,24 +1,4 @@
 services:
-  app:
-    build: .
-    image: prism-backend:latest
-    container_name: prism-backend-app
-    ports:
-      - "8081:8081"
-    env_file:
-      - local.env
-    environment:
-      # In-network endpoints; override the host-oriented values in local.env
-      DB_URL: jdbc:postgresql://postgres:5432/travel_insurance
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    restart: unless-stopped
-
   postgres:
     image: postgres:16-alpine
     container_name: travel-insurance-postgres
