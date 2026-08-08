@@ -17,16 +17,17 @@ implementation detail below turns out to need a different shape).
       `V012__add_policy_type_to_policies.sql`), non-nullable.
 - [x] Add `PolicyRequest.policyType` (required, `@NotNull`) and surface it on
       `PolicyResponse` / `PolicyDetailResponse`.
-- [x] In `PolicyServiceImpl`, validate on create/update that
-      `coverEndDate - coverStartDate` falls within the selected
-      `policyType`'s allowed day range (inclusive day count); reject
-      out-of-range combinations with `IllegalArgumentException` (→ 400).
-- [x] Unit tests in `PolicyServiceImplTest` for: each `policyType`'s valid
-      boundary (min/max days), and a rejected out-of-range combination.
 - [x] `@WebMvcTest` cases in `PolicyControllerTest` for create with a
-      `policyType`, the 400 response when dates don't fit the type, and the
-      400 when `policyType` is missing. Full suite verified green
-      (`mvn test`, exit 0).
+      `policyType` and the 400 when `policyType` is missing.
+- **Revised**: `Policy.coverStartDate`/`coverEndDate` were removed entirely
+      (`V015__drop_policy_cover_dates.sql`) — a policy covers many visitors,
+      each with their own travel dates, so a fixed range didn't belong at the
+      policy level. The day-range validation against `policyType` moved to
+      `VisitorServiceImpl` (`dateIn`/`dateOut`), see task 3's follow-up notes.
+      Verified the full migration chain (V001→V015) and the original
+      duplicate-benefit failure scenario against a real Postgres 16
+      container, not just `mvn test` (Flyway is disabled in the test
+      profile).
 
 ## 2. Benefit: fixed catalog with mandated minimums — done
 
@@ -105,6 +106,14 @@ implementation detail below turns out to need a different shape).
       `facePhotoUrl` round-trip) and `createRejectsMissingRequiredKycFields`
       (blank `address`/`reasonForTravel`/`facePhotoUrl` → 400 "Validation
       failed"). Full suite green (`mvn test`: 102 tests, 0 failures).
+- **Follow-up** (after task 1 was revised — see its notes): the
+      `PolicyType` day-range validation moved here from `PolicyServiceImpl`,
+      since `dateIn`/`dateOut` is the actual per-traveler cover period.
+      `VisitorServiceImpl.create`/`update` fetch the visitor's `Policy` and
+      reject (`IllegalArgumentException` → 400) when `dateOut` precedes
+      `dateIn`, or when the day span falls outside the policy's `PolicyType`
+      range. Covered in `VisitorServiceImplTest` (boundary + rejection cases
+      for all three `PolicyType`s, plus the reversed-dates case).
 
 ## 4. Documentation
 

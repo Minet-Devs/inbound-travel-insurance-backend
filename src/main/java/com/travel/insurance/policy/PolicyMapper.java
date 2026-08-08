@@ -18,8 +18,6 @@ public class PolicyMapper {
         policy.getInsurerIds().clear();
         policy.getInsurerIds().addAll(request.insurerIds());
         policy.setPolicyType(request.policyType());
-        policy.setCoverStartDate(request.coverStartDate());
-        policy.setCoverEndDate(request.coverEndDate());
         policy.setStatus(request.status() != null ? request.status() : PolicyStatus.DRAFT);
     }
 
@@ -29,8 +27,6 @@ public class PolicyMapper {
                 policy.getPolicyNumber(),
                 policy.getInsurerIds(),
                 policy.getPolicyType(),
-                policy.getCoverStartDate(),
-                policy.getCoverEndDate(),
                 policy.getStatus(),
                 policy.getCreatedDate(),
                 policy.getUpdatedDate()

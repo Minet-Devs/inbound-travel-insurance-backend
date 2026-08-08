@@ -3,6 +3,7 @@ package com.travel.insurance.visitor;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.policy.PolicyType;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
@@ -69,9 +70,15 @@ class VisitorServiceImplTest {
                 "+254711111111");
     }
 
+    private Policy policyOfType(PolicyType policyType) {
+        Policy policy = new Policy();
+        policy.setPolicyType(policyType);
+        return policy;
+    }
+
     @Test
     void createSavesWhenPolicyFreeAndPassportUnique() {
-        when(policyService.getEntityById(policyId)).thenReturn(new Policy());
+        when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
         when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -85,7 +92,7 @@ class VisitorServiceImplTest {
 
     @Test
     void createAllowsSecondVisitorOnSamePolicy() {
-        when(policyService.getEntityById(policyId)).thenReturn(new Policy());
+        when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
         when(visitorRepository.existsByPassportNumberIgnoreCase("P7654321")).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -116,12 +123,81 @@ class VisitorServiceImplTest {
 
     @Test
     void createRejectsDuplicatePassportNumber() {
-        when(policyService.getEntityById(policyId)).thenReturn(new Policy());
+        when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
         when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(true);
 
         assertThatThrownBy(() -> visitorService.create(request))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("P1234567");
+        verify(visitorRepository, never()).save(any());
+    }
+
+    private VisitorRequest requestWithTravelPeriod(LocalDate dateIn, LocalDate dateOut) {
+        return new VisitorRequest(
+                policyId, "Jane Traveler", "P1234567", LocalDate.of(1990, 5, 12), Gender.FEMALE,
+                "Germany", "12 Example Street, Berlin", "jane.traveler@example.com", "+254700000000",
+                dateIn, dateOut, MaritalStatus.SINGLE, "Tourism",
+                "https://storage.example.com/photos/jane.jpg", null, "John Traveler", "+254711111111");
+    }
+
+    @Test
+    void createRejectsDateOutBeforeDateIn() {
+        when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
+
+        VisitorRequest reversed = requestWithTravelPeriod(LocalDate.of(2026, 8, 10), LocalDate.of(2026, 8, 1));
+
+        assertThatThrownBy(() -> visitorService.create(reversed))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(visitorRepository, never()).save(any());
+    }
+
+    @Test
+    void createAcceptsShortestBoundaryForSingleEntryUpTo30Days() {
+        when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS));
+        when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(false);
+        when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        VisitorRequest thirtyDays = requestWithTravelPeriod(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 30));
+
+        VisitorResponse response = visitorService.create(thirtyDays);
+
+        assertThat(response.dateIn()).isEqualTo(LocalDate.of(2026, 1, 1));
+        verify(visitorRepository).save(any(Visitor.class));
+    }
+
+    @Test
+    void createRejectsTravelPeriodExceedingSingleEntryUpTo30Days() {
+        when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS));
+
+        VisitorRequest thirtyOneDays = requestWithTravelPeriod(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31));
+
+        assertThatThrownBy(() -> visitorService.create(thirtyOneDays))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SINGLE_ENTRY_UP_TO_30_DAYS");
+        verify(visitorRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsTravelPeriodBelowSingleEntry31To60DaysMinimum() {
+        when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.SINGLE_ENTRY_31_TO_60_DAYS));
+
+        VisitorRequest fifteenDays = requestWithTravelPeriod(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 15));
+
+        assertThatThrownBy(() -> visitorService.create(fifteenDays))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("SINGLE_ENTRY_31_TO_60_DAYS");
+        verify(visitorRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsTravelPeriodBelowIpmiMinimum() {
+        when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
+
+        VisitorRequest thirtyTwoDays = requestWithTravelPeriod(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 2, 1));
+
+        assertThatThrownBy(() -> visitorService.create(thirtyTwoDays))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("IPMI_61_DAYS_TO_12_MONTHS");
         verify(visitorRepository, never()).save(any());
     }
 
@@ -153,7 +229,7 @@ class VisitorServiceImplTest {
         UUID id = UUID.randomUUID();
         Visitor existing = visitorMapper.toEntity(request);
         when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
-        when(policyService.getEntityById(policyId)).thenReturn(new Policy());
+        when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
         when(visitorRepository.existsByPassportNumberIgnoreCaseAndIdNot("P1234567", id)).thenReturn(true);
 
         assertThatThrownBy(() -> visitorService.update(id, request))
@@ -167,7 +243,7 @@ class VisitorServiceImplTest {
         UUID id = UUID.randomUUID();
         Visitor existing = visitorMapper.toEntity(request);
         when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
-        when(policyService.getEntityById(policyId)).thenReturn(new Policy());
+        when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
         when(visitorRepository.existsByPassportNumberIgnoreCaseAndIdNot("P1234567", id)).thenReturn(false);
 
         VisitorResponse response = visitorService.update(id, request);

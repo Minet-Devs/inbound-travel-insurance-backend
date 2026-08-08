@@ -3,7 +3,7 @@ package com.travel.insurance.policy;
 /**
  * The three cover periods mandated by the Ministry of Health's Mandatory
  * Inbound Travel Health Insurance framework (min/max are inclusive day counts
- * between coverStartDate and coverEndDate).
+ * for a visitor's travel period, between {@code dateIn} and {@code dateOut}).
  */
 public enum PolicyType {
     SINGLE_ENTRY_UP_TO_30_DAYS(1, 30),

@@ -113,7 +113,7 @@ com.travel.insurance/
 │   ├── PolicyService.java                  # Interface
 │   ├── PolicyServiceImpl.java
 │   ├── PolicyRepository.java
-│   ├── Policy.java                         # insurerIds (set), policyType, cover dates
+│   ├── Policy.java                         # insurerIds (set), policyType
 │   ├── PolicyStatus.java                   # Enum: DRAFT, ACTIVE, EXPIRED, CANCELLED
 │   ├── PolicyType.java                     # Enum: SINGLE_ENTRY_UP_TO_30_DAYS,
 │   │                                       #       SINGLE_ENTRY_31_TO_60_DAYS,
@@ -229,17 +229,18 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
 ```
 
 - A **Policy** is the insurance contract. It references a set of backing
-  insurers (`insurerIds`) and carries a `policyType`, cover dates, and a
-  status. `policyType` is one of the three cover periods mandated by the
-  Ministry of Health's Mandatory Inbound Travel Health Insurance framework
-  (`PolicyType`: `SINGLE_ENTRY_UP_TO_30_DAYS`, `SINGLE_ENTRY_31_TO_60_DAYS`,
-  `IPMI_61_DAYS_TO_12_MONTHS`) and constrains the allowed span between
-  `coverStartDate` and `coverEndDate` — `PolicyServiceImpl` rejects a
-  create/update where the requested dates fall outside the selected type's
-  range. A policy holds no treatment-level detail. `GET /api/v1/policies/{id}`
-  and the paged `GET /api/v1/policies` list both return `PolicyDetailResponse`
-  rows that embed the policy's benefits; create/update return plain
-  `PolicyResponse` rows without them.
+  insurers (`insurerIds`) and carries a `policyType` and a status, but no
+  cover dates of its own — one policy covers many visitors, each entering
+  and leaving on their own schedule, so a fixed date range doesn't belong at
+  the policy level. `policyType` is one of the three cover periods mandated
+  by the Ministry of Health's Mandatory Inbound Travel Health Insurance
+  framework (`PolicyType`: `SINGLE_ENTRY_UP_TO_30_DAYS`,
+  `SINGLE_ENTRY_31_TO_60_DAYS`, `IPMI_61_DAYS_TO_12_MONTHS`), each carrying a
+  min/max day range; it's enforced per visitor instead (see below). A policy
+  holds no treatment-level detail. `GET /api/v1/policies/{id}` and the paged
+  `GET /api/v1/policies` list both return `PolicyDetailResponse` rows that
+  embed the policy's benefits; create/update return plain `PolicyResponse`
+  rows without them.
 - **Benefit** rows belong to a policy and reference a fixed `benefitType`
   (`BenefitType`) rather than a free-text name — the six insured events
   mandated by the framework (personal accident, emergency medical expenses,
@@ -268,7 +269,11 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
   (`underlyingConditions`, nullable), a face photo upload (`facePhotoUrl`),
   and next of kin (name + phone) — aligned with the e-portal ("Kenya Cares")
   onboarding data set required by the framework. `Gender` and `MaritalStatus`
-  are string-mapped enums.
+  are string-mapped enums. `dateIn`/`dateOut` is where the mandated cover
+  period actually gets enforced: `VisitorServiceImpl` fetches the visitor's
+  policy and rejects a create/update where `dateOut` is before `dateIn`, or
+  where the day span between them falls outside the policy's `PolicyType`
+  range — `IllegalArgumentException` (→ 400) either way.
   `GET /api/v1/visitors/{id}` and
   `GET /api/v1/visitors/by-passport?passportNumber=…` return a
   `VisitorDetailResponse` that embeds the visitor's assigned benefits

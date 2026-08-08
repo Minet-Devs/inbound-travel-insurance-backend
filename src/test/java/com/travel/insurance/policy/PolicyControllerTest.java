@@ -19,7 +19,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -55,8 +54,7 @@ class PolicyControllerTest {
 
     private PolicyResponse samplePolicy() {
         return new PolicyResponse(policyId, "POL-001", Set.of(UUID.randomUUID()),
-                PolicyType.IPMI_61_DAYS_TO_12_MONTHS, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
-                PolicyStatus.ACTIVE, Instant.now(), Instant.now());
+                PolicyType.IPMI_61_DAYS_TO_12_MONTHS, PolicyStatus.ACTIVE, Instant.now(), Instant.now());
     }
 
     private BenefitResponse sampleBenefit() {
@@ -107,7 +105,7 @@ class PolicyControllerTest {
         when(policyService.create(any(PolicyRequest.class))).thenReturn(samplePolicy());
 
         PolicyRequest request = new PolicyRequest("POL-001", Set.of(UUID.randomUUID()),
-                PolicyType.IPMI_61_DAYS_TO_12_MONTHS, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1), null);
+                PolicyType.IPMI_61_DAYS_TO_12_MONTHS, null);
 
         mockMvc.perform(post("/api/v1/policies")
                         .with(csrf())
@@ -119,27 +117,8 @@ class PolicyControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    void createRejectsCoverPeriodOutsidePolicyType() throws Exception {
-        when(policyService.create(any(PolicyRequest.class)))
-                .thenThrow(new IllegalArgumentException(
-                        "Cover period of 90 day(s) is not valid for policy type SINGLE_ENTRY_UP_TO_30_DAYS "
-                                + "(must be between 1 and 30 days)"));
-
-        PolicyRequest request = new PolicyRequest("POL-001", Set.of(UUID.randomUUID()),
-                PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1), null);
-
-        mockMvc.perform(post("/api/v1/policies")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    @WithMockUser(roles = "ADMIN")
     void createRejectsMissingPolicyType() throws Exception {
-        PolicyRequest request = new PolicyRequest("POL-001", Set.of(UUID.randomUUID()),
-                null, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1), null);
+        PolicyRequest request = new PolicyRequest("POL-001", Set.of(UUID.randomUUID()), null, null);
 
         mockMvc.perform(post("/api/v1/policies")
                         .with(csrf())

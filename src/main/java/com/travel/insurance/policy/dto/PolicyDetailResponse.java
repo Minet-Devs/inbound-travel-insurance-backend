@@ -5,7 +5,6 @@ import com.travel.insurance.policy.PolicyStatus;
 import com.travel.insurance.policy.PolicyType;
 
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -15,8 +14,6 @@ public record PolicyDetailResponse(
         String policyNumber,
         Set<UUID> insurerIds,
         PolicyType policyType,
-        LocalDate coverStartDate,
-        LocalDate coverEndDate,
         PolicyStatus status,
         List<BenefitResponse> benefits,
         Instant createdDate,
@@ -29,8 +26,6 @@ public record PolicyDetailResponse(
                 policy.policyNumber(),
                 policy.insurerIds(),
                 policy.policyType(),
-                policy.coverStartDate(),
-                policy.coverEndDate(),
                 policy.status(),
                 benefits,
                 policy.createdDate(),

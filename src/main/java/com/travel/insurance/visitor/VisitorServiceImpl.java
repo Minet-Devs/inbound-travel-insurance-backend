@@ -1,7 +1,9 @@
 package com.travel.insurance.visitor;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.policy.PolicyType;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
@@ -12,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -27,7 +30,8 @@ public class VisitorServiceImpl implements VisitorService {
 
     @Override
     public VisitorResponse create(VisitorRequest request) {
-        policyService.getEntityById(request.policyId());
+        Policy policy = policyService.getEntityById(request.policyId());
+        validateCoverPeriod(policy, request);
         if (visitorRepository.existsByPassportNumberIgnoreCase(request.passportNumber())) {
             throw new IllegalStateException(
                     "Visitor already exists with passport number: " + request.passportNumber());
@@ -69,7 +73,8 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     public VisitorResponse update(UUID id, VisitorRequest request) {
         Visitor visitor = getEntityById(id);
-        policyService.getEntityById(request.policyId());
+        Policy policy = policyService.getEntityById(request.policyId());
+        validateCoverPeriod(policy, request);
         if (visitorRepository.existsByPassportNumberIgnoreCaseAndIdNot(request.passportNumber(), id)) {
             throw new IllegalStateException(
                     "Visitor already exists with passport number: " + request.passportNumber());
@@ -106,6 +111,19 @@ public class VisitorServiceImpl implements VisitorService {
     public VisitorResponse updateVisitorStatusByPassportNumber(String passportNumber,
                                                                VisitorStatusUpdate visitorStatusUpdate) {
         return applyStatusUpdate(getEntityByPassportNumber(passportNumber), visitorStatusUpdate);
+    }
+
+    private void validateCoverPeriod(Policy policy, VisitorRequest request) {
+        if (request.dateOut().isBefore(request.dateIn())) {
+            throw new IllegalArgumentException("Date out must not be before date in");
+        }
+        long days = ChronoUnit.DAYS.between(request.dateIn(), request.dateOut()) + 1;
+        PolicyType policyType = policy.getPolicyType();
+        if (!policyType.isValidDuration(days)) {
+            throw new IllegalArgumentException(
+                    "Travel period of %d day(s) is not valid for policy type %s (must be between %d and %d days)"
+                            .formatted(days, policyType, policyType.getMinDays(), policyType.getMaxDays()));
+        }
     }
 
     private VisitorResponse applyStatusUpdate(Visitor visitor, VisitorStatusUpdate visitorStatusUpdate) {

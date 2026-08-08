@@ -12,7 +12,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
-import java.time.LocalDate;
 import java.util.Set;
 import java.util.UUID;
 
@@ -49,20 +48,31 @@ class PolicyServiceImplTest {
     void setUp() {
         policyService = new PolicyServiceImpl(
                 policyRepository, policyMapper, insurerService, eventPublisher, applicationEventPublisher);
-        when(insurerService.exists(insurerId)).thenReturn(true);
     }
 
-    private PolicyRequest requestWithPeriod(PolicyType policyType, LocalDate start, LocalDate end) {
-        return new PolicyRequest("POL-001", Set.of(insurerId), policyType, start, end, null);
+    private PolicyRequest requestWithType(PolicyType policyType, PolicyStatus status) {
+        return new PolicyRequest("POL-001", Set.of(insurerId), policyType, status);
     }
 
     @Test
-    void createAcceptsShortestBoundaryForSingleEntryUpTo30Days() {
+    void createRejectsUnknownInsurer() {
+        when(insurerService.exists(insurerId)).thenReturn(false);
+
+        PolicyRequest request = requestWithType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS, null);
+
+        assertThatThrownBy(() -> policyService.create(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining(insurerId.toString());
+        verify(policyRepository, never()).save(any());
+    }
+
+    @Test
+    void createSavesPolicyWithPolicyType() {
+        when(insurerService.exists(insurerId)).thenReturn(true);
         when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
         when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        PolicyRequest request = requestWithPeriod(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 30));
+        PolicyRequest request = requestWithType(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS, null);
 
         PolicyResponse response = policyService.create(request);
 
@@ -71,66 +81,8 @@ class PolicyServiceImplTest {
     }
 
     @Test
-    void createRejectsCoverPeriodExceedingSingleEntryUpTo30Days() {
-        PolicyRequest request = requestWithPeriod(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 2, 1));
-
-        assertThatThrownBy(() -> policyService.create(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("SINGLE_ENTRY_UP_TO_30_DAYS");
-        verify(policyRepository, never()).save(any());
-    }
-
-    @Test
-    void createAcceptsBoundariesForSingleEntry31To60Days() {
-        when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
-        when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        PolicyRequest request = requestWithPeriod(PolicyType.SINGLE_ENTRY_31_TO_60_DAYS,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 3, 1));
-
-        PolicyResponse response = policyService.create(request);
-
-        assertThat(response.policyType()).isEqualTo(PolicyType.SINGLE_ENTRY_31_TO_60_DAYS);
-    }
-
-    @Test
-    void createRejectsCoverPeriodBelowSingleEntry31To60DaysMinimum() {
-        PolicyRequest request = requestWithPeriod(PolicyType.SINGLE_ENTRY_31_TO_60_DAYS,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 15));
-
-        assertThatThrownBy(() -> policyService.create(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("SINGLE_ENTRY_31_TO_60_DAYS");
-        verify(policyRepository, never()).save(any());
-    }
-
-    @Test
-    void createAcceptsIpmiUpTo12Months() {
-        when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
-        when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        PolicyRequest request = requestWithPeriod(PolicyType.IPMI_61_DAYS_TO_12_MONTHS,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31));
-
-        PolicyResponse response = policyService.create(request);
-
-        assertThat(response.policyType()).isEqualTo(PolicyType.IPMI_61_DAYS_TO_12_MONTHS);
-    }
-
-    @Test
-    void createRejectsCoverPeriodBelowIpmiMinimum() {
-        PolicyRequest request = requestWithPeriod(PolicyType.IPMI_61_DAYS_TO_12_MONTHS,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 2, 1));
-
-        assertThatThrownBy(() -> policyService.create(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("IPMI_61_DAYS_TO_12_MONTHS");
-        verify(policyRepository, never()).save(any());
-    }
-
-    @Test
     void createPublishesActivationEventWhenStatusIsActive() {
+        when(insurerService.exists(insurerId)).thenReturn(true);
         when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
         when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> {
             Policy saved = invocation.getArgument(0);
@@ -138,9 +90,7 @@ class PolicyServiceImplTest {
             return saved;
         });
 
-        PolicyRequest request = new PolicyRequest("POL-001", Set.of(insurerId),
-                PolicyType.IPMI_61_DAYS_TO_12_MONTHS, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31),
-                PolicyStatus.ACTIVE);
+        PolicyRequest request = requestWithType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS, PolicyStatus.ACTIVE);
 
         policyService.create(request);
 
@@ -151,11 +101,11 @@ class PolicyServiceImplTest {
 
     @Test
     void createDoesNotPublishActivationEventWhenStatusIsDraft() {
+        when(insurerService.exists(insurerId)).thenReturn(true);
         when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
         when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        PolicyRequest request = requestWithPeriod(PolicyType.IPMI_61_DAYS_TO_12_MONTHS,
-                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31));
+        PolicyRequest request = requestWithType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS, null);
 
         policyService.create(request);
 
@@ -164,6 +114,7 @@ class PolicyServiceImplTest {
 
     @Test
     void createRollsBackWhenActivationGateRejectsThePolicy() {
+        when(insurerService.exists(insurerId)).thenReturn(true);
         when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
         when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> {
             Policy saved = invocation.getArgument(0);
@@ -173,9 +124,7 @@ class PolicyServiceImplTest {
         doThrow(new IllegalStateException("Policy cannot be activated: missing benefits"))
                 .when(applicationEventPublisher).publishEvent(any(PolicyActivatingEvent.class));
 
-        PolicyRequest request = new PolicyRequest("POL-001", Set.of(insurerId),
-                PolicyType.IPMI_61_DAYS_TO_12_MONTHS, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31),
-                PolicyStatus.ACTIVE);
+        PolicyRequest request = requestWithType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS, PolicyStatus.ACTIVE);
 
         assertThatThrownBy(() -> policyService.create(request))
                 .isInstanceOf(IllegalStateException.class)

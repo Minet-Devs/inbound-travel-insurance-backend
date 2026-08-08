@@ -16,7 +16,6 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
-import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -41,12 +40,6 @@ public class Policy extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PolicyType policyType;
-
-    @Column(nullable = false)
-    private LocalDate coverStartDate;
-
-    @Column(nullable = false)
-    private LocalDate coverEndDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

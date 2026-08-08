@@ -16,7 +16,6 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 
@@ -89,16 +88,6 @@ public class PolicyServiceImpl implements PolicyService {
             if (!insurerService.exists(insurerId)) {
                 throw new IllegalArgumentException("Unknown insurer: " + insurerId);
             }
-        }
-        if (request.coverEndDate().isBefore(request.coverStartDate())) {
-            throw new IllegalArgumentException("Cover end date must not be before cover start date");
-        }
-        long days = ChronoUnit.DAYS.between(request.coverStartDate(), request.coverEndDate()) + 1;
-        PolicyType policyType = request.policyType();
-        if (!policyType.isValidDuration(days)) {
-            throw new IllegalArgumentException(
-                    "Cover period of %d day(s) is not valid for policy type %s (must be between %d and %d days)"
-                            .formatted(days, policyType, policyType.getMinDays(), policyType.getMaxDays()));
         }
     }
 
