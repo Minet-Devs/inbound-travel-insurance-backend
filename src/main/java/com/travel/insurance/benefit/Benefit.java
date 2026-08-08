@@ -3,6 +3,8 @@ package com.travel.insurance.benefit;
 import com.travel.insurance.common.domain.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,8 +27,9 @@ public class Benefit extends BaseEntity {
     @Column(nullable = false)
     private UUID policyId;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String name;
+    private BenefitType benefitType;
 
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal limitAmount;

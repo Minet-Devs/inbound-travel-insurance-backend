@@ -17,11 +17,15 @@ public record VisitorRequest(
         @NotNull @Past LocalDate dateOfBirth,
         @NotNull Gender gender,
         @NotBlank String nationality,
+        @NotBlank String address,
         @NotBlank @Email String email,
         @NotBlank String phoneNumber,
         @NotNull LocalDate dateIn,
         @NotNull LocalDate dateOut,
         @NotNull MaritalStatus maritalStatus,
+        @NotBlank String reasonForTravel,
+        @NotBlank String facePhotoUrl,
+        String underlyingConditions,
         String nextOfKinName,
         String nextOfKinPhone
 ) {

@@ -1,6 +1,9 @@
 package com.travel.insurance.visitor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
+import com.travel.insurance.benefit.BenefitType;
+import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
 import com.travel.insurance.visitorbenefit.VisitorBenefitService;
@@ -25,6 +28,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -33,6 +37,9 @@ class VisitorControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @MockBean
     private VisitorService visitorService;
@@ -49,16 +56,26 @@ class VisitorControllerTest {
 
     private VisitorResponse sampleVisitor() {
         return new VisitorResponse(visitorId, policyId, "Jane Traveler", "P1234567",
-                LocalDate.of(1990, 5, 12), Gender.FEMALE, "Germany",
+                LocalDate.of(1990, 5, 12), Gender.FEMALE, "Germany", "12 Example Street, Berlin",
                 "jane.traveler@example.com", "+254700000000",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
-                MaritalStatus.SINGLE, VisitorStatus.PENDING, "John Traveler", "+254711111111",
+                MaritalStatus.SINGLE, "Tourism", "https://storage.example.com/photos/jane.jpg", null,
+                VisitorStatus.PENDING, "John Traveler", "+254711111111",
                 Instant.now(), Instant.now());
+    }
+
+    private VisitorRequest sampleRequest() {
+        return new VisitorRequest(policyId, "Jane Traveler", "P1234567",
+                LocalDate.of(1990, 5, 12), Gender.FEMALE, "Germany", "12 Example Street, Berlin",
+                "jane.traveler@example.com", "+254700000000",
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
+                MaritalStatus.SINGLE, "Tourism", "https://storage.example.com/photos/jane.jpg", null,
+                "John Traveler", "+254711111111");
     }
 
     private VisitorBenefitResponse sampleBenefit() {
         return new VisitorBenefitResponse(UUID.randomUUID(), visitorId, benefitId,
-                "Inpatient Cover", new BigDecimal("100000.00"), VisitorStatus.PENDING,
+                BenefitType.EMERGENCY_MEDICAL_EXPENSES, new BigDecimal("100000.00"), VisitorStatus.PENDING,
                 Instant.now(), Instant.now());
     }
 
@@ -76,7 +93,7 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$.passportNumber").value("P1234567"))
                 .andExpect(jsonPath("$.policyId").value(policyId.toString()))
                 .andExpect(jsonPath("$.visitorBenefits[0].benefitId").value(benefitId.toString()))
-                .andExpect(jsonPath("$.visitorBenefits[0].benefitName").value("Inpatient Cover"))
+                .andExpect(jsonPath("$.visitorBenefits[0].benefitType").value("EMERGENCY_MEDICAL_EXPENSES"))
                 .andExpect(jsonPath("$.visitorBenefits[0].limitAmount").value(100000.00));
     }
 
@@ -90,7 +107,7 @@ class VisitorControllerTest {
         mockMvc.perform(get("/api/v1/visitors/by-passport").param("passportNumber", "P1234567"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.passportNumber").value("P1234567"))
-                .andExpect(jsonPath("$.visitorBenefits[0].benefitName").value("Inpatient Cover"));
+                .andExpect(jsonPath("$.visitorBenefits[0].benefitType").value("EMERGENCY_MEDICAL_EXPENSES"));
     }
 
     @Test
@@ -103,7 +120,7 @@ class VisitorControllerTest {
         mockMvc.perform(get("/api/v1/visitors/by-policy").param("policyId", policyId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].policyId").value(policyId.toString()))
-                .andExpect(jsonPath("$[0].visitorBenefits[0].benefitName").value("Inpatient Cover"));
+                .andExpect(jsonPath("$[0].visitorBenefits[0].benefitType").value("EMERGENCY_MEDICAL_EXPENSES"));
     }
 
     @Test
@@ -126,5 +143,38 @@ class VisitorControllerTest {
     void getWithoutAuthenticationIsRejected() throws Exception {
         mockMvc.perform(get("/api/v1/visitors/{id}", visitorId))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createReturnsCreatedWithKycFields() throws Exception {
+        when(visitorService.create(any(VisitorRequest.class))).thenReturn(sampleVisitor());
+
+        mockMvc.perform(post("/api/v1/visitors")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.address").value("12 Example Street, Berlin"))
+                .andExpect(jsonPath("$.reasonForTravel").value("Tourism"))
+                .andExpect(jsonPath("$.facePhotoUrl").value("https://storage.example.com/photos/jane.jpg"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createRejectsMissingRequiredKycFields() throws Exception {
+        VisitorRequest missingFields = new VisitorRequest(policyId, "Jane Traveler", "P1234567",
+                LocalDate.of(1990, 5, 12), Gender.FEMALE, "Germany", "",
+                "jane.traveler@example.com", "+254700000000",
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
+                MaritalStatus.SINGLE, "", "", null,
+                "John Traveler", "+254711111111");
+
+        mockMvc.perform(post("/api/v1/visitors")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(missingFields)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"));
     }
 }

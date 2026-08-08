@@ -1,5 +1,6 @@
 package com.travel.insurance.visitorbenefit.dto;
 
+import com.travel.insurance.benefit.BenefitType;
 import com.travel.insurance.visitor.VisitorStatus;
 
 import java.math.BigDecimal;
@@ -10,7 +11,7 @@ public record VisitorBenefitResponse(
         UUID id,
         UUID visitorId,
         UUID benefitId,
-        String benefitName,
+        BenefitType benefitType,
         BigDecimal limitAmount,
         VisitorStatus status,
         Instant createdDate,

@@ -1,5 +1,7 @@
 package com.travel.insurance.benefit.dto;
 
+import com.travel.insurance.benefit.BenefitType;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -7,7 +9,7 @@ import java.util.UUID;
 public record BenefitResponse(
         UUID id,
         UUID policyId,
-        String name,
+        BenefitType benefitType,
         BigDecimal limitAmount,
         Instant createdDate,
         Instant updatedDate

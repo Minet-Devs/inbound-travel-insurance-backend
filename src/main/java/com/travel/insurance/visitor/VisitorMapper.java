@@ -20,11 +20,15 @@ public class VisitorMapper {
         visitor.setDateOfBirth(request.dateOfBirth());
         visitor.setGender(request.gender());
         visitor.setNationality(request.nationality());
+        visitor.setAddress(request.address());
         visitor.setEmail(request.email());
         visitor.setPhoneNumber(request.phoneNumber());
         visitor.setDateIn(request.dateIn());
         visitor.setDateOut(request.dateOut());
         visitor.setMaritalStatus(request.maritalStatus());
+        visitor.setReasonForTravel(request.reasonForTravel());
+        visitor.setFacePhotoUrl(request.facePhotoUrl());
+        visitor.setUnderlyingConditions(request.underlyingConditions());
         visitor.setNextOfKinName(request.nextOfKinName());
         visitor.setNextOfKinPhone(request.nextOfKinPhone());
     }
@@ -38,11 +42,15 @@ public class VisitorMapper {
                 visitor.getDateOfBirth(),
                 visitor.getGender(),
                 visitor.getNationality(),
+                visitor.getAddress(),
                 visitor.getEmail(),
                 visitor.getPhoneNumber(),
                 visitor.getDateIn(),
                 visitor.getDateOut(),
                 visitor.getMaritalStatus(),
+                visitor.getReasonForTravel(),
+                visitor.getFacePhotoUrl(),
+                visitor.getUnderlyingConditions(),
                 visitor.getVisitorStatus(),
                 visitor.getNextOfKinName(),
                 visitor.getNextOfKinPhone(),

@@ -20,7 +20,7 @@ public interface BenefitService {
 
     List<BenefitResponse> listAllByPolicy(UUID policyId);
 
-    Map<UUID, String> namesByIds(Collection<UUID> benefitIds);
+    Map<UUID, BenefitType> typesByIds(Collection<UUID> benefitIds);
 
     BenefitResponse update(UUID id, BenefitRequest request);
 

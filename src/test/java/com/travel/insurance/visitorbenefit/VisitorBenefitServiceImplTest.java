@@ -2,6 +2,7 @@ package com.travel.insurance.visitorbenefit;
 
 import com.travel.insurance.benefit.Benefit;
 import com.travel.insurance.benefit.BenefitService;
+import com.travel.insurance.benefit.BenefitType;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitorbenefit.dto.VisitorBenefitRequest;
@@ -58,7 +59,7 @@ class VisitorBenefitServiceImplTest {
         visitor.setPolicyId(policyId);
         benefit = new Benefit();
         benefit.setPolicyId(policyId);
-        benefit.setName("Inpatient Cover");
+        benefit.setBenefitType(BenefitType.EMERGENCY_MEDICAL_EXPENSES);
         benefit.setLimitAmount(new BigDecimal("100000.00"));
     }
 
@@ -77,24 +78,24 @@ class VisitorBenefitServiceImplTest {
         assertThat(response.limitAmount()).isEqualByComparingTo("100000.00");
         assertThat(response.visitorId()).isEqualTo(visitorId);
         assertThat(response.benefitId()).isEqualTo(benefitId);
-        assertThat(response.benefitName()).isEqualTo("Inpatient Cover");
+        assertThat(response.benefitType()).isEqualTo(BenefitType.EMERGENCY_MEDICAL_EXPENSES);
     }
 
     @Test
-    void listAllByVisitorResolvesBenefitNames() {
+    void listAllByVisitorResolvesBenefitTypes() {
         VisitorBenefit visitorBenefit = new VisitorBenefit();
         visitorBenefit.setVisitorId(visitorId);
         visitorBenefit.setBenefitId(benefitId);
         visitorBenefit.setLimitAmount(new BigDecimal("100000.00"));
         when(visitorBenefitRepository.findAllByVisitorId(visitorId))
                 .thenReturn(List.of(visitorBenefit));
-        when(benefitService.namesByIds(Set.of(benefitId)))
-                .thenReturn(Map.of(benefitId, "Inpatient Cover"));
+        when(benefitService.typesByIds(Set.of(benefitId)))
+                .thenReturn(Map.of(benefitId, BenefitType.EMERGENCY_MEDICAL_EXPENSES));
 
         List<VisitorBenefitResponse> responses = visitorBenefitService.listAllByVisitor(visitorId);
 
         assertThat(responses).hasSize(1);
-        assertThat(responses.getFirst().benefitName()).isEqualTo("Inpatient Cover");
+        assertThat(responses.getFirst().benefitType()).isEqualTo(BenefitType.EMERGENCY_MEDICAL_EXPENSES);
         assertThat(responses.getFirst().limitAmount()).isEqualByComparingTo("100000.00");
     }
 

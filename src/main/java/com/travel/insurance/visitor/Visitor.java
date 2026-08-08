@@ -44,6 +44,9 @@ public class Visitor extends BaseEntity {
     private String nationality;
 
     @Column(nullable = false)
+    private String address;
+
+    @Column(nullable = false)
     private String email;
 
     @Column(nullable = false)
@@ -58,6 +61,14 @@ public class Visitor extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MaritalStatus maritalStatus;
+
+    @Column(nullable = false)
+    private String reasonForTravel;
+
+    @Column(nullable = false)
+    private String facePhotoUrl;
+
+    private String underlyingConditions;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

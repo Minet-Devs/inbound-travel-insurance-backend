@@ -13,7 +13,7 @@ public interface BenefitRepository extends JpaRepository<Benefit, UUID> {
 
     List<Benefit> findAllByPolicyId(UUID policyId);
 
-    boolean existsByPolicyIdAndNameIgnoreCase(UUID policyId, String name);
+    boolean existsByPolicyIdAndBenefitType(UUID policyId, BenefitType benefitType);
 
-    boolean existsByPolicyIdAndNameIgnoreCaseAndIdNot(UUID policyId, String name, UUID id);
+    boolean existsByPolicyIdAndBenefitTypeAndIdNot(UUID policyId, BenefitType benefitType, UUID id);
 }

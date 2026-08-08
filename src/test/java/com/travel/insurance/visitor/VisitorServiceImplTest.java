@@ -56,11 +56,15 @@ class VisitorServiceImplTest {
                 LocalDate.of(1990, 5, 12),
                 Gender.FEMALE,
                 "Germany",
+                "12 Example Street, Berlin",
                 "jane.traveler@example.com",
                 "+254700000000",
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 11, 1),
                 MaritalStatus.SINGLE,
+                "Tourism",
+                "https://storage.example.com/photos/jane.jpg",
+                null,
                 "John Traveler",
                 "+254711111111");
     }
@@ -92,11 +96,15 @@ class VisitorServiceImplTest {
                 LocalDate.of(1988, 2, 3),
                 Gender.MALE,
                 "Germany",
+                "12 Example Street, Berlin",
                 "john.traveler@example.com",
                 "+254722222222",
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 11, 1),
                 MaritalStatus.MARRIED,
+                "Business",
+                "https://storage.example.com/photos/john.jpg",
+                "Diabetes, requires insulin",
                 "Jane Traveler",
                 "+254700000000");
 

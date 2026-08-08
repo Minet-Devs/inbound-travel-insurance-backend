@@ -38,6 +38,10 @@ public class Policy extends BaseEntity {
     @Column(name = "insurer_id", nullable = false)
     private Set<UUID> insurerIds = new HashSet<>();
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private PolicyType policyType;
+
     @Column(nullable = false)
     private LocalDate coverStartDate;
 

@@ -118,6 +118,8 @@ com.travel.insurance/
 │   ├── PolicyType.java                     # Enum: SINGLE_ENTRY_UP_TO_30_DAYS,
 │   │                                       #       SINGLE_ENTRY_31_TO_60_DAYS,
 │   │                                       #       IPMI_61_DAYS_TO_12_MONTHS
+│   ├── PolicyActivatingEvent.java          # In-process event published before a policy
+│   │                                       # is saved as ACTIVE; listeners may reject it
 │   ├── PolicyMapper.java
 │   └── 📁 dto/
 │       ├── PolicyRequest.java
@@ -138,6 +140,9 @@ com.travel.insurance/
 │   │                                       #       HOSPITAL_BENEFITS,
 │   │                                       #       PRESCRIPTION_MEDICINES), each carrying
 │   │                                       #       its own mandated minimum limit
+│   ├── PolicyActivationGateListener.java   # Listens for PolicyActivatingEvent; rejects
+│   │                                       # activation if the catalog/cumulative-limit
+│   │                                       # gate isn't met
 │   ├── BenefitMapper.java
 │   └── 📁 dto/
 │       ├── BenefitRequest.java
@@ -243,7 +248,16 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
   `limitAmount` that `BenefitServiceImpl` enforces on create/update. A policy
   is only eligible to move to `ACTIVE` once its benefits cover every
   `BenefitType` and their `limitAmount`s sum to at least the mandated
-  cumulative floor (USD 50,000). Consumption is not tracked against the
+  cumulative floor (`BenefitType.MANDATED_CUMULATIVE_MINIMUM`, USD 50,000).
+  This gate runs via an in-process event, the same pattern used for
+  `VisitorCreatedEvent`: `PolicyServiceImpl` publishes `PolicyActivatingEvent`
+  (Spring `ApplicationEventPublisher`, synchronous, before the Rabbit
+  `policy.activated` event) right after saving a policy whose status is
+  becoming `ACTIVE`, and `PolicyActivationGateListener` in the `benefit`
+  package throws `IllegalStateException` (→ 409, rolling back the save) if
+  the gate fails — this keeps `benefit → policy` the only compile-time
+  dependency between the two features, since `PolicyServiceImpl` never
+  injects `BenefitService` directly. Consumption is not tracked against the
   limit.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the

@@ -1,6 +1,6 @@
 package com.travel.insurance.benefit.dto;
 
-import jakarta.validation.constraints.NotBlank;
+import com.travel.insurance.benefit.BenefitType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 
@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public record BenefitRequest(
         @NotNull UUID policyId,
-        @NotBlank String name,
+        @NotNull BenefitType benefitType,
         @NotNull @PositiveOrZero BigDecimal limitAmount
 ) {
 }

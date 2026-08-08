@@ -9,12 +9,14 @@ import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.policy.dto.PolicyRequest;
 import com.travel.insurance.policy.dto.PolicyResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
 
@@ -27,6 +29,7 @@ public class PolicyServiceImpl implements PolicyService {
     private final PolicyMapper policyMapper;
     private final InsurerService insurerService;
     private final EventPublisher eventPublisher;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
     public PolicyResponse create(PolicyRequest request) {
@@ -35,6 +38,7 @@ public class PolicyServiceImpl implements PolicyService {
             throw new IllegalStateException("Policy number already exists: " + request.policyNumber());
         }
         Policy policy = policyRepository.save(policyMapper.toEntity(request));
+        assertActivationEligible(null, policy);
         publishIfActivated(null, policy);
         return policyMapper.toResponse(policy);
     }
@@ -61,6 +65,7 @@ public class PolicyServiceImpl implements PolicyService {
         PolicyStatus previousStatus = policy.getStatus();
         policyMapper.updateEntity(policy, request);
         Policy saved = policyRepository.save(policy);
+        assertActivationEligible(previousStatus, saved);
         publishIfActivated(previousStatus, saved);
         return policyMapper.toResponse(saved);
     }
@@ -88,6 +93,13 @@ public class PolicyServiceImpl implements PolicyService {
         if (request.coverEndDate().isBefore(request.coverStartDate())) {
             throw new IllegalArgumentException("Cover end date must not be before cover start date");
         }
+        long days = ChronoUnit.DAYS.between(request.coverStartDate(), request.coverEndDate()) + 1;
+        PolicyType policyType = request.policyType();
+        if (!policyType.isValidDuration(days)) {
+            throw new IllegalArgumentException(
+                    "Cover period of %d day(s) is not valid for policy type %s (must be between %d and %d days)"
+                            .formatted(days, policyType, policyType.getMinDays(), policyType.getMaxDays()));
+        }
     }
 
     private Page<Policy> findScoped(Pageable pageable) {
@@ -112,11 +124,21 @@ public class PolicyServiceImpl implements PolicyService {
     }
 
     private void publishIfActivated(PolicyStatus previousStatus, Policy policy) {
-        if (policy.getStatus() == PolicyStatus.ACTIVE && previousStatus != PolicyStatus.ACTIVE) {
+        if (isActivating(previousStatus, policy)) {
             eventPublisher.publish(RabbitConfig.POLICY_ACTIVATED_KEY, Map.of(
                     "policyId", policy.getId().toString(),
                     "policyNumber", policy.getPolicyNumber(),
                     "insurerIds", policy.getInsurerIds().stream().map(UUID::toString).toList()));
         }
+    }
+
+    private void assertActivationEligible(PolicyStatus previousStatus, Policy policy) {
+        if (isActivating(previousStatus, policy)) {
+            applicationEventPublisher.publishEvent(new PolicyActivatingEvent(policy.getId()));
+        }
+    }
+
+    private boolean isActivating(PolicyStatus previousStatus, Policy policy) {
+        return policy.getStatus() == PolicyStatus.ACTIVE && previousStatus != PolicyStatus.ACTIVE;
     }
 }

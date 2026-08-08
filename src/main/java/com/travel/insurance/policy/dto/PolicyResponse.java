@@ -1,6 +1,7 @@
 package com.travel.insurance.policy.dto;
 
 import com.travel.insurance.policy.PolicyStatus;
+import com.travel.insurance.policy.PolicyType;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -11,6 +12,7 @@ public record PolicyResponse(
         UUID id,
         String policyNumber,
         Set<UUID> insurerIds,
+        PolicyType policyType,
         LocalDate coverStartDate,
         LocalDate coverEndDate,
         PolicyStatus status,

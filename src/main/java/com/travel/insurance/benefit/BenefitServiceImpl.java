@@ -10,10 +10,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -33,13 +33,14 @@ public class BenefitServiceImpl implements BenefitService {
         Set<String> seenInBatch = new HashSet<>();
         for (BenefitRequest request : requests) {
             policyService.getEntityById(request.policyId());
-            if (!seenInBatch.add(request.policyId() + ":" + request.name().toLowerCase(Locale.ROOT))) {
+            assertMeetsMinimumLimit(request.benefitType(), request.limitAmount());
+            if (!seenInBatch.add(request.policyId() + ":" + request.benefitType())) {
                 throw new IllegalArgumentException(
-                        "Duplicate benefit in request for the same policy: " + request.name());
+                        "Duplicate benefit in request for the same policy: " + request.benefitType());
             }
-            if (benefitRepository.existsByPolicyIdAndNameIgnoreCase(request.policyId(), request.name())) {
+            if (benefitRepository.existsByPolicyIdAndBenefitType(request.policyId(), request.benefitType())) {
                 throw new IllegalStateException(
-                        "Benefit already exists for this policy: " + request.name());
+                        "Benefit already exists for this policy: " + request.benefitType());
             }
         }
         List<Benefit> saved = benefitRepository.saveAll(
@@ -72,21 +73,22 @@ public class BenefitServiceImpl implements BenefitService {
 
     @Override
     @Transactional(readOnly = true)
-    public Map<UUID, String> namesByIds(Collection<UUID> benefitIds) {
+    public Map<UUID, BenefitType> typesByIds(Collection<UUID> benefitIds) {
         if (benefitIds.isEmpty()) {
             return Map.of();
         }
         return benefitRepository.findAllById(benefitIds).stream()
-                .collect(Collectors.toMap(Benefit::getId, Benefit::getName));
+                .collect(Collectors.toMap(Benefit::getId, Benefit::getBenefitType));
     }
 
     @Override
     public BenefitResponse update(UUID id, BenefitRequest request) {
         Benefit benefit = getEntityById(id);
-        if (benefitRepository.existsByPolicyIdAndNameIgnoreCaseAndIdNot(
-                request.policyId(), request.name(), id)) {
+        assertMeetsMinimumLimit(request.benefitType(), request.limitAmount());
+        if (benefitRepository.existsByPolicyIdAndBenefitTypeAndIdNot(
+                request.policyId(), request.benefitType(), id)) {
             throw new IllegalStateException(
-                    "Benefit already exists for this policy: " + request.name());
+                    "Benefit already exists for this policy: " + request.benefitType());
         }
         benefitMapper.updateEntity(benefit, request);
         return benefitMapper.toResponse(benefitRepository.save(benefit));
@@ -102,5 +104,13 @@ public class BenefitServiceImpl implements BenefitService {
     public Benefit getEntityById(UUID id) {
         return benefitRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Benefit", id));
+    }
+
+    private void assertMeetsMinimumLimit(BenefitType benefitType, BigDecimal limitAmount) {
+        BigDecimal minimum = benefitType.getMinimumLimit();
+        if (limitAmount.compareTo(minimum) < 0) {
+            throw new IllegalArgumentException(
+                    "Limit amount for %s must be at least %s".formatted(benefitType, minimum));
+        }
     }
 }
