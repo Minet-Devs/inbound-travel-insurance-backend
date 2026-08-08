@@ -5,6 +5,11 @@ It is the reference for how the codebase is organized, how the domain model fits
 together, and the conventions every contribution is expected to follow. Read it
 before writing your first feature.
 
+The `Policy`, `Benefit`, and `Visitor` shapes described below reflect the
+requirements of the Ministry of Health's Mandatory Inbound Travel Health
+Insurance framework — see `travel-insurance.md` for the underlying regulatory
+summary and the full requirement-vs-codebase gap analysis.
+
 ## Contents
 
 - [Travel Insurance — Backend Architecture](#travel-insurance--backend-architecture)
@@ -108,8 +113,11 @@ com.travel.insurance/
 │   ├── PolicyService.java                  # Interface
 │   ├── PolicyServiceImpl.java
 │   ├── PolicyRepository.java
-│   ├── Policy.java                         # insurerIds (set), cover dates
+│   ├── Policy.java                         # insurerIds (set), policyType, cover dates
 │   ├── PolicyStatus.java                   # Enum: DRAFT, ACTIVE, EXPIRED, CANCELLED
+│   ├── PolicyType.java                     # Enum: SINGLE_ENTRY_UP_TO_30_DAYS,
+│   │                                       #       SINGLE_ENTRY_31_TO_60_DAYS,
+│   │                                       #       IPMI_61_DAYS_TO_12_MONTHS
 │   ├── PolicyMapper.java
 │   └── 📁 dto/
 │       ├── PolicyRequest.java
@@ -121,7 +129,15 @@ com.travel.insurance/
 │   ├── BenefitService.java                 # Interface
 │   ├── BenefitServiceImpl.java
 │   ├── BenefitRepository.java
-│   ├── Benefit.java                        # policyId, name, limitAmount
+│   ├── Benefit.java                        # policyId, benefitType, limitAmount
+│   ├── BenefitType.java                    # Enum: fixed catalog mandated by the Ministry
+│   │                                       #       of Health framework (PERSONAL_ACCIDENT,
+│   │                                       #       EMERGENCY_MEDICAL_EXPENSES,
+│   │                                       #       EMERGENCY_MEDICAL_EVACUATION,
+│   │                                       #       REPATRIATION_OF_MORTAL_REMAINS,
+│   │                                       #       HOSPITAL_BENEFITS,
+│   │                                       #       PRESCRIPTION_MEDICINES), each carrying
+│   │                                       #       its own mandated minimum limit
 │   ├── BenefitMapper.java
 │   └── 📁 dto/
 │       ├── BenefitRequest.java
@@ -132,7 +148,9 @@ com.travel.insurance/
 │   ├── VisitorService.java                 # Interface
 │   ├── VisitorServiceImpl.java
 │   ├── VisitorRepository.java
-│   ├── Visitor.java                        # policyId + passport-based KYC attributes
+│   ├── Visitor.java                        # policyId + passport-based KYC attributes,
+│   │                                       # incl. address, facePhotoUrl, reasonForTravel,
+│   │                                       # underlyingConditions
 │   ├── VisitorCreatedEvent.java            # In-process event published on visitor creation
 │   ├── Gender.java                         # Enum: MALE, FEMALE, OTHER
 │   ├── MaritalStatus.java                  # Enum: SINGLE, MARRIED, DIVORCED, WIDOWED
@@ -206,19 +224,37 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
 ```
 
 - A **Policy** is the insurance contract. It references a set of backing
-  insurers (`insurerIds`) and carries cover dates and a status. It holds no
-  treatment-level detail. `GET /api/v1/policies/{id}` and the paged
-  `GET /api/v1/policies` list both return `PolicyDetailResponse` rows that
-  embed the policy's benefits; create/update return plain `PolicyResponse`
-  rows without them.
-- **Benefit** rows belong to a policy and carry a `limitAmount`. Consumption
-  is not tracked against the limit.
+  insurers (`insurerIds`) and carries a `policyType`, cover dates, and a
+  status. `policyType` is one of the three cover periods mandated by the
+  Ministry of Health's Mandatory Inbound Travel Health Insurance framework
+  (`PolicyType`: `SINGLE_ENTRY_UP_TO_30_DAYS`, `SINGLE_ENTRY_31_TO_60_DAYS`,
+  `IPMI_61_DAYS_TO_12_MONTHS`) and constrains the allowed span between
+  `coverStartDate` and `coverEndDate` — `PolicyServiceImpl` rejects a
+  create/update where the requested dates fall outside the selected type's
+  range. A policy holds no treatment-level detail. `GET /api/v1/policies/{id}`
+  and the paged `GET /api/v1/policies` list both return `PolicyDetailResponse`
+  rows that embed the policy's benefits; create/update return plain
+  `PolicyResponse` rows without them.
+- **Benefit** rows belong to a policy and reference a fixed `benefitType`
+  (`BenefitType`) rather than a free-text name — the six insured events
+  mandated by the framework (personal accident, emergency medical expenses,
+  emergency medical evacuation, repatriation of mortal remains, hospital
+  benefits, prescription medicines), each with its own mandated minimum
+  `limitAmount` that `BenefitServiceImpl` enforces on create/update. A policy
+  is only eligible to move to `ACTIVE` once its benefits cover every
+  `BenefitType` and their `limitAmount`s sum to at least the mandated
+  cumulative floor (USD 50,000). Consumption is not tracked against the
+  limit.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,
-  passport number (unique), date of birth, gender, nationality, email, phone
-  number, date in / date out of the country, marital status, and next of kin
-  (name + phone). `Gender` and `MaritalStatus` are string-mapped enums.
+  passport number (unique), date of birth, gender, nationality, address,
+  email, phone number, date in / date out of the country, marital status,
+  reason for travel, underlying condition/prescribed-medicine notes
+  (`underlyingConditions`, nullable), a face photo upload (`facePhotoUrl`),
+  and next of kin (name + phone) — aligned with the e-portal ("Kenya Cares")
+  onboarding data set required by the framework. `Gender` and `MaritalStatus`
+  are string-mapped enums.
   `GET /api/v1/visitors/{id}` and
   `GET /api/v1/visitors/by-passport?passportNumber=…` return a
   `VisitorDetailResponse` that embeds the visitor's assigned benefits
@@ -249,7 +285,7 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
   The referenced benefit must belong to the visitor's policy. A visitor may hold each catalog
   benefit at most once (`visitorId` + `benefitId` unique). Usage tracking
   against the limit is out of scope for now. `VisitorBenefitResponse`
-  additionally carries the catalog benefit's `benefitName` (resolved through
+  additionally carries the catalog benefit's `benefitType` (resolved through
   `BenefitService`; `null` if the catalog benefit has since been deleted) so
   clients can display assignments without extra lookups.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
