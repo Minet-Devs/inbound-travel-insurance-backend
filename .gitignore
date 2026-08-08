@@ -6,3 +6,14 @@ local.env
 .vscode/
 .DS_Store
 *.log
+Britam_redacted.pdf
+ICEA_Certificate_redacted.pdf
+Mayfair_Certificate_redacted.pdf
+security.md
+prompts.md
+generate-pdf.sh
+underwriter-workflow.html
+underwriter-workflow.md
+underwriter-workflow.pdf
+VMIP-Workflow-and-User-Journey.pdf
+Inbound-Travel-Insurance.xlsx
