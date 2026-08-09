@@ -36,7 +36,8 @@ public class EmailService {
             }
             mailSender.send(message);
         } catch (Exception ex) {
-            log.error("Failed to send email to recipient (subject=[{}]): {}", subject, ex.getMessage(), ex);
+            log.error("Failed to send email from [{}] to [{}] (subject=[{}]): {}",
+                    from, to, subject, ex.getMessage(), ex);
         }
     }
 }
