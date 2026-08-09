@@ -2,6 +2,7 @@ package com.travel.insurance.benefit;
 
 import com.travel.insurance.benefit.dto.BenefitRequest;
 import com.travel.insurance.benefit.dto.BenefitResponse;
+import com.travel.insurance.benefit.dto.BenefitTypeResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -11,6 +12,8 @@ import java.util.Map;
 import java.util.UUID;
 
 public interface BenefitService {
+
+    List<BenefitTypeResponse> listBenefitTypes();
 
     List<BenefitResponse> create(List<BenefitRequest> requests);
 

@@ -2,6 +2,7 @@ package com.travel.insurance.benefit;
 
 import com.travel.insurance.benefit.dto.BenefitRequest;
 import com.travel.insurance.benefit.dto.BenefitResponse;
+import com.travel.insurance.benefit.dto.BenefitTypeResponse;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.policy.PolicyService;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -27,6 +29,13 @@ public class BenefitServiceImpl implements BenefitService {
     private final BenefitRepository benefitRepository;
     private final BenefitMapper benefitMapper;
     private final PolicyService policyService;
+
+    @Override
+    public List<BenefitTypeResponse> listBenefitTypes() {
+        return Arrays.stream(BenefitType.values())
+                .map(type -> new BenefitTypeResponse(type, type.getMinimumLimit()))
+                .toList();
+    }
 
     @Override
     public List<BenefitResponse> create(List<BenefitRequest> requests) {

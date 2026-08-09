@@ -2,6 +2,7 @@ package com.travel.insurance.benefit;
 
 import com.travel.insurance.benefit.dto.BenefitRequest;
 import com.travel.insurance.benefit.dto.BenefitResponse;
+import com.travel.insurance.benefit.dto.BenefitTypeResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,11 @@ import java.util.UUID;
 public class BenefitController {
 
     private final BenefitService benefitService;
+
+    @GetMapping("/types")
+    public ResponseEntity<List<BenefitTypeResponse>> listBenefitTypes() {
+        return ResponseEntity.ok(benefitService.listBenefitTypes());
+    }
 
     @PostMapping
     public ResponseEntity<List<BenefitResponse>> create(

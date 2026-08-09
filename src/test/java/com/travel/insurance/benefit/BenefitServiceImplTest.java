@@ -2,6 +2,7 @@ package com.travel.insurance.benefit;
 
 import com.travel.insurance.benefit.dto.BenefitRequest;
 import com.travel.insurance.benefit.dto.BenefitResponse;
+import com.travel.insurance.benefit.dto.BenefitTypeResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +46,18 @@ class BenefitServiceImplTest {
         benefitService = new BenefitServiceImpl(benefitRepository, benefitMapper, policyService);
         policyId = UUID.randomUUID();
         request = new BenefitRequest(policyId, BenefitType.EMERGENCY_MEDICAL_EXPENSES, new BigDecimal("100000.00"));
+    }
+
+    @Test
+    void listBenefitTypesReturnsAllSixTypesWithMandatedMinimums() {
+        List<BenefitTypeResponse> types = benefitService.listBenefitTypes();
+
+        assertThat(types).hasSize(BenefitType.values().length);
+        assertThat(types).extracting(BenefitTypeResponse::benefitType)
+                .containsExactlyInAnyOrder(BenefitType.values());
+        assertThat(types).filteredOn(t -> t.benefitType() == BenefitType.EMERGENCY_MEDICAL_EXPENSES)
+                .extracting(BenefitTypeResponse::minimumLimit)
+                .containsExactly(new BigDecimal("20000.00"));
     }
 
     @Test

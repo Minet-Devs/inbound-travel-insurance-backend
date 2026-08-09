@@ -259,7 +259,10 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
   the gate fails — this keeps `benefit → policy` the only compile-time
   dependency between the two features, since `PolicyServiceImpl` never
   injects `BenefitService` directly. Consumption is not tracked against the
-  limit.
+  limit. `GET /api/v1/benefits/types` returns the fixed `BenefitType` catalog
+  itself (each entry's mandated minimum `limitAmount`) — a static read with
+  no policy/benefit lookup, useful for clients building a benefit-creation
+  form without hardcoding the enum.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,
