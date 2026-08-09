@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Travel Insurance Certificate</title>
+    <style>
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 11pt; color: #1a1a1a; }
+        h1 { font-size: 16pt; color: #0b3d91; border-bottom: 2px solid #0b3d91; padding-bottom: 6px; }
+        h2 { font-size: 12pt; color: #0b3d91; margin-top: 18px; margin-bottom: 6px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        td, th { padding: 4px 6px; text-align: left; vertical-align: top; }
+        .details-table td:first-child { font-weight: bold; width: 40%; }
+        .benefits-table th { background-color: #0b3d91; color: #ffffff; }
+        .benefits-table td, .benefits-table th { border: 1px solid #cccccc; }
+        .note { font-size: 9pt; color: #555555; margin-top: 4px; }
+        .footer { margin-top: 24px; font-size: 9pt; color: #555555; border-top: 1px solid #cccccc; padding-top: 8px; }
+    </style>
+</head>
+<body>
+    <h1>Travel Insurance Certificate</h1>
+    <p th:if="${not #strings.isEmpty(insurerNamesJoined)}">
+        Underwritten by: <strong th:text="${insurerNamesJoined}">Insurer Name</strong>
+    </p>
+
+    <h2>Insured Person</h2>
+    <table class="details-table">
+        <tr><td>Full Name</td><td th:text="${data.visitorFullName}">Jane Traveler</td></tr>
+        <tr><td>Passport Number</td><td th:text="${data.passportNumber}">P1234567</td></tr>
+        <tr><td>Date of Birth</td><td th:text="${data.dateOfBirth}">1990-01-01</td></tr>
+        <tr><td>Nationality</td><td th:text="${data.nationality}">Kenya</td></tr>
+        <tr><td>Address</td><td th:text="${data.address}">123 Main Street</td></tr>
+        <tr><td>Email</td><td th:text="${data.email}">visitor@example.com</td></tr>
+        <tr><td>Phone Number</td><td th:text="${data.phoneNumber}">+254700000000</td></tr>
+    </table>
+
+    <h2>Policy Details</h2>
+    <table class="details-table">
+        <tr><td>Policy Number</td><td th:text="${data.policyNumber}">POL-0001</td></tr>
+        <tr><td>Cover Type</td><td th:text="${policyTypeLabel}">Single Entry Up To 30 Days</td></tr>
+        <tr><td>Travel Period</td>
+            <td th:text="|${data.dateIn} to ${data.dateOut}|">2026-01-01 to 2026-01-30</td></tr>
+        <tr><td>Reason for Travel</td><td th:text="${data.reasonForTravel}">Tourism</td></tr>
+    </table>
+
+    <h2>Schedule of Benefits</h2>
+    <table class="benefits-table">
+        <tr>
+            <th>Benefit</th>
+            <th>Limit (USD)</th>
+        </tr>
+        <tr th:each="line : ${benefitLines}">
+            <td th:text="${line.label}">Emergency Medical Expenses</td>
+            <td th:text="${line.limitAmount}">20000.00</td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(benefitLines)}">
+            <td colspan="2">No benefits assigned yet.</td>
+        </tr>
+    </table>
+    <p class="note">
+        This schedule reflects the benefits assigned to you under the mandatory Inbound Travel
+        Health Insurance framework, with a cumulative minimum cover of USD 50,000.
+    </p>
+
+    <h2>Emergency Assistance</h2>
+    <table class="details-table">
+        <tr th:if="${not #strings.isEmpty(data.emergencyAssistancePhone)}">
+            <td>24-Hour Helpline</td><td th:text="${data.emergencyAssistancePhone}">+254 700 000000</td>
+        </tr>
+        <tr th:if="${not #strings.isEmpty(data.emergencyAssistanceEmail)}">
+            <td>Email</td><td th:text="${data.emergencyAssistanceEmail}">assistance@example.com</td>
+        </tr>
+    </table>
+
+    <h2>Claims Process</h2>
+    <p>
+        In the event of a medical emergency, contact the 24-hour helpline above before incurring
+        expenses where possible. Retain all receipts, medical reports, and police reports (where
+        applicable) — these will be required to process any claim.
+    </p>
+
+    <p class="note">
+        This certificate is issued as confirmation of cover and does not itself constitute a
+        guarantee of payment to any medical or service provider. Full terms, conditions, and
+        exclusions are set out in the master policy held with the insurer(s) named above.
+    </p>
+
+    <div class="footer">
+        <p>This is a system-generated certificate issued on activation of your travel insurance cover.</p>
+    </div>
+</body>
+</html>

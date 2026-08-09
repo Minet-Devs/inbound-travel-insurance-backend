@@ -23,6 +23,7 @@ summary and the full requirement-vs-codebase gap analysis.
   - [Conventions](#conventions)
   - [REST Resources](#rest-resources)
   - [Messaging (RabbitMQ)](#messaging-rabbitmq)
+  - [Notifications (Policy Document Email)](#notifications-policy-document-email)
   - [API Documentation (Swagger)](#api-documentation-swagger)
   - [Security](#security)
   - [Database Connection Pool (HikariCP)](#database-connection-pool-hikaricp)
@@ -35,6 +36,7 @@ summary and the full requirement-vs-codebase gap analysis.
 - Spring Boot 3.x (Web, Data JPA, Validation, Security)
 - PostgreSQL (runtime) / H2 (tests)
 - RabbitMQ (messaging)
+- SMTP + Thymeleaf + openhtmltopdf (policy document email on visitor activation)
 - Flyway (database migrations)
 - Maven
 
@@ -51,7 +53,8 @@ com.travel.insurance/
 │   ├── SecurityConfig.java                 # Filter chain, route rules, PasswordEncoder
 │   ├── JpaAuditingConfig.java              # @EnableJpaAuditing + AuditorAware
 │   ├── OpenApiConfig.java                  # Swagger/OpenAPI metadata
-│   └── RabbitConfig.java                   # Exchanges, queues, bindings
+│   ├── RabbitConfig.java                   # Exchanges, queues, bindings
+│   └── MailProperties.java                 # app.mail.* (from address, emergency-assistance contact)
 │
 ├── 📁 common/                              # Shared, feature-agnostic code
 │   ├── 📁 domain/
@@ -62,7 +65,16 @@ com.travel.insurance/
 │   │   └── ApiError.java                   # Standard error response body
 │   ├── 📁 messaging/
 │   │   └── EventPublisher.java             # Thin wrapper over RabbitTemplate
+│   ├── 📁 email/
+│   │   └── EmailService.java               # Thin wrapper over JavaMailSender
 │   └── 📁 util/
+│
+├── 📁 notification/                        # Feature: Visitor-facing notifications
+│   ├── VisitorActivatedNotificationListener.java  # @TransactionalEventListener(AFTER_COMMIT)
+│   │                                       # on VisitorStatusChangedEvent; composes
+│   │                                       # Visitor+Policy+VisitorBenefit+Insurer data
+│   ├── PolicyDocumentRenderer.java         # Thymeleaf → HTML → PDF (openhtmltopdf)
+│   └── PolicyDocumentData.java             # Internal template data holder (not a DTO)
 │
 ├── 📁 auth/                                # Feature: Authentication
 │   ├── AuthController.java                 # /login, /refresh
@@ -417,6 +429,50 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 - Listeners (`@RabbitListener`) live inside the feature package that consumes
   the event.
 
+## Notifications (Policy Document Email)
+
+When a `Visitor`'s status transitions to `ACTIVE`, the `notification` package
+emails them a personalized policy certificate as a PDF attachment:
+
+- `VisitorActivatedNotificationListener` listens for the existing
+  `VisitorStatusChangedEvent` and filters for `newStatus == ACTIVE`. Unlike
+  the sibling `visitorbenefit.VisitorStatusChangedListener` (which stays
+  synchronous and in-transaction because it must mirror the status onto
+  `VisitorBenefit` rows consistently), this listener uses
+  `@TransactionalEventListener(phase = AFTER_COMMIT)`: sending mail over SMTP
+  inside the same transaction that changed the visitor's status would risk
+  rolling back a legitimate status change if the mail server is slow or
+  unreachable. Any failure here is caught and logged, never propagated — a
+  broken mail server must never affect the visitor status API's correctness.
+  Re-activation (e.g. `ACTIVE` → `SUSPENDED` → `ACTIVE`) intentionally
+  re-sends the certificate; that's treated as a new, valid activation, not a
+  duplicate to guard against.
+- The listener composes data via `VisitorService`, `PolicyService`,
+  `VisitorBenefitService`, and `InsurerService` (the same "fan-in at a
+  boundary" shape already used for `PolicyDetailResponse`/
+  `VisitorDetailResponse`), builds a `PolicyDocumentData` holder (internal to
+  the package, not a DTO — it never crosses the web boundary), and passes it
+  to `PolicyDocumentRenderer`.
+- `PolicyDocumentRenderer` has no dependency on any other feature's service —
+  it only knows how to render `templates/policy-document.html` (Thymeleaf) to
+  HTML, then converts that HTML to PDF bytes via `openhtmltopdf`. The
+  template deliberately excludes `Visitor.underlyingConditions`: none of the
+  real insurer certificates this template is modeled on embed a free-text
+  medical-conditions field, and there's no reason to widen PII exposure over
+  email with it (see `policy-document-analysis.md` for the full reference
+  analysis).
+- `common/email/EmailService` is a thin, domain-agnostic wrapper over
+  `JavaMailSender` (mirrors `common/messaging/EventPublisher`'s catch-and-log
+  style) — it never logs the email body or PDF bytes, only the outcome.
+- SMTP config (`spring.mail.*`) is sourced from `SMTP_*` env vars with
+  STARTTLS explicitly required (Spring Boot does not enable it by default);
+  `app.mail.from` and `app.mail.emergency-assistance.{phone,email}`
+  (`config/MailProperties.java`) hold the small amount of static content our
+  domain model doesn't capture (a 24/7 helpline is not stored per policy —
+  every reference insurer hardcodes it too).
+- No "document sent" tracking column exists — a resend on re-activation is
+  desired behavior, not a defect.
+
 ## API Documentation (Swagger)
 
 - Uses `springdoc-openapi-starter-webmvc-ui`: the UI is served at
@@ -482,6 +538,9 @@ where Spring Boot's dependency management does not provide one.
 | `spring-boot-starter-validation` | compile | `@Valid` on request DTOs |
 | `spring-boot-starter-security` | compile | Auth filter chain, role-based access |
 | `spring-boot-starter-amqp` | compile | RabbitMQ messaging |
+| `spring-boot-starter-mail` | compile | SMTP sending (`common/email/EmailService`) |
+| `spring-boot-starter-thymeleaf` | compile | Policy document HTML templating |
+| `io.github.openhtmltopdf:openhtmltopdf-pdfbox` | compile | HTML → PDF rendering for the emailed policy certificate |
 | `org.springdoc:springdoc-openapi-starter-webmvc-ui` (2.6.x) | compile | Swagger UI + OpenAPI docs |
 | `org.postgresql:postgresql` | runtime | Production database driver |
 | `io.jsonwebtoken:jjwt-api` (0.12.x) | compile | JWT for `JwtTokenProvider` |
@@ -514,6 +573,19 @@ where Spring Boot's dependency management does not provide one.
     <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-amqp</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-mail</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-thymeleaf</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>io.github.openhtmltopdf</groupId>
+        <artifactId>openhtmltopdf-pdfbox</artifactId>
+        <version>1.1.70</version>
     </dependency>
     <dependency>
         <groupId>org.springdoc</groupId>

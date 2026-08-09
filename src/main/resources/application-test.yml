@@ -17,8 +17,26 @@ spring:
       simple:
         auto-startup: false
 
+  mail:
+    host: localhost
+    port: 3025
+    username: test
+    password: test
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+            required: false
+
 app:
   jwt:
     secret: test-secret-test-secret-test-secret-test-secret
     access-token-ttl-seconds: 900
     refresh-token-ttl-seconds: 604800
+  mail:
+    from: no-reply@travelinsurance.example
+    emergency-assistance:
+      phone: "+254 700 000000"
+      email: assistance@travelinsurance.example
