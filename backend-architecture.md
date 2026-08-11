@@ -399,7 +399,9 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
   `/api/v1/service-providers`).
 - Request DTOs are validated with `jakarta.validation` (`@Valid` in
   controllers).
-- All errors are normalized to `ApiError` by `GlobalExceptionHandler`.
+- All errors are normalized to `ApiError` by `GlobalExceptionHandler`, always
+  serialized as `application/json` regardless of the request's negotiated content
+  type (so error bodies never fail on non-JSON `Accept`/path extensions).
 - Database schema changes ship as Flyway migrations
   (`src/main/resources/db/migration/V###__description.sql`); Hibernate
   `ddl-auto` is never used to manage the schema.
