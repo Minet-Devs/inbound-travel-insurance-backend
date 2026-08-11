@@ -114,9 +114,8 @@ public class ClaimServiceImpl implements ClaimService {
 
     private void validateReferences(ClaimRequest request) {
         policyService.getEntityById(request.policyId());
-        if (!benefitService.getEntityById(request.benefitId()).getPolicyId().equals(request.policyId())) {
-            throw new IllegalArgumentException("Benefit does not belong to the given policy");
-        }
+        // Benefits are a global catalog, so only existence is validated here.
+        benefitService.getEntityById(request.benefitId());
     }
 
     private Page<Claim> findScoped(Pageable pageable) {

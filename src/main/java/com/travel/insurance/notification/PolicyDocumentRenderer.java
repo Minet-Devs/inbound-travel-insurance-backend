@@ -31,7 +31,7 @@ public class PolicyDocumentRenderer {
         context.setVariable("policyTypeLabel", displayName(data.policyType().name()));
         context.setVariable("insurerNamesJoined", String.join(", ", data.insurerNames()));
         context.setVariable("benefitLines", data.benefits().stream()
-                .map(line -> new BenefitLineView(displayName(line.benefitType()), line.limitAmount()))
+                .map(line -> new BenefitLineView(line.benefitName(), line.limitAmount()))
                 .toList());
         return templateEngine.process("policy-document", context);
     }

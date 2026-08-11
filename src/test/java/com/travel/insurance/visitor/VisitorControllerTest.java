@@ -2,7 +2,6 @@ package com.travel.insurance.visitor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
-import com.travel.insurance.benefit.BenefitType;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
@@ -75,7 +74,7 @@ class VisitorControllerTest {
 
     private VisitorBenefitResponse sampleBenefit() {
         return new VisitorBenefitResponse(UUID.randomUUID(), visitorId, benefitId,
-                BenefitType.MEDICAL_EXPENSES, new BigDecimal("100000.00"), VisitorStatus.PENDING,
+                "Medical Expenses", new BigDecimal("100000.00"), VisitorStatus.PENDING,
                 Instant.now(), Instant.now());
     }
 
@@ -93,7 +92,7 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$.passportNumber").value("P1234567"))
                 .andExpect(jsonPath("$.policyId").value(policyId.toString()))
                 .andExpect(jsonPath("$.visitorBenefits[0].benefitId").value(benefitId.toString()))
-                .andExpect(jsonPath("$.visitorBenefits[0].benefitType").value("MEDICAL_EXPENSES"))
+                .andExpect(jsonPath("$.visitorBenefits[0].benefitName").value("Medical Expenses"))
                 .andExpect(jsonPath("$.visitorBenefits[0].limitAmount").value(100000.00));
     }
 
@@ -107,7 +106,7 @@ class VisitorControllerTest {
         mockMvc.perform(get("/api/v1/visitors/by-passport").param("passportNumber", "P1234567"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.passportNumber").value("P1234567"))
-                .andExpect(jsonPath("$.visitorBenefits[0].benefitType").value("MEDICAL_EXPENSES"));
+                .andExpect(jsonPath("$.visitorBenefits[0].benefitName").value("Medical Expenses"));
     }
 
     @Test
@@ -120,7 +119,7 @@ class VisitorControllerTest {
         mockMvc.perform(get("/api/v1/visitors/by-policy").param("policyId", policyId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].policyId").value(policyId.toString()))
-                .andExpect(jsonPath("$[0].visitorBenefits[0].benefitType").value("MEDICAL_EXPENSES"));
+                .andExpect(jsonPath("$[0].visitorBenefits[0].benefitName").value("Medical Expenses"));
     }
 
     @Test

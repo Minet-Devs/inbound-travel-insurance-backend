@@ -1,7 +1,7 @@
 package com.travel.insurance.benefit;
 
+import com.travel.insurance.benefit.dto.BenefitRequest;
 import com.travel.insurance.benefit.dto.BenefitResponse;
-import com.travel.insurance.benefit.dto.BenefitTypeResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,12 +10,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,53 +30,54 @@ class BenefitServiceImplTest {
 
     private BenefitServiceImpl benefitService;
 
-    private UUID policyId;
-
     @BeforeEach
     void setUp() {
         benefitService = new BenefitServiceImpl(benefitRepository, benefitMapper);
-        policyId = UUID.randomUUID();
     }
 
     @Test
-    void listBenefitTypesReturnsFixedCatalogWithFixedLimits() {
-        List<BenefitTypeResponse> types = benefitService.listBenefitTypes();
+    void createSavesBenefitWithNameAndLimit() {
+        when(benefitRepository.save(any(Benefit.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThat(types).hasSize(BenefitType.values().length);
-        assertThat(types).extracting(BenefitTypeResponse::benefitType)
-                .containsExactlyInAnyOrder(BenefitType.values());
-        assertThat(types).filteredOn(t -> t.benefitType() == BenefitType.MEDICAL_EXPENSES)
-                .extracting(BenefitTypeResponse::fixedLimit)
-                .containsExactly(new BigDecimal("20000.00"));
+        BenefitResponse response = benefitService.create(
+                new BenefitRequest("Medical Expenses", new BigDecimal("20000.00")));
+
+        assertThat(response.benefitName()).isEqualTo("Medical Expenses");
+        assertThat(response.limitAmount()).isEqualByComparingTo("20000.00");
+        verify(benefitRepository).save(any(Benefit.class));
     }
 
     @Test
-    void provisionFixedBenefitsCreatesEveryTypeWithItsFixedLimit() {
-        when(benefitRepository.existsByPolicyIdAndBenefitType(eq(policyId), any())).thenReturn(false);
-        when(benefitRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+    void updateAppliesNameAndLimit() {
+        UUID id = UUID.randomUUID();
+        Benefit existing = new Benefit();
+        existing.setBenefitName("Old");
+        existing.setLimitAmount(new BigDecimal("100.00"));
+        when(benefitRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(benefitRepository.save(any(Benefit.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        List<BenefitResponse> responses = benefitService.provisionFixedBenefits(policyId);
+        BenefitResponse response = benefitService.update(
+                id, new BenefitRequest("Mental Illness", new BigDecimal("1000.00")));
 
-        assertThat(responses).extracting(BenefitResponse::benefitType)
-                .containsExactlyInAnyOrder(BenefitType.values());
-        assertThat(responses).allSatisfy(response -> {
-            assertThat(response.policyId()).isEqualTo(policyId);
-            assertThat(response.limitAmount())
-                    .isEqualByComparingTo(response.benefitType().getFixedLimit());
-        });
+        assertThat(response.benefitName()).isEqualTo("Mental Illness");
+        assertThat(response.limitAmount()).isEqualByComparingTo("1000.00");
     }
 
     @Test
-    void provisionFixedBenefitsSkipsTypesAlreadyPresent() {
-        when(benefitRepository.existsByPolicyIdAndBenefitType(eq(policyId), any())).thenReturn(false);
-        when(benefitRepository.existsByPolicyIdAndBenefitType(policyId, BenefitType.MEDICAL_EXPENSES))
-                .thenReturn(true);
-        when(benefitRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+    void namesByIdsResolvesNames() {
+        UUID id = UUID.randomUUID();
+        Benefit benefit = new Benefit();
+        benefit.setId(id);
+        benefit.setBenefitName("Prescribed Medicines");
+        when(benefitRepository.findAllById(Set.of(id))).thenReturn(List.of(benefit));
 
-        List<BenefitResponse> responses = benefitService.provisionFixedBenefits(policyId);
+        Map<UUID, String> names = benefitService.namesByIds(Set.of(id));
 
-        assertThat(responses).extracting(BenefitResponse::benefitType)
-                .doesNotContain(BenefitType.MEDICAL_EXPENSES)
-                .hasSize(BenefitType.values().length - 1);
+        assertThat(names).containsEntry(id, "Prescribed Medicines");
+    }
+
+    @Test
+    void namesByIdsReturnsEmptyForEmptyInput() {
+        assertThat(benefitService.namesByIds(Set.of())).isEmpty();
     }
 }

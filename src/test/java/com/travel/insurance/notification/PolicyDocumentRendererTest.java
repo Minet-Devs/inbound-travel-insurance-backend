@@ -51,7 +51,7 @@ class PolicyDocumentRendererTest {
     void rendersHtmlWithKeyFields() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of(
-                new BenefitLine("MEDICAL_EXPENSES", new BigDecimal("20000.00"))));
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
 
         String html = renderer.renderHtml(data);
 
@@ -79,7 +79,7 @@ class PolicyDocumentRendererTest {
     void rendersPdfStartingWithPdfMagicHeader() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of(
-                new BenefitLine("PRESCRIBED_MEDICINES", new BigDecimal("300.00"))));
+                new BenefitLine("Prescribed Medicines", new BigDecimal("300.00"))));
 
         byte[] pdf = renderer.renderPdf(data);
 

@@ -130,38 +130,20 @@ com.travel.insurance/
 │   ├── PolicyType.java                     # Enum: SINGLE_ENTRY_UP_TO_30_DAYS,
 │   │                                       #       SINGLE_ENTRY_31_TO_60_DAYS,
 │   │                                       #       IPMI_61_DAYS_TO_12_MONTHS
-│   ├── PolicyCreatedEvent.java             # In-process event published after a policy is
-│   │                                       # created; benefit feature provisions its catalog
-│   ├── PolicyActivatingEvent.java          # In-process event published before a policy
-│   │                                       # is saved as ACTIVE; listeners may reject it
 │   ├── PolicyMapper.java
 │   └── 📁 dto/
 │       ├── PolicyRequest.java
-│       ├── PolicyResponse.java
-│       └── PolicyDetailResponse.java       # PolicyResponse + attached benefits
+│       └── PolicyResponse.java
 │
-├── 📁 benefit/                             # Feature: Benefit Catalog
+├── 📁 benefit/                             # Feature: Benefit Catalog (global)
 │   ├── BenefitController.java
 │   ├── BenefitService.java                 # Interface
 │   ├── BenefitServiceImpl.java
 │   ├── BenefitRepository.java
-│   ├── Benefit.java                        # policyId, benefitType, limitAmount
-│   ├── BenefitType.java                    # Enum: fixed catalog from the Policy Document
-│   │                                       #       (July 2026), §5 Limits of Cover
-│   │                                       #       (MEDICAL_EXPENSES 20000,
-│   │                                       #       EMERGENCY_MEDICAL_EVACUATION 25000,
-│   │                                       #       PRESCRIBED_MEDICINES 300,
-│   │                                       #       MENTAL_ILLNESS 1000,
-│   │                                       #       REPATRIATION_OF_MORTAL_REMAINS 5000),
-│   │                                       #       each carrying its own fixed limit
-│   ├── PolicyCreatedBenefitProvisioner.java# Listens for PolicyCreatedEvent; provisions the
-│   │                                       # fixed benefit catalog onto the new policy
-│   ├── PolicyActivationGateListener.java   # Listens for PolicyActivatingEvent; rejects
-│   │                                       # activation if the catalog/cumulative-limit
-│   │                                       # gate isn't met
+│   ├── Benefit.java                        # benefitName, limitAmount (no policy link)
 │   ├── BenefitMapper.java
 │   └── 📁 dto/
-│       ├── BenefitTypeResponse.java
+│       ├── BenefitRequest.java
 │       └── BenefitResponse.java
 │
 ├── 📁 visitor/                             # Feature: Visitor (insured traveler) Management
@@ -187,7 +169,6 @@ com.travel.insurance/
 │   ├── VisitorBenefitServiceImpl.java
 │   ├── VisitorBenefitRepository.java
 │   ├── VisitorBenefit.java                 # visitorId, benefitId, limitAmount
-│   ├── VisitorCreatedListener.java         # Seeds VisitorBenefit rows on VisitorCreatedEvent
 │   ├── VisitorBenefitMapper.java
 │   └── 📁 dto/
 │       ├── VisitorBenefitRequest.java
@@ -230,10 +211,13 @@ com.travel.insurance/
 ## Core Insurance Flow
 
 ```
-Policy ──1:N── Benefit                    (a policy carries a set of benefits with limits)
+Benefit                                   (a global catalog of named benefits with limits,
+                                           not scoped to any policy)
+
+Policy
    │
    ├──1:N── Visitor ──1:N── VisitorBenefit  (the insured travelers and the benefits
-   │            (KYC record;   assigned to them; each row references a catalog
+   │            (KYC record;   assigned to them; each row references a global
    │             holds policyId) Benefit and snapshots its own limitAmount)
    │
    ├──1:N── Preauthorization ──0:1── Claim
@@ -253,38 +237,17 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
   framework (`PolicyType`: `SINGLE_ENTRY_UP_TO_30_DAYS`,
   `SINGLE_ENTRY_31_TO_60_DAYS`, `IPMI_61_DAYS_TO_12_MONTHS`), each carrying a
   min/max day range; it's enforced per visitor instead (see below). A policy
-  holds no treatment-level detail. `GET /api/v1/policies/{id}` and the paged
-  `GET /api/v1/policies` list both return `PolicyDetailResponse` rows that
-  embed the policy's benefits; create/update return plain `PolicyResponse`
-  rows without them.
-- **Benefit** rows belong to a policy and reference a fixed `benefitType`
-  (`BenefitType`) rather than a free-text name — the five insured events and
-  limits of cover from the Inbound Travel Medical Insurance Policy Document
-  (July 2026), §5: medical expenses (USD 20,000), emergency medical
-  evacuation (25,000), prescribed medicines (300), mental illness (1,000) and
-  repatriation of mortal remains (5,000). The limits are **fixed**, not
-  configurable. **Every policy inherits this catalog on creation**: benefits
-  are read-only over the API (`GET` only — no create/update/delete
-  endpoints). Provisioning runs via an in-process event, the same pattern used
-  for `VisitorCreatedEvent`: `PolicyServiceImpl` publishes `PolicyCreatedEvent`
-  (Spring `ApplicationEventPublisher`, synchronous, in the creating
-  transaction) right after saving a new policy, and
-  `PolicyCreatedBenefitProvisioner` in the `benefit` package calls
-  `BenefitService.provisionFixedBenefits`, which inserts one `Benefit` per
-  `BenefitType` at its fixed limit (idempotent — types already present are
-  skipped). A policy is only eligible to move to `ACTIVE` once its benefits
-  cover every `BenefitType` and their `limitAmount`s sum to at least the
-  cumulative floor (`BenefitType.MANDATED_CUMULATIVE_MINIMUM`, USD 51,300 —
-  the sum of the fixed limits). This activation gate runs the same way:
-  `PolicyServiceImpl` publishes `PolicyActivatingEvent` (before the Rabbit
-  `policy.activated` event) when a policy's status is becoming `ACTIVE`, and
-  `PolicyActivationGateListener` in the `benefit` package throws
-  `IllegalStateException` (→ 409, rolling back the save) if the gate fails.
-  Both event flows keep `benefit → policy` the only compile-time dependency
-  between the two features, since `PolicyServiceImpl` never injects
-  `BenefitService` directly. Consumption is not tracked against the limit.
-  `GET /api/v1/benefits/types` returns the fixed `BenefitType` catalog itself
-  (each entry's `fixedLimit`) — a static read with no policy/benefit lookup.
+  holds no treatment-level detail, and no longer carries benefits. Reads and
+  writes all return plain `PolicyResponse` rows.
+- **Benefit** is a standalone **global catalog** entry: a `benefitName` (free
+  text) and a `limitAmount` (limit of cover). It is no longer scoped to a
+  policy — there is no `policyId` or fixed `BenefitType` enum. The catalog is
+  managed directly through full CRUD (`POST/GET/PUT/DELETE /api/v1/benefits`);
+  names are not required to be unique. Consumption is not tracked against the
+  limit. Other features reference a benefit by ID only: `VisitorBenefit`,
+  `Preauthorization` and `Claim` validate that the referenced benefit exists
+  (via `BenefitService.getEntityById`), but no longer that it belongs to a
+  particular policy.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,
@@ -304,34 +267,31 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
   `VisitorDetailResponse` that embeds the visitor's assigned benefits
   (`visitorBenefits`), and `GET /api/v1/visitors/by-policy?policyId=…`
   returns a list of them (one per visitor on the policy) — composed in
-  `VisitorController` from `VisitorBenefitService` (the same
-  controller-level composition used for `PolicyDetailResponse`, which
-  keeps service dependencies acyclic). The paged list and create/update
-  endpoints return plain `VisitorResponse` rows without benefits.
+  `VisitorController` from `VisitorBenefitService`, which keeps service
+  dependencies acyclic. The paged list and create/update endpoints return
+  plain `VisitorResponse` rows without benefits.
 - A visitor carries a `VisitorStatus` with guarded transitions
   (`canTransitionTo`). It is updated via
   `PATCH /api/v1/visitors/{id}/status` or
   `PATCH /api/v1/visitors/by-passport/status?passportNumber=…`, both taking a
   `VisitorStatusUpdate` body; an allowed transition publishes a
   `VisitorStatusChangedEvent`, an invalid one is rejected with `409 Conflict`.
-- Creating a visitor **auto-assigns the policy's benefits**: `VisitorServiceImpl`
-  publishes an in-process `VisitorCreatedEvent` (Spring `ApplicationEventPublisher`,
-  synchronous — it runs inside the same transaction as the visitor insert), and
-  `VisitorCreatedListener` in the `visitorbenefit` package creates one
-  `VisitorBenefit` row per catalog `Benefit` of the visitor's policy, snapshotting
-  each benefit's `limitAmount`. The event keeps the dependency graph acyclic
-  (`visitorbenefit` already depends on `VisitorService`, so the visitor feature
-  cannot call `VisitorBenefitService` directly).
-- A **VisitorBenefit** assigns a catalog benefit to a visitor. It carries
-  `visitorId`, `benefitId`, and its own `limitAmount` — snapshotted from the
-  policy `Benefit` at assignment time unless an explicit limit is supplied —
+- Visitors are **not** auto-assigned any benefits on creation; a new visitor
+  starts with no `VisitorBenefit` rows. Benefits are attached explicitly via
+  the `VisitorBenefit` endpoints. (`VisitorServiceImpl` still publishes an
+  in-process `VisitorCreatedEvent` on creation, but nothing consumes it for
+  benefit seeding.)
+- A **VisitorBenefit** assigns a global catalog benefit to a visitor. It
+  carries `visitorId`, `benefitId`, and its own `limitAmount` — snapshotted
+  from the `Benefit` at assignment time unless an explicit limit is supplied —
   so later catalog edits do not alter benefits already assigned to a visitor.
-  The referenced benefit must belong to the visitor's policy. A visitor may hold each catalog
-  benefit at most once (`visitorId` + `benefitId` unique). Usage tracking
-  against the limit is out of scope for now. `VisitorBenefitResponse`
-  additionally carries the catalog benefit's `benefitType` (resolved through
-  `BenefitService`; `null` if the catalog benefit has since been deleted) so
-  clients can display assignments without extra lookups.
+  The referenced benefit only needs to exist (no policy-membership check). A
+  visitor may hold each catalog benefit at most once (`visitorId` + `benefitId`
+  unique). Usage tracking against the limit is out of scope for now.
+  `VisitorBenefitResponse` additionally carries the catalog benefit's
+  `benefitName` (resolved through `BenefitService`; `null` if the catalog
+  benefit has since been deleted) so clients can display assignments without
+  extra lookups.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
   service and is decided by an `INSURER_USER` (or a admin agent).
 - A **Claim** is the request for payment. It is either provider-submitted
@@ -461,8 +421,8 @@ emails them a personalized policy certificate as a PDF attachment:
   duplicate to guard against.
 - The listener composes data via `VisitorService`, `PolicyService`,
   `VisitorBenefitService`, and `InsurerService` (the same "fan-in at a
-  boundary" shape already used for `PolicyDetailResponse`/
-  `VisitorDetailResponse`), builds a `PolicyDocumentData` holder (internal to
+  boundary" shape already used for `VisitorDetailResponse`), builds a
+  `PolicyDocumentData` holder (internal to
   the package, not a DTO — it never crosses the web boundary), and passes it
   to `PolicyDocumentRenderer`.
 - `PolicyDocumentRenderer` has no dependency on any other feature's service —

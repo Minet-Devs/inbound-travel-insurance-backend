@@ -2,7 +2,6 @@ package com.travel.insurance.visitorbenefit;
 
 import com.travel.insurance.benefit.Benefit;
 import com.travel.insurance.benefit.BenefitService;
-import com.travel.insurance.benefit.BenefitType;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitorbenefit.dto.VisitorBenefitRequest;
@@ -42,7 +41,6 @@ class VisitorBenefitServiceImplTest {
 
     private VisitorBenefitServiceImpl visitorBenefitService;
 
-    private UUID policyId;
     private UUID visitorId;
     private UUID benefitId;
     private Visitor visitor;
@@ -52,14 +50,12 @@ class VisitorBenefitServiceImplTest {
     void setUp() {
         visitorBenefitService = new VisitorBenefitServiceImpl(
                 visitorBenefitRepository, visitorBenefitMapper, visitorService, benefitService);
-        policyId = UUID.randomUUID();
         visitorId = UUID.randomUUID();
         benefitId = UUID.randomUUID();
         visitor = new Visitor();
-        visitor.setPolicyId(policyId);
+        visitor.setPolicyId(UUID.randomUUID());
         benefit = new Benefit();
-        benefit.setPolicyId(policyId);
-        benefit.setBenefitType(BenefitType.MEDICAL_EXPENSES);
+        benefit.setBenefitName("Medical Expenses");
         benefit.setLimitAmount(new BigDecimal("100000.00"));
     }
 
@@ -78,24 +74,24 @@ class VisitorBenefitServiceImplTest {
         assertThat(response.limitAmount()).isEqualByComparingTo("100000.00");
         assertThat(response.visitorId()).isEqualTo(visitorId);
         assertThat(response.benefitId()).isEqualTo(benefitId);
-        assertThat(response.benefitType()).isEqualTo(BenefitType.MEDICAL_EXPENSES);
+        assertThat(response.benefitName()).isEqualTo("Medical Expenses");
     }
 
     @Test
-    void listAllByVisitorResolvesBenefitTypes() {
+    void listAllByVisitorResolvesBenefitNames() {
         VisitorBenefit visitorBenefit = new VisitorBenefit();
         visitorBenefit.setVisitorId(visitorId);
         visitorBenefit.setBenefitId(benefitId);
         visitorBenefit.setLimitAmount(new BigDecimal("100000.00"));
         when(visitorBenefitRepository.findAllByVisitorId(visitorId))
                 .thenReturn(List.of(visitorBenefit));
-        when(benefitService.typesByIds(Set.of(benefitId)))
-                .thenReturn(Map.of(benefitId, BenefitType.MEDICAL_EXPENSES));
+        when(benefitService.namesByIds(Set.of(benefitId)))
+                .thenReturn(Map.of(benefitId, "Medical Expenses"));
 
         List<VisitorBenefitResponse> responses = visitorBenefitService.listAllByVisitor(visitorId);
 
         assertThat(responses).hasSize(1);
-        assertThat(responses.getFirst().benefitType()).isEqualTo(BenefitType.MEDICAL_EXPENSES);
+        assertThat(responses.getFirst().benefitName()).isEqualTo("Medical Expenses");
         assertThat(responses.getFirst().limitAmount()).isEqualByComparingTo("100000.00");
     }
 
@@ -112,19 +108,6 @@ class VisitorBenefitServiceImplTest {
                 new VisitorBenefitRequest(visitorId, benefitId, new BigDecimal("50000.00")));
 
         assertThat(response.limitAmount()).isEqualByComparingTo("50000.00");
-    }
-
-    @Test
-    void createRejectsBenefitFromAnotherPolicy() {
-        benefit.setPolicyId(UUID.randomUUID());
-        when(visitorService.getEntityById(visitorId)).thenReturn(visitor);
-        when(benefitService.getEntityById(benefitId)).thenReturn(benefit);
-
-        assertThatThrownBy(() -> visitorBenefitService.create(
-                new VisitorBenefitRequest(visitorId, benefitId, null)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining(benefitId.toString());
-        verify(visitorBenefitRepository, never()).save(any());
     }
 
     @Test

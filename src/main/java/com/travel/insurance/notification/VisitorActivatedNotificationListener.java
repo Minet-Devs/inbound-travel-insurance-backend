@@ -74,7 +74,7 @@ public class VisitorActivatedNotificationListener {
                 .map(insurerId -> insurerService.getById(insurerId).name())
                 .toList();
         List<BenefitLine> benefitLines = visitorBenefits.stream()
-                .map(vb -> new BenefitLine(vb.benefitType().name(), vb.limitAmount()))
+                .map(vb -> new BenefitLine(vb.benefitName(), vb.limitAmount()))
                 .toList();
 
         PolicyDocumentData data = new PolicyDocumentData(
