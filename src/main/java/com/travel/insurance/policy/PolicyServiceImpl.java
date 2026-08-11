@@ -37,6 +37,7 @@ public class PolicyServiceImpl implements PolicyService {
             throw new IllegalStateException("Policy number already exists: " + request.policyNumber());
         }
         Policy policy = policyRepository.save(policyMapper.toEntity(request));
+        applicationEventPublisher.publishEvent(new PolicyCreatedEvent(policy.getId()));
         assertActivationEligible(null, policy);
         publishIfActivated(null, policy);
         return policyMapper.toResponse(policy);

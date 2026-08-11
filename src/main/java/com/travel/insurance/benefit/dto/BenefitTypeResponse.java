@@ -6,6 +6,6 @@ import java.math.BigDecimal;
 
 public record BenefitTypeResponse(
         BenefitType benefitType,
-        BigDecimal minimumLimit
+        BigDecimal fixedLimit
 ) {
 }

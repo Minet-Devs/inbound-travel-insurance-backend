@@ -1,6 +1,5 @@
 package com.travel.insurance.benefit;
 
-import com.travel.insurance.benefit.dto.BenefitRequest;
 import com.travel.insurance.benefit.dto.BenefitResponse;
 import com.travel.insurance.benefit.dto.BenefitTypeResponse;
 import org.springframework.data.domain.Page;
@@ -15,7 +14,12 @@ public interface BenefitService {
 
     List<BenefitTypeResponse> listBenefitTypes();
 
-    List<BenefitResponse> create(List<BenefitRequest> requests);
+    /**
+     * Provisions the fixed {@link BenefitType} catalog onto a policy, each with
+     * its mandated fixed limit. Idempotent: types already present on the policy
+     * are left untouched. Invoked when a policy is created.
+     */
+    List<BenefitResponse> provisionFixedBenefits(UUID policyId);
 
     BenefitResponse getById(UUID id);
 
@@ -24,10 +28,6 @@ public interface BenefitService {
     List<BenefitResponse> listAllByPolicy(UUID policyId);
 
     Map<UUID, BenefitType> typesByIds(Collection<UUID> benefitIds);
-
-    BenefitResponse update(UUID id, BenefitRequest request);
-
-    void delete(UUID id);
 
     Benefit getEntityById(UUID id);
 }

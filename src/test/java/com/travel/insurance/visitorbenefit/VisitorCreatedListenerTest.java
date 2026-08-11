@@ -42,7 +42,7 @@ class VisitorCreatedListenerTest {
         UUID inpatientId = UUID.randomUUID();
         UUID outpatientId = UUID.randomUUID();
         when(benefitService.listAllByPolicy(policyId)).thenReturn(List.of(
-                new BenefitResponse(inpatientId, policyId, BenefitType.EMERGENCY_MEDICAL_EXPENSES,
+                new BenefitResponse(inpatientId, policyId, BenefitType.MEDICAL_EXPENSES,
                         new BigDecimal("100000.00"), Instant.now(), Instant.now()),
                 new BenefitResponse(outpatientId, policyId, BenefitType.EMERGENCY_MEDICAL_EVACUATION,
                         new BigDecimal("25000.00"), Instant.now(), Instant.now())));

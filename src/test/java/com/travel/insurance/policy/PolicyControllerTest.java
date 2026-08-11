@@ -58,7 +58,7 @@ class PolicyControllerTest {
     }
 
     private BenefitResponse sampleBenefit() {
-        return new BenefitResponse(benefitId, policyId, BenefitType.EMERGENCY_MEDICAL_EXPENSES,
+        return new BenefitResponse(benefitId, policyId, BenefitType.MEDICAL_EXPENSES,
                 new BigDecimal("100000.00"), Instant.now(), Instant.now());
     }
 
@@ -74,7 +74,7 @@ class PolicyControllerTest {
                 .andExpect(jsonPath("$.policyNumber").value("POL-001"))
                 .andExpect(jsonPath("$.policyType").value("IPMI_61_DAYS_TO_12_MONTHS"))
                 .andExpect(jsonPath("$.benefits[0].id").value(benefitId.toString()))
-                .andExpect(jsonPath("$.benefits[0].benefitType").value("EMERGENCY_MEDICAL_EXPENSES"))
+                .andExpect(jsonPath("$.benefits[0].benefitType").value("MEDICAL_EXPENSES"))
                 .andExpect(jsonPath("$.benefits[0].limitAmount").value(100000.00));
     }
 
@@ -89,7 +89,7 @@ class PolicyControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(policyId.toString()))
                 .andExpect(jsonPath("$.content[0].policyNumber").value("POL-001"))
-                .andExpect(jsonPath("$.content[0].benefits[0].benefitType").value("EMERGENCY_MEDICAL_EXPENSES"))
+                .andExpect(jsonPath("$.content[0].benefits[0].benefitType").value("MEDICAL_EXPENSES"))
                 .andExpect(jsonPath("$.content[0].benefits[0].limitAmount").value(100000.00));
     }
 

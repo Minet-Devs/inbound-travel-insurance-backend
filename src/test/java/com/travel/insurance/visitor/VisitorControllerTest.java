@@ -75,7 +75,7 @@ class VisitorControllerTest {
 
     private VisitorBenefitResponse sampleBenefit() {
         return new VisitorBenefitResponse(UUID.randomUUID(), visitorId, benefitId,
-                BenefitType.EMERGENCY_MEDICAL_EXPENSES, new BigDecimal("100000.00"), VisitorStatus.PENDING,
+                BenefitType.MEDICAL_EXPENSES, new BigDecimal("100000.00"), VisitorStatus.PENDING,
                 Instant.now(), Instant.now());
     }
 
@@ -93,7 +93,7 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$.passportNumber").value("P1234567"))
                 .andExpect(jsonPath("$.policyId").value(policyId.toString()))
                 .andExpect(jsonPath("$.visitorBenefits[0].benefitId").value(benefitId.toString()))
-                .andExpect(jsonPath("$.visitorBenefits[0].benefitType").value("EMERGENCY_MEDICAL_EXPENSES"))
+                .andExpect(jsonPath("$.visitorBenefits[0].benefitType").value("MEDICAL_EXPENSES"))
                 .andExpect(jsonPath("$.visitorBenefits[0].limitAmount").value(100000.00));
     }
 
@@ -107,7 +107,7 @@ class VisitorControllerTest {
         mockMvc.perform(get("/api/v1/visitors/by-passport").param("passportNumber", "P1234567"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.passportNumber").value("P1234567"))
-                .andExpect(jsonPath("$.visitorBenefits[0].benefitType").value("EMERGENCY_MEDICAL_EXPENSES"));
+                .andExpect(jsonPath("$.visitorBenefits[0].benefitType").value("MEDICAL_EXPENSES"));
     }
 
     @Test
@@ -120,7 +120,7 @@ class VisitorControllerTest {
         mockMvc.perform(get("/api/v1/visitors/by-policy").param("policyId", policyId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].policyId").value(policyId.toString()))
-                .andExpect(jsonPath("$[0].visitorBenefits[0].benefitType").value("EMERGENCY_MEDICAL_EXPENSES"));
+                .andExpect(jsonPath("$[0].visitorBenefits[0].benefitType").value("MEDICAL_EXPENSES"));
     }
 
     @Test

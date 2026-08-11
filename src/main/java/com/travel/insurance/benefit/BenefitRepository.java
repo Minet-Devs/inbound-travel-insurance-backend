@@ -14,6 +14,4 @@ public interface BenefitRepository extends JpaRepository<Benefit, UUID> {
     List<Benefit> findAllByPolicyId(UUID policyId);
 
     boolean existsByPolicyIdAndBenefitType(UUID policyId, BenefitType benefitType);
-
-    boolean existsByPolicyIdAndBenefitTypeAndIdNot(UUID policyId, BenefitType benefitType, UUID id);
 }

@@ -130,6 +130,8 @@ com.travel.insurance/
 │   ├── PolicyType.java                     # Enum: SINGLE_ENTRY_UP_TO_30_DAYS,
 │   │                                       #       SINGLE_ENTRY_31_TO_60_DAYS,
 │   │                                       #       IPMI_61_DAYS_TO_12_MONTHS
+│   ├── PolicyCreatedEvent.java             # In-process event published after a policy is
+│   │                                       # created; benefit feature provisions its catalog
 │   ├── PolicyActivatingEvent.java          # In-process event published before a policy
 │   │                                       # is saved as ACTIVE; listeners may reject it
 │   ├── PolicyMapper.java
@@ -144,20 +146,22 @@ com.travel.insurance/
 │   ├── BenefitServiceImpl.java
 │   ├── BenefitRepository.java
 │   ├── Benefit.java                        # policyId, benefitType, limitAmount
-│   ├── BenefitType.java                    # Enum: fixed catalog mandated by the Ministry
-│   │                                       #       of Health framework (PERSONAL_ACCIDENT,
-│   │                                       #       EMERGENCY_MEDICAL_EXPENSES,
-│   │                                       #       EMERGENCY_MEDICAL_EVACUATION,
-│   │                                       #       REPATRIATION_OF_MORTAL_REMAINS,
-│   │                                       #       HOSPITAL_BENEFITS,
-│   │                                       #       PRESCRIPTION_MEDICINES), each carrying
-│   │                                       #       its own mandated minimum limit
+│   ├── BenefitType.java                    # Enum: fixed catalog from the Policy Document
+│   │                                       #       (July 2026), §5 Limits of Cover
+│   │                                       #       (MEDICAL_EXPENSES 20000,
+│   │                                       #       EMERGENCY_MEDICAL_EVACUATION 25000,
+│   │                                       #       PRESCRIBED_MEDICINES 300,
+│   │                                       #       MENTAL_ILLNESS 1000,
+│   │                                       #       REPATRIATION_OF_MORTAL_REMAINS 5000),
+│   │                                       #       each carrying its own fixed limit
+│   ├── PolicyCreatedBenefitProvisioner.java# Listens for PolicyCreatedEvent; provisions the
+│   │                                       # fixed benefit catalog onto the new policy
 │   ├── PolicyActivationGateListener.java   # Listens for PolicyActivatingEvent; rejects
 │   │                                       # activation if the catalog/cumulative-limit
 │   │                                       # gate isn't met
 │   ├── BenefitMapper.java
 │   └── 📁 dto/
-│       ├── BenefitRequest.java
+│       ├── BenefitTypeResponse.java
 │       └── BenefitResponse.java
 │
 ├── 📁 visitor/                             # Feature: Visitor (insured traveler) Management
@@ -254,27 +258,33 @@ Policy ──1:N── Benefit                    (a policy carries a set of ben
   embed the policy's benefits; create/update return plain `PolicyResponse`
   rows without them.
 - **Benefit** rows belong to a policy and reference a fixed `benefitType`
-  (`BenefitType`) rather than a free-text name — the six insured events
-  mandated by the framework (personal accident, emergency medical expenses,
-  emergency medical evacuation, repatriation of mortal remains, hospital
-  benefits, prescription medicines), each with its own mandated minimum
-  `limitAmount` that `BenefitServiceImpl` enforces on create/update. A policy
-  is only eligible to move to `ACTIVE` once its benefits cover every
-  `BenefitType` and their `limitAmount`s sum to at least the mandated
-  cumulative floor (`BenefitType.MANDATED_CUMULATIVE_MINIMUM`, USD 50,000).
-  This gate runs via an in-process event, the same pattern used for
-  `VisitorCreatedEvent`: `PolicyServiceImpl` publishes `PolicyActivatingEvent`
-  (Spring `ApplicationEventPublisher`, synchronous, before the Rabbit
-  `policy.activated` event) right after saving a policy whose status is
-  becoming `ACTIVE`, and `PolicyActivationGateListener` in the `benefit`
-  package throws `IllegalStateException` (→ 409, rolling back the save) if
-  the gate fails — this keeps `benefit → policy` the only compile-time
-  dependency between the two features, since `PolicyServiceImpl` never
-  injects `BenefitService` directly. Consumption is not tracked against the
-  limit. `GET /api/v1/benefits/types` returns the fixed `BenefitType` catalog
-  itself (each entry's mandated minimum `limitAmount`) — a static read with
-  no policy/benefit lookup, useful for clients building a benefit-creation
-  form without hardcoding the enum.
+  (`BenefitType`) rather than a free-text name — the five insured events and
+  limits of cover from the Inbound Travel Medical Insurance Policy Document
+  (July 2026), §5: medical expenses (USD 20,000), emergency medical
+  evacuation (25,000), prescribed medicines (300), mental illness (1,000) and
+  repatriation of mortal remains (5,000). The limits are **fixed**, not
+  configurable. **Every policy inherits this catalog on creation**: benefits
+  are read-only over the API (`GET` only — no create/update/delete
+  endpoints). Provisioning runs via an in-process event, the same pattern used
+  for `VisitorCreatedEvent`: `PolicyServiceImpl` publishes `PolicyCreatedEvent`
+  (Spring `ApplicationEventPublisher`, synchronous, in the creating
+  transaction) right after saving a new policy, and
+  `PolicyCreatedBenefitProvisioner` in the `benefit` package calls
+  `BenefitService.provisionFixedBenefits`, which inserts one `Benefit` per
+  `BenefitType` at its fixed limit (idempotent — types already present are
+  skipped). A policy is only eligible to move to `ACTIVE` once its benefits
+  cover every `BenefitType` and their `limitAmount`s sum to at least the
+  cumulative floor (`BenefitType.MANDATED_CUMULATIVE_MINIMUM`, USD 51,300 —
+  the sum of the fixed limits). This activation gate runs the same way:
+  `PolicyServiceImpl` publishes `PolicyActivatingEvent` (before the Rabbit
+  `policy.activated` event) when a policy's status is becoming `ACTIVE`, and
+  `PolicyActivationGateListener` in the `benefit` package throws
+  `IllegalStateException` (→ 409, rolling back the save) if the gate fails.
+  Both event flows keep `benefit → policy` the only compile-time dependency
+  between the two features, since `PolicyServiceImpl` never injects
+  `BenefitService` directly. Consumption is not tracked against the limit.
+  `GET /api/v1/benefits/types` returns the fixed `BenefitType` catalog itself
+  (each entry's `fixedLimit`) — a static read with no policy/benefit lookup.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,

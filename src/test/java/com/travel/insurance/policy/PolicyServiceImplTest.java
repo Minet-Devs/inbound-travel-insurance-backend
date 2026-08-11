@@ -18,8 +18,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -94,7 +95,31 @@ class PolicyServiceImplTest {
 
         policyService.create(request);
 
-        ArgumentCaptor<PolicyActivatingEvent> captor = ArgumentCaptor.forClass(PolicyActivatingEvent.class);
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(applicationEventPublisher, times(2)).publishEvent(captor.capture());
+        PolicyActivatingEvent activating = captor.getAllValues().stream()
+                .filter(PolicyActivatingEvent.class::isInstance)
+                .map(PolicyActivatingEvent.class::cast)
+                .findFirst()
+                .orElseThrow();
+        assertThat(activating.policyId()).isNotNull();
+    }
+
+    @Test
+    void createPublishesPolicyCreatedEventSoBenefitsAreProvisioned() {
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
+        when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> {
+            Policy saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+
+        PolicyRequest request = requestWithType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS, null);
+
+        policyService.create(request);
+
+        ArgumentCaptor<PolicyCreatedEvent> captor = ArgumentCaptor.forClass(PolicyCreatedEvent.class);
         verify(applicationEventPublisher).publishEvent(captor.capture());
         assertThat(captor.getValue().policyId()).isNotNull();
     }
@@ -109,7 +134,8 @@ class PolicyServiceImplTest {
 
         policyService.create(request);
 
-        verify(applicationEventPublisher, never()).publishEvent(any());
+        verify(applicationEventPublisher).publishEvent(any(PolicyCreatedEvent.class));
+        verify(applicationEventPublisher, never()).publishEvent(any(PolicyActivatingEvent.class));
     }
 
     @Test
@@ -121,7 +147,9 @@ class PolicyServiceImplTest {
             saved.setId(UUID.randomUUID());
             return saved;
         });
-        doThrow(new IllegalStateException("Policy cannot be activated: missing benefits"))
+        // create also publishes PolicyCreatedEvent first; only the activation
+        // event should trip the gate, so keep the throwing stub lenient.
+        lenient().doThrow(new IllegalStateException("Policy cannot be activated: missing benefits"))
                 .when(applicationEventPublisher).publishEvent(any(PolicyActivatingEvent.class));
 
         PolicyRequest request = requestWithType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS, PolicyStatus.ACTIVE);

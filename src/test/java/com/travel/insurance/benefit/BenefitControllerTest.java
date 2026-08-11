@@ -33,15 +33,15 @@ class BenefitControllerTest {
     @WithMockUser(roles = "ADMIN")
     void listBenefitTypesReturnsFixedCatalog() throws Exception {
         when(benefitService.listBenefitTypes()).thenReturn(List.of(
-                new BenefitTypeResponse(BenefitType.PERSONAL_ACCIDENT, BigDecimal.ZERO),
-                new BenefitTypeResponse(BenefitType.EMERGENCY_MEDICAL_EXPENSES, new BigDecimal("20000.00"))));
+                new BenefitTypeResponse(BenefitType.MEDICAL_EXPENSES, new BigDecimal("20000.00")),
+                new BenefitTypeResponse(BenefitType.PRESCRIBED_MEDICINES, new BigDecimal("300.00"))));
 
         mockMvc.perform(get("/api/v1/benefits/types"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].benefitType").value("PERSONAL_ACCIDENT"))
-                .andExpect(jsonPath("$[0].minimumLimit").value(0))
-                .andExpect(jsonPath("$[1].benefitType").value("EMERGENCY_MEDICAL_EXPENSES"))
-                .andExpect(jsonPath("$[1].minimumLimit").value(20000.00));
+                .andExpect(jsonPath("$[0].benefitType").value("MEDICAL_EXPENSES"))
+                .andExpect(jsonPath("$[0].fixedLimit").value(20000.00))
+                .andExpect(jsonPath("$[1].benefitType").value("PRESCRIBED_MEDICINES"))
+                .andExpect(jsonPath("$[1].fixedLimit").value(300.00));
     }
 
     @Test
