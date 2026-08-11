@@ -1,5 +1,12 @@
 # Travel Insurance — Working Conventions
 
+## Clarify before acting
+
+When a task or prompt is unclear, ambiguous, or underspecified, ask a
+clarifying question before starting work. Do not guess at intent or make
+assumptions about scope, requirements, or approach when the request could
+reasonably be interpreted more than one way — confirm first.
+
 ## Definition of done
 
 Every code change must include, in the same piece of work:
