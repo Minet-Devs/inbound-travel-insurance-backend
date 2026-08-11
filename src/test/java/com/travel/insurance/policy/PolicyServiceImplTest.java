@@ -7,10 +7,8 @@ import com.travel.insurance.policy.dto.PolicyResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Set;
 import java.util.UUID;
@@ -18,7 +16,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -35,9 +33,6 @@ class PolicyServiceImplTest {
     @Mock
     private EventPublisher eventPublisher;
 
-    @Mock
-    private ApplicationEventPublisher applicationEventPublisher;
-
     private final PolicyMapper policyMapper = new PolicyMapper();
 
     private PolicyServiceImpl policyService;
@@ -47,7 +42,7 @@ class PolicyServiceImplTest {
     @BeforeEach
     void setUp() {
         policyService = new PolicyServiceImpl(
-                policyRepository, policyMapper, insurerService, eventPublisher, applicationEventPublisher);
+                policyRepository, policyMapper, insurerService, eventPublisher);
     }
 
     private PolicyRequest requestWithType(PolicyType policyType, PolicyStatus status) {
@@ -81,7 +76,7 @@ class PolicyServiceImplTest {
     }
 
     @Test
-    void createPublishesActivationEventWhenStatusIsActive() {
+    void createPublishesActivatedEventWhenStatusIsActive() {
         when(insurerService.exists(insurerId)).thenReturn(true);
         when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
         when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> {
@@ -94,13 +89,11 @@ class PolicyServiceImplTest {
 
         policyService.create(request);
 
-        ArgumentCaptor<PolicyActivatingEvent> captor = ArgumentCaptor.forClass(PolicyActivatingEvent.class);
-        verify(applicationEventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().policyId()).isNotNull();
+        verify(eventPublisher).publish(eq("policy.activated"), any());
     }
 
     @Test
-    void createDoesNotPublishActivationEventWhenStatusIsDraft() {
+    void createDoesNotPublishActivatedEventWhenStatusIsDraft() {
         when(insurerService.exists(insurerId)).thenReturn(true);
         when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
         when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -109,26 +102,6 @@ class PolicyServiceImplTest {
 
         policyService.create(request);
 
-        verify(applicationEventPublisher, never()).publishEvent(any());
-    }
-
-    @Test
-    void createRollsBackWhenActivationGateRejectsThePolicy() {
-        when(insurerService.exists(insurerId)).thenReturn(true);
-        when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
-        when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> {
-            Policy saved = invocation.getArgument(0);
-            saved.setId(UUID.randomUUID());
-            return saved;
-        });
-        doThrow(new IllegalStateException("Policy cannot be activated: missing benefits"))
-                .when(applicationEventPublisher).publishEvent(any(PolicyActivatingEvent.class));
-
-        PolicyRequest request = requestWithType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS, PolicyStatus.ACTIVE);
-
-        assertThatThrownBy(() -> policyService.create(request))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("missing benefits");
         verify(eventPublisher, never()).publish(any(), any());
     }
 }

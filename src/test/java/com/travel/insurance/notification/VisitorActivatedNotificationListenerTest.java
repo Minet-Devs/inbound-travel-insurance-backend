@@ -1,6 +1,5 @@
 package com.travel.insurance.notification;
 
-import com.travel.insurance.benefit.BenefitType;
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.insurer.InsurerService;
@@ -120,7 +119,7 @@ class VisitorActivatedNotificationListenerTest {
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of(
                 new VisitorBenefitResponse(UUID.randomUUID(), visitorId, UUID.randomUUID(),
-                        BenefitType.EMERGENCY_MEDICAL_EXPENSES, new BigDecimal("20000.00"),
+                        "Medical Expenses", new BigDecimal("20000.00"),
                         VisitorStatus.ACTIVE, Instant.now(), Instant.now())));
         when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
                 insurerId, "Acme Insurance", "contact@acme.example", null, null, Instant.now(), Instant.now()));

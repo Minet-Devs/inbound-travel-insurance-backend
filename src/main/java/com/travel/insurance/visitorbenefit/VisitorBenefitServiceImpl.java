@@ -2,7 +2,6 @@ package com.travel.insurance.visitorbenefit;
 
 import com.travel.insurance.benefit.Benefit;
 import com.travel.insurance.benefit.BenefitService;
-import com.travel.insurance.benefit.BenefitType;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
@@ -34,7 +33,7 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
     @Override
     public VisitorBenefitResponse create(VisitorBenefitRequest request) {
         Visitor visitor = visitorService.getEntityById(request.visitorId());
-        Benefit benefit = validateAssignment(visitor, request);
+        Benefit benefit = benefitService.getEntityById(request.benefitId());
         if (visitorBenefitRepository.existsByVisitorIdAndBenefitId(
                 request.visitorId(), request.benefitId())) {
             throw new IllegalStateException(
@@ -43,7 +42,7 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
         VisitorBenefit visitorBenefit = new VisitorBenefit();
         applyRequest(visitorBenefit, request, benefit, visitor);
         return visitorBenefitMapper.toResponse(
-                visitorBenefitRepository.save(visitorBenefit), benefit.getBenefitType());
+                visitorBenefitRepository.save(visitorBenefit), benefit.getBenefitName());
     }
 
     @Override
@@ -71,14 +70,14 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
     public VisitorBenefitResponse update(UUID id, VisitorBenefitRequest request) {
         VisitorBenefit visitorBenefit = getEntityById(id);
         Visitor visitor = visitorService.getEntityById(request.visitorId());
-        Benefit benefit = validateAssignment(visitor, request);
+        Benefit benefit = benefitService.getEntityById(request.benefitId());
         if (visitorBenefitRepository.existsByVisitorIdAndBenefitIdAndIdNot(
                 request.visitorId(), request.benefitId(), id)) {
             throw new IllegalStateException(
                     "Benefit already assigned to this visitor: " + request.benefitId());
         }
         applyRequest(visitorBenefit, request, benefit, visitor);
-        return visitorBenefitMapper.toResponse(visitorBenefit, benefit.getBenefitType());
+        return visitorBenefitMapper.toResponse(visitorBenefit, benefit.getBenefitName());
     }
 
     @Override
@@ -97,20 +96,11 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
         Set<UUID> benefitIds = visitorBenefits.stream()
                 .map(VisitorBenefit::getBenefitId)
                 .collect(Collectors.toSet());
-        Map<UUID, BenefitType> typesByIds = benefitService.typesByIds(benefitIds);
+        Map<UUID, String> namesByIds = benefitService.namesByIds(benefitIds);
         return visitorBenefits.stream()
                 .map(visitorBenefit -> visitorBenefitMapper.toResponse(
-                        visitorBenefit, typesByIds.get(visitorBenefit.getBenefitId())))
+                        visitorBenefit, namesByIds.get(visitorBenefit.getBenefitId())))
                 .toList();
-    }
-
-    private Benefit validateAssignment(Visitor visitor, VisitorBenefitRequest request) {
-        Benefit benefit = benefitService.getEntityById(request.benefitId());
-        if (!benefit.getPolicyId().equals(visitor.getPolicyId())) {
-            throw new IllegalStateException(
-                    "Benefit does not belong to the visitor's policy: " + request.benefitId());
-        }
-        return benefit;
     }
 
     private void applyRequest(VisitorBenefit visitorBenefit, VisitorBenefitRequest request,

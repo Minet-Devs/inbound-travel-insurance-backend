@@ -43,7 +43,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     @Override
     public PreauthorizationResponse create(PreauthorizationRequest request) {
         validatePolicyActive(request.policyId());
-        validateBenefitBelongsToPolicy(request.benefitId(), request.policyId());
+        validateBenefitExists(request.benefitId());
         Preauthorization saved = preauthorizationRepository.save(preauthorizationMapper.toEntity(request));
         return preauthorizationMapper.toResponse(saved);
     }
@@ -110,10 +110,9 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         }
     }
 
-    private void validateBenefitBelongsToPolicy(UUID benefitId, UUID policyId) {
-        if (!benefitService.getEntityById(benefitId).getPolicyId().equals(policyId)) {
-            throw new IllegalArgumentException("Benefit does not belong to the given policy");
-        }
+    private void validateBenefitExists(UUID benefitId) {
+        // Benefits are a global catalog, so only existence is validated here.
+        benefitService.getEntityById(benefitId);
     }
 
     private Page<Preauthorization> findScoped(Pageable pageable) {

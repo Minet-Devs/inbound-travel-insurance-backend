@@ -33,6 +33,6 @@ record PolicyDocumentData(
         String emergencyAssistanceEmail
 ) {
 
-    record BenefitLine(String benefitType, BigDecimal limitAmount) {
+    record BenefitLine(String benefitName, BigDecimal limitAmount) {
     }
 }

@@ -2,9 +2,7 @@ package com.travel.insurance.benefit;
 
 import com.travel.insurance.benefit.dto.BenefitRequest;
 import com.travel.insurance.benefit.dto.BenefitResponse;
-import com.travel.insurance.benefit.dto.BenefitTypeResponse;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,12 +15,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
+/**
+ * Manages the global benefit catalog: standalone benefits identified by name
+ * with a limit of cover, no longer scoped to a policy.
+ */
 @RestController
 @RequestMapping("/api/v1/benefits")
 @RequiredArgsConstructor
@@ -30,15 +30,9 @@ public class BenefitController {
 
     private final BenefitService benefitService;
 
-    @GetMapping("/types")
-    public ResponseEntity<List<BenefitTypeResponse>> listBenefitTypes() {
-        return ResponseEntity.ok(benefitService.listBenefitTypes());
-    }
-
     @PostMapping
-    public ResponseEntity<List<BenefitResponse>> create(
-            @RequestBody @NotEmpty List<@Valid BenefitRequest> requests) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(benefitService.create(requests));
+    public ResponseEntity<BenefitResponse> create(@Valid @RequestBody BenefitRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(benefitService.create(request));
     }
 
     @GetMapping("/{id}")
@@ -47,9 +41,8 @@ public class BenefitController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<BenefitResponse>> list(@RequestParam(required = false) UUID policyId,
-                                                      Pageable pageable) {
-        return ResponseEntity.ok(benefitService.list(policyId, pageable));
+    public ResponseEntity<Page<BenefitResponse>> list(Pageable pageable) {
+        return ResponseEntity.ok(benefitService.list(pageable));
     }
 
     @PutMapping("/{id}")

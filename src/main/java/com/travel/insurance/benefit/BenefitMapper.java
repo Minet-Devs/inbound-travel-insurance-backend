@@ -14,16 +14,14 @@ public class BenefitMapper {
     }
 
     public void updateEntity(Benefit benefit, BenefitRequest request) {
-        benefit.setPolicyId(request.policyId());
-        benefit.setBenefitType(request.benefitType());
+        benefit.setBenefitName(request.benefitName());
         benefit.setLimitAmount(request.limitAmount());
     }
 
     public BenefitResponse toResponse(Benefit benefit) {
         return new BenefitResponse(
                 benefit.getId(),
-                benefit.getPolicyId(),
-                benefit.getBenefitType(),
+                benefit.getBenefitName(),
                 benefit.getLimitAmount(),
                 benefit.getCreatedDate(),
                 benefit.getUpdatedDate()

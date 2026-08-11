@@ -51,7 +51,7 @@ class PolicyDocumentRendererTest {
     void rendersHtmlWithKeyFields() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of(
-                new BenefitLine("EMERGENCY_MEDICAL_EXPENSES", new BigDecimal("20000.00"))));
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
 
         String html = renderer.renderHtml(data);
 
@@ -59,7 +59,7 @@ class PolicyDocumentRendererTest {
         assertThat(html).contains("P1234567");
         assertThat(html).contains("POL-0001");
         assertThat(html).contains("Ipmi 61 Days To 12 Months");
-        assertThat(html).contains("Emergency Medical Expenses");
+        assertThat(html).contains("Medical Expenses");
         assertThat(html).contains("20000.00");
         assertThat(html).contains("Acme Insurance");
         assertThat(html).doesNotContain("underlyingConditions");
@@ -79,7 +79,7 @@ class PolicyDocumentRendererTest {
     void rendersPdfStartingWithPdfMagicHeader() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of(
-                new BenefitLine("PRESCRIPTION_MEDICINES", new BigDecimal("300.00"))));
+                new BenefitLine("Prescribed Medicines", new BigDecimal("300.00"))));
 
         byte[] pdf = renderer.renderPdf(data);
 
