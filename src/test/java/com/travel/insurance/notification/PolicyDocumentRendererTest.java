@@ -2,6 +2,7 @@ package com.travel.insurance.notification;
 
 import com.travel.insurance.notification.PolicyDocumentData.BenefitLine;
 import com.travel.insurance.policy.PolicyType;
+import com.travel.insurance.visitor.Gender;
 import org.junit.jupiter.api.Test;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
@@ -32,6 +33,7 @@ class PolicyDocumentRendererTest {
                 "Jane Traveler",
                 "P1234567",
                 LocalDate.of(1990, 5, 12),
+                Gender.FEMALE,
                 "Germany",
                 "12 Example Street, Berlin",
                 "jane.traveler@example.com",
@@ -60,8 +62,10 @@ class PolicyDocumentRendererTest {
         assertThat(html).contains("POL-0001");
         assertThat(html).contains("Ipmi 61 Days To 12 Months");
         assertThat(html).contains("Medical Expenses");
-        assertThat(html).contains("20000.00");
+        assertThat(html).contains("20,000");
         assertThat(html).contains("Acme Insurance");
+        assertThat(html).contains("CERTIFICATE OF INSURANCE");
+        assertThat(html).contains("Female");
         assertThat(html).doesNotContain("underlyingConditions");
     }
 
