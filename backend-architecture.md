@@ -133,7 +133,8 @@ com.travel.insurance/
 │   ├── PolicyMapper.java
 │   └── 📁 dto/
 │       ├── PolicyRequest.java
-│       └── PolicyResponse.java
+│       ├── PolicyResponse.java
+│       └── PolicyDetailResponse.java       # PolicyResponse + embedded global benefit catalog
 │
 ├── 📁 benefit/                             # Feature: Benefit Catalog (global)
 │   ├── BenefitController.java
@@ -237,16 +238,22 @@ Policy
   framework (`PolicyType`: `SINGLE_ENTRY_UP_TO_30_DAYS`,
   `SINGLE_ENTRY_31_TO_60_DAYS`, `IPMI_61_DAYS_TO_12_MONTHS`), each carrying a
   min/max day range; it's enforced per visitor instead (see below). A policy
-  holds no treatment-level detail, and no longer carries benefits. Reads and
-  writes all return plain `PolicyResponse` rows.
+  holds no treatment-level detail. `GET /api/v1/policies/{id}` and the paged
+  `GET /api/v1/policies` return `PolicyDetailResponse` rows that embed the
+  benefit catalog under `benefits`; since benefits are global (see below),
+  every policy carries the whole catalog. `PolicyController` fetches it once
+  via `BenefitService.listAll()` and attaches it to each policy. Create/update
+  return plain `PolicyResponse` rows without benefits.
 - **Benefit** is a standalone **global catalog** entry: a `benefitName` (free
   text) and a `limitAmount` (limit of cover). It is no longer scoped to a
   policy — there is no `policyId` or fixed `BenefitType` enum. The catalog is
   managed directly through full CRUD (`POST/GET/PUT/DELETE /api/v1/benefits`);
   names are not required to be unique. Consumption is not tracked against the
-  limit. Other features reference a benefit by ID only: `VisitorBenefit`,
-  `Preauthorization` and `Claim` validate that the referenced benefit exists
-  (via `BenefitService.getEntityById`), but no longer that it belongs to a
+  limit. Because there is no policy link, a policy's `benefits` in
+  `PolicyDetailResponse` is simply the entire catalog. Other features
+  reference a benefit by ID only: `VisitorBenefit`, `Preauthorization` and
+  `Claim` validate that the referenced benefit exists (via
+  `BenefitService.getEntityById`), but no longer that it belongs to a
   particular policy.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
