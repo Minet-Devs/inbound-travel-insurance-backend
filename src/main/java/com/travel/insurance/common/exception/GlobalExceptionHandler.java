@@ -3,6 +3,7 @@ package com.travel.insurance.common.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -31,7 +32,7 @@ public class GlobalExceptionHandler {
                 .toList();
         ApiError body = ApiError.of(HttpStatus.BAD_REQUEST.value(), HttpStatus.BAD_REQUEST.getReasonPhrase(),
                 "Validation failed", request.getRequestURI(), details);
-        return ResponseEntity.badRequest().body(body);
+        return ResponseEntity.badRequest().contentType(MediaType.APPLICATION_JSON).body(body);
     }
 
     @ExceptionHandler(HandlerMethodValidationException.class)
@@ -42,7 +43,7 @@ public class GlobalExceptionHandler {
                 .toList();
         ApiError body = ApiError.of(HttpStatus.BAD_REQUEST.value(), HttpStatus.BAD_REQUEST.getReasonPhrase(),
                 "Validation failed", request.getRequestURI(), details);
-        return ResponseEntity.badRequest().body(body);
+        return ResponseEntity.badRequest().contentType(MediaType.APPLICATION_JSON).body(body);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -90,6 +91,6 @@ public class GlobalExceptionHandler {
 
     private ResponseEntity<ApiError> build(HttpStatus status, String message, HttpServletRequest request) {
         ApiError body = ApiError.of(status.value(), status.getReasonPhrase(), message, request.getRequestURI());
-        return ResponseEntity.status(status).body(body);
+        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(body);
     }
 }
