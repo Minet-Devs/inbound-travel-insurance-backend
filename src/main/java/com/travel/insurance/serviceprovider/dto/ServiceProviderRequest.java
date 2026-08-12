@@ -7,7 +7,6 @@ public record ServiceProviderRequest(
         @NotBlank String name,
         @NotBlank @Email String contactEmail,
         String contactPhone,
-        String address,
-        String country
+        String address
 ) {
 }

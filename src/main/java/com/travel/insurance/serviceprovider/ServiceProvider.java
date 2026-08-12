@@ -28,6 +28,4 @@ public class ServiceProvider extends BaseEntity {
     private String contactPhone;
 
     private String address;
-
-    private String country;
 }
