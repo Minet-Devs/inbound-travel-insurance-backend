@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} -- %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!--
+      The activation-document listener deliberately catches and logs rendering
+      failures instead of propagating them (see VisitorActivatedNotificationListener).
+      Tests that exercise that path intentionally trigger the failure, so its
+      WARN/ERROR output is expected noise; silence it to keep test logs clean.
+    -->
+    <logger name="com.travel.insurance.notification.VisitorActivatedNotificationListener" level="OFF"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>

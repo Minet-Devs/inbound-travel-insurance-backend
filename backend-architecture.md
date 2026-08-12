@@ -155,7 +155,8 @@ com.travel.insurance/
 │   ├── Visitor.java                        # policyId + passport-based KYC attributes,
 │   │                                       # incl. address, facePhotoUrl, reasonForTravel,
 │   │                                       # underlyingConditions
-│   ├── VisitorCreatedEvent.java            # In-process event published on visitor creation
+│   ├── VisitorCreatedEvent.java            # In-process event on visitor creation;
+│   │                                       # consumed by visitorbenefit to seed benefits
 │   ├── Gender.java                         # Enum: MALE, FEMALE, OTHER
 │   ├── MaritalStatus.java                  # Enum: SINGLE, MARRIED, DIVORCED, WIDOWED
 │   ├── VisitorMapper.java
@@ -170,6 +171,8 @@ com.travel.insurance/
 │   ├── VisitorBenefitServiceImpl.java
 │   ├── VisitorBenefitRepository.java
 │   ├── VisitorBenefit.java                 # visitorId, benefitId, limitAmount
+│   ├── VisitorCreatedListener.java         # seeds visitor benefits from the
+│   │                                       # catalog on VisitorCreatedEvent
 │   ├── VisitorBenefitMapper.java
 │   └── 📁 dto/
 │       ├── VisitorBenefitRequest.java
@@ -283,11 +286,13 @@ Policy
   `PATCH /api/v1/visitors/by-passport/status?passportNumber=…`, both taking a
   `VisitorStatusUpdate` body; an allowed transition publishes a
   `VisitorStatusChangedEvent`, an invalid one is rejected with `409 Conflict`.
-- Visitors are **not** auto-assigned any benefits on creation; a new visitor
-  starts with no `VisitorBenefit` rows. Benefits are attached explicitly via
-  the `VisitorBenefit` endpoints. (`VisitorServiceImpl` still publishes an
-  in-process `VisitorCreatedEvent` on creation, but nothing consumes it for
-  benefit seeding.)
+- Visitors are auto-assigned the full benefit catalog on creation:
+  `VisitorServiceImpl` publishes an in-process `VisitorCreatedEvent`, which
+  `visitorbenefit.VisitorCreatedListener` consumes to create one
+  `VisitorBenefit` per global `Benefit` (each snapshotting the catalog
+  `limitAmount` and starting in `PENDING`). The listener skips benefits already
+  assigned to the visitor, so it is idempotent. Further benefits can still be
+  attached explicitly via the `VisitorBenefit` endpoints.
 - A **VisitorBenefit** assigns a global catalog benefit to a visitor. It
   carries `visitorId`, `benefitId`, and its own `limitAmount` — snapshotted
   from the `Benefit` at assignment time unless an explicit limit is supplied —
