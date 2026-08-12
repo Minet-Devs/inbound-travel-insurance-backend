@@ -28,4 +28,8 @@ public class Insurer extends BaseEntity {
     private String contactPhone;
 
     private String address;
+
+    private String logoUrl;
+
+    private Long policyToken;
 }

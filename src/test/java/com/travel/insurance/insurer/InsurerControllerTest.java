@@ -42,7 +42,7 @@ class InsurerControllerTest {
 
     private InsurerResponse sampleResponse() {
         return new InsurerResponse(insurerId, "Acme Insurance", "contact@acme.example",
-                null, null, Instant.now(), Instant.now());
+                null, null, "https://cdn.example/acme.png", 42L, Instant.now(), Instant.now());
     }
 
     @Test
@@ -61,19 +61,22 @@ class InsurerControllerTest {
     void createReturnsCreated() throws Exception {
         when(insurerService.create(any(InsurerRequest.class))).thenReturn(sampleResponse());
 
-        InsurerRequest request = new InsurerRequest("Acme Insurance", "contact@acme.example", null, null);
+        InsurerRequest request = new InsurerRequest("Acme Insurance", "contact@acme.example", null, null,
+                "https://cdn.example/acme.png", 42L);
         mockMvc.perform(post("/api/v1/insurers")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name").value("Acme Insurance"));
+                .andExpect(jsonPath("$.name").value("Acme Insurance"))
+                .andExpect(jsonPath("$.logoUrl").value("https://cdn.example/acme.png"))
+                .andExpect(jsonPath("$.policyToken").value(42));
     }
 
     @Test
     @WithMockUser(roles = "ADMIN")
     void createRejectsInvalidBody() throws Exception {
-        InsurerRequest request = new InsurerRequest("", "not-an-email", null, null);
+        InsurerRequest request = new InsurerRequest("", "not-an-email", null, null, null, null);
         mockMvc.perform(post("/api/v1/insurers")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

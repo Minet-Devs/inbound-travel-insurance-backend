@@ -18,6 +18,8 @@ public class InsurerMapper {
         insurer.setContactEmail(request.contactEmail());
         insurer.setContactPhone(request.contactPhone());
         insurer.setAddress(request.address());
+        insurer.setLogoUrl(request.logoUrl());
+        insurer.setPolicyToken(request.policyToken());
     }
 
     public InsurerResponse toResponse(Insurer insurer) {
@@ -27,6 +29,8 @@ public class InsurerMapper {
                 insurer.getContactEmail(),
                 insurer.getContactPhone(),
                 insurer.getAddress(),
+                insurer.getLogoUrl(),
+                insurer.getPolicyToken(),
                 insurer.getCreatedDate(),
                 insurer.getUpdatedDate()
         );

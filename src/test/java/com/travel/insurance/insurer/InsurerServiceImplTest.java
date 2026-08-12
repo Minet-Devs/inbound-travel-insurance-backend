@@ -34,7 +34,8 @@ class InsurerServiceImplTest {
     @BeforeEach
     void setUp() {
         insurerService = new InsurerServiceImpl(insurerRepository, insurerMapper);
-        request = new InsurerRequest("Acme Insurance", "contact@acme.example", "+254700000000", "Nairobi");
+        request = new InsurerRequest("Acme Insurance", "contact@acme.example", "+254700000000", "Nairobi",
+                "https://cdn.example/acme.png", 42L);
     }
 
     @Test
@@ -46,6 +47,8 @@ class InsurerServiceImplTest {
 
         assertThat(response.name()).isEqualTo("Acme Insurance");
         assertThat(response.contactEmail()).isEqualTo("contact@acme.example");
+        assertThat(response.logoUrl()).isEqualTo("https://cdn.example/acme.png");
+        assertThat(response.policyToken()).isEqualTo(42L);
         verify(insurerRepository).save(any(Insurer.class));
     }
 
@@ -75,7 +78,7 @@ class InsurerServiceImplTest {
         when(insurerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        InsurerRequest update = new InsurerRequest("Acme Re", "hello@acme.example", null, null);
+        InsurerRequest update = new InsurerRequest("Acme Re", "hello@acme.example", null, null, null, null);
         InsurerResponse response = insurerService.update(id, update);
 
         assertThat(response.name()).isEqualTo("Acme Re");
