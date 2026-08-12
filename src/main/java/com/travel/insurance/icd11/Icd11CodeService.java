@@ -12,5 +12,7 @@ public interface Icd11CodeService {
 
     Page<Icd11CodeResponse> search(String query, Pageable pageable);
 
+    Page<Icd11CodeResponse> searchByTitle(String title, Pageable pageable);
+
     Icd11CodeResponse getByCode(String code);
 }

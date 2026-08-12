@@ -37,6 +37,12 @@ public class Icd11CodeController {
         return ResponseEntity.ok(icd11CodeService.search(query, pageable));
     }
 
+    @GetMapping("/search")
+    public ResponseEntity<Page<Icd11CodeResponse>> searchByTitle(
+            @RequestParam String title, Pageable pageable) {
+        return ResponseEntity.ok(icd11CodeService.searchByTitle(title, pageable));
+    }
+
     @GetMapping("/{code}")
     public ResponseEntity<Icd11CodeResponse> getByCode(@PathVariable String code) {
         return ResponseEntity.ok(icd11CodeService.getByCode(code));

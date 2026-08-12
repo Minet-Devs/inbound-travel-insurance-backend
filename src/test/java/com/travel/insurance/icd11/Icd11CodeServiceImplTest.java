@@ -123,6 +123,29 @@ class Icd11CodeServiceImplTest {
     }
 
     @Test
+    void searchByTitleDelegatesToRepository() {
+        Icd11Code code = new Icd11Code();
+        code.setCode("1A07");
+        code.setTitle("Salmonella infection");
+        Page<Icd11Code> page = new PageImpl<>(List.of(code));
+        when(icd11CodeRepository.findByTitleContainingIgnoreCase("Salmonella", Pageable.unpaged()))
+                .thenReturn(page);
+
+        Page<Icd11CodeResponse> result = service.searchByTitle("Salmonella", Pageable.unpaged());
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getContent().get(0).title()).isEqualTo("Salmonella infection");
+        verify(icd11CodeRepository).findByTitleContainingIgnoreCase("Salmonella", Pageable.unpaged());
+    }
+
+    @Test
+    void searchByTitleRejectsBlankTitle() {
+        assertThatThrownBy(() -> service.searchByTitle("  ", Pageable.unpaged()))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(icd11CodeRepository, never()).findByTitleContainingIgnoreCase(any(), any());
+    }
+
+    @Test
     void getByCodeThrowsWhenMissing() {
         when(icd11CodeRepository.findByCode("ZZZZ")).thenReturn(Optional.empty());
 

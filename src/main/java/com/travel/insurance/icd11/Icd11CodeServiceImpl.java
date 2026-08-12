@@ -72,6 +72,16 @@ public class Icd11CodeServiceImpl implements Icd11CodeService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<Icd11CodeResponse> searchByTitle(String title, Pageable pageable) {
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("title must not be blank");
+        }
+        return icd11CodeRepository.findByTitleContainingIgnoreCase(title, pageable)
+                .map(icd11CodeMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Icd11CodeResponse getByCode(String code) {
         return icd11CodeRepository.findByCode(code)
                 .map(icd11CodeMapper::toResponse)

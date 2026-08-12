@@ -13,4 +13,6 @@ public interface Icd11CodeRepository extends JpaRepository<Icd11Code, UUID> {
 
     Page<Icd11Code> findByCodeContainingIgnoreCaseOrTitleContainingIgnoreCase(
             String code, String title, Pageable pageable);
+
+    Page<Icd11Code> findByTitleContainingIgnoreCase(String title, Pageable pageable);
 }

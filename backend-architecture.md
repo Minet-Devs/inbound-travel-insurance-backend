@@ -277,8 +277,10 @@ Policy
   upserts by `code` — existing codes are updated, new ones inserted, blank rows
   skipped — and returns an `Icd11ImportResult` count summary, so re-uploading
   the same file is idempotent. Lookups use `GET /api/v1/icd11-codes?query=…`
-  (matches code or title, paged) and `GET /api/v1/icd11-codes/{code}`. Import is
-  restricted to `ADMIN`; the read endpoints are open to any authenticated user.
+  (matches code or title, paged), `GET /api/v1/icd11-codes/search?title=…`
+  (title-only substring match, paged — the diagnosis picker use case) and
+  `GET /api/v1/icd11-codes/{code}`. Import is restricted to `ADMIN`; the read
+  endpoints are open to any authenticated user.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,

@@ -67,6 +67,19 @@ class Icd11CodeControllerTest {
 
     @Test
     @WithMockUser
+    void searchByTitleReturnsMatches() throws Exception {
+        Page<Icd11CodeResponse> page = new PageImpl<>(List.of(new Icd11CodeResponse(
+                UUID.randomUUID(), "1A07", "Salmonella infection", Instant.now(), Instant.now())));
+        when(icd11CodeService.searchByTitle(any(), any())).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/icd11-codes/search").param("title", "Salmonella"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].code").value("1A07"))
+                .andExpect(jsonPath("$.content[0].title").value("Salmonella infection"));
+    }
+
+    @Test
+    @WithMockUser
     void getByCodeReturnsCode() throws Exception {
         when(icd11CodeService.getByCode("1A00")).thenReturn(new Icd11CodeResponse(
                 UUID.randomUUID(), "1A00", "Cholera", Instant.now(), Instant.now()));
