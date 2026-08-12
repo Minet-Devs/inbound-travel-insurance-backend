@@ -146,6 +146,25 @@ class VisitorActivatedNotificationListenerTest {
     }
 
     @Test
+    void normalizesLegacyDropboxLogoUrlBeforeRendering() {
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
+                insurerId, "Acme Insurance", "contact@acme.example", null, null,
+                "https://www.dropbox.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=0", null,
+                Instant.now(), Instant.now()));
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
+
+        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
+
+        ArgumentCaptor<PolicyDocumentData> dataCaptor = ArgumentCaptor.forClass(PolicyDocumentData.class);
+        verify(renderer).renderPdf(dataCaptor.capture());
+        assertThat(dataCaptor.getValue().underwriterLogoUrl())
+                .isEqualTo("https://dl.dropboxusercontent.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=1");
+    }
+
+    @Test
     void doesNotPropagateWhenRendererThrows() {
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());

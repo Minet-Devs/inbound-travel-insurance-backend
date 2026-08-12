@@ -1,6 +1,7 @@
 package com.travel.insurance.notification;
 
 import com.travel.insurance.common.email.EmailService;
+import com.travel.insurance.common.util.LogoUrlNormalizer;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerResponse;
@@ -96,6 +97,7 @@ public class VisitorActivatedNotificationListener {
         String underwriterLogoUrl = insurers.stream()
                 .map(InsurerResponse::logoUrl)
                 .filter(url -> url != null && !url.isBlank())
+                .map(LogoUrlNormalizer::normalize)
                 .findFirst()
                 .orElse(null);
         List<BenefitLine> benefitLines = visitorBenefits.stream()

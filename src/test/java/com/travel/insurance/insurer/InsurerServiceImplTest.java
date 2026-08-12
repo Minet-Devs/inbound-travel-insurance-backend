@@ -53,6 +53,19 @@ class InsurerServiceImplTest {
     }
 
     @Test
+    void createNormalizesDropboxLogoUrlToDirectDownload() {
+        InsurerRequest dropboxLogo = new InsurerRequest("Guardian Assurance", "ga@example.com", null, null,
+                "https://www.dropbox.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=0", null);
+        when(insurerRepository.existsByName("Guardian Assurance")).thenReturn(false);
+        when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InsurerResponse response = insurerService.create(dropboxLogo);
+
+        assertThat(response.logoUrl())
+                .isEqualTo("https://dl.dropboxusercontent.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=1");
+    }
+
+    @Test
     void createRejectsDuplicateName() {
         when(insurerRepository.existsByName("Acme Insurance")).thenReturn(true);
 

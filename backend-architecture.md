@@ -443,6 +443,12 @@ emails them a personalized policy certificate as a PDF attachment:
   to `PolicyDocumentRenderer`. The underwriter logo comes from the first
   backing insurer with a non-blank `Insurer.logoUrl`; when present the template
   renders it as an `<img>`, otherwise it falls back to the dashed placeholder.
+  Logo URLs are normalized by `common.util.LogoUrlNormalizer` so they return
+  raw image bytes: Dropbox share links (`www.dropbox.com/...?dl=0`, which serve
+  an HTML preview the PDF renderer can't read) are rewritten to the
+  `dl.dropboxusercontent.com` direct-download host with `dl=1`. Normalization
+  is applied both on save (`InsurerMapper`) and defensively at render time (for
+  any logo stored before this was added).
 - `PolicyDocumentRenderer` has no dependency on any other feature's service —
   it only knows how to render `templates/policy-document.html` (Thymeleaf) to
   HTML, then converts that HTML to PDF bytes via `openhtmltopdf`. The
