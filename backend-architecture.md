@@ -440,7 +440,9 @@ emails them a personalized policy certificate as a PDF attachment:
   boundary" shape already used for `VisitorDetailResponse`), builds a
   `PolicyDocumentData` holder (internal to
   the package, not a DTO — it never crosses the web boundary), and passes it
-  to `PolicyDocumentRenderer`.
+  to `PolicyDocumentRenderer`. The underwriter logo comes from the first
+  backing insurer with a non-blank `Insurer.logoUrl`; when present the template
+  renders it as an `<img>`, otherwise it falls back to the dashed placeholder.
 - `PolicyDocumentRenderer` has no dependency on any other feature's service —
   it only knows how to render `templates/policy-document.html` (Thymeleaf) to
   HTML, then converts that HTML to PDF bytes via `openhtmltopdf`. The

@@ -123,7 +123,8 @@ class VisitorActivatedNotificationListenerTest {
                         "Medical Expenses", new BigDecimal("20000.00"),
                         VisitorStatus.ACTIVE, Instant.now(), Instant.now())));
         when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
-                insurerId, "Acme Insurance", "contact@acme.example", null, null, null, null, Instant.now(), Instant.now()));
+                insurerId, "Acme Insurance", "contact@acme.example", null, null,
+                "https://cdn.example/acme.png", null, Instant.now(), Instant.now()));
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -132,6 +133,7 @@ class VisitorActivatedNotificationListenerTest {
         verify(renderer).renderPdf(dataCaptor.capture());
         assertThat(dataCaptor.getValue().visitorFullName()).isEqualTo("Jane Traveler");
         assertThat(dataCaptor.getValue().insurerNames()).containsExactly("Acme Insurance");
+        assertThat(dataCaptor.getValue().underwriterLogoUrl()).isEqualTo("https://cdn.example/acme.png");
         assertThat(dataCaptor.getValue().benefits()).hasSize(1);
 
         verify(emailService).send(

@@ -29,6 +29,10 @@ class PolicyDocumentRendererTest {
     }
 
     private PolicyDocumentData sampleData(List<BenefitLine> benefits) {
+        return sampleData(benefits, null);
+    }
+
+    private PolicyDocumentData sampleData(List<BenefitLine> benefits, String underwriterLogoUrl) {
         return new PolicyDocumentData(
                 "Jane Traveler",
                 "P1234567",
@@ -44,6 +48,7 @@ class PolicyDocumentRendererTest {
                 "POL-0001",
                 PolicyType.IPMI_61_DAYS_TO_12_MONTHS,
                 List.of("Acme Insurance"),
+                underwriterLogoUrl,
                 benefits,
                 "+254 700 000000",
                 "assistance@example.com");
@@ -67,6 +72,30 @@ class PolicyDocumentRendererTest {
         assertThat(html).contains("CERTIFICATE OF INSURANCE");
         assertThat(html).contains("Female");
         assertThat(html).doesNotContain("underlyingConditions");
+    }
+
+    @Test
+    void rendersUnderwriterLogoWhenUrlProvided() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(
+                List.of(new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))),
+                "https://cdn.example/acme.png");
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("src=\"https://cdn.example/acme.png\"");
+        assertThat(html).doesNotContain("[ UNDERWRITER LOGO ]");
+    }
+
+    @Test
+    void rendersLogoPlaceholderWhenNoUrl() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(
+                List.of(new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("[ UNDERWRITER LOGO ]");
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.travel.insurance.notification;
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.insurer.InsurerService;
+import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.notification.PolicyDocumentData.BenefitLine;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
@@ -86,9 +87,17 @@ public class VisitorActivatedNotificationListener {
                     visitorId);
         }
 
-        List<String> insurerNames = policy.getInsurerIds().stream()
-                .map(insurerId -> insurerService.getById(insurerId).name())
+        List<InsurerResponse> insurers = policy.getInsurerIds().stream()
+                .map(insurerService::getById)
                 .toList();
+        List<String> insurerNames = insurers.stream()
+                .map(InsurerResponse::name)
+                .toList();
+        String underwriterLogoUrl = insurers.stream()
+                .map(InsurerResponse::logoUrl)
+                .filter(url -> url != null && !url.isBlank())
+                .findFirst()
+                .orElse(null);
         List<BenefitLine> benefitLines = visitorBenefits.stream()
                 .map(vb -> new BenefitLine(vb.benefitName(), vb.limitAmount()))
                 .toList();
@@ -108,6 +117,7 @@ public class VisitorActivatedNotificationListener {
                 policy.getPolicyNumber(),
                 policy.getPolicyType(),
                 insurerNames,
+                underwriterLogoUrl,
                 benefitLines,
                 mailProperties.getEmergencyAssistance().getPhone(),
                 mailProperties.getEmergencyAssistance().getEmail());

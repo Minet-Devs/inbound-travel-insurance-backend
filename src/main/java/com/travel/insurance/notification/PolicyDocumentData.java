@@ -30,6 +30,7 @@ record PolicyDocumentData(
         String policyNumber,
         PolicyType policyType,
         List<String> insurerNames,
+        String underwriterLogoUrl,
         List<BenefitLine> benefits,
         String emergencyAssistancePhone,
         String emergencyAssistanceEmail

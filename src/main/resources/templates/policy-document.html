@@ -27,6 +27,7 @@
             text-align: center; font-size: 7.5pt; letter-spacing: 1pt;
         }
         .logo-box div { padding-top: 17pt; }
+        .logo-img { max-width: 130pt; max-height: 46pt; }
 
         /* Title band */
         .title-band { text-align: center; margin-top: 12pt; padding: 8pt 0; border-top: 0.75pt solid #cfcfcf; border-bottom: 0.75pt solid #cfcfcf; }
@@ -95,7 +96,8 @@
                 <div class="prog">KENYA CARES</div>
             </td>
             <td style="text-align: right;">
-                <div class="logo-box"><div>[ UNDERWRITER LOGO ]</div></div>
+                <img th:if="${!#strings.isEmpty(underwriterLogoUrl)}" class="logo-img" th:src="${underwriterLogoUrl}" alt="Underwriter logo"/>
+                <div th:unless="${!#strings.isEmpty(underwriterLogoUrl)}" class="logo-box"><div>[ UNDERWRITER LOGO ]</div></div>
             </td>
         </tr>
     </table>

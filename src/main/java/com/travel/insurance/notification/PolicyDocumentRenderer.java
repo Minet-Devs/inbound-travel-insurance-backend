@@ -39,6 +39,7 @@ public class PolicyDocumentRenderer {
         context.setVariable("data", data);
         context.setVariable("productLabel", displayName(data.policyType().name()));
         context.setVariable("underwriterName", String.join(", ", data.insurerNames()));
+        context.setVariable("underwriterLogoUrl", data.underwriterLogoUrl());
         context.setVariable("genderLabel",
                 data.gender() != null ? displayName(data.gender().name()) : "");
         context.setVariable("issueDate", LocalDate.now().format(LONG_DATE));
