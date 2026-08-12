@@ -1,5 +1,6 @@
 package com.travel.insurance.insurer;
 
+import com.travel.insurance.common.util.LogoUrlNormalizer;
 import com.travel.insurance.insurer.dto.InsurerRequest;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import org.springframework.stereotype.Component;
@@ -18,7 +19,7 @@ public class InsurerMapper {
         insurer.setContactEmail(request.contactEmail());
         insurer.setContactPhone(request.contactPhone());
         insurer.setAddress(request.address());
-        insurer.setLogoUrl(request.logoUrl());
+        insurer.setLogoUrl(LogoUrlNormalizer.normalize(request.logoUrl()));
         insurer.setPolicyToken(request.policyToken());
     }
 
