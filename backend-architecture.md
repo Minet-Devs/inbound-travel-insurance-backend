@@ -450,16 +450,22 @@ emails them a personalized policy certificate as a PDF attachment:
   is applied both on save (`InsurerMapper`) and defensively at render time (for
   any logo stored before this was added).
 - `PolicyDocumentRenderer` has no dependency on any other feature's service —
-  it only knows how to render `templates/policy-document.html` (Thymeleaf) to
+  it only knows how to render `templates/policy-certificate.html` (Thymeleaf) to
   HTML, then converts that HTML to PDF bytes via `openhtmltopdf`. The
   template deliberately excludes `Visitor.underlyingConditions`: none of the
   real insurer certificates this template is modeled on embed a free-text
   medical-conditions field, and there's no reason to widen PII exposure over
   email with it (see `policy-document-analysis.md` for the full reference
   analysis).
+- The activation email carries two attachments: the personalized
+  `policy-certificate-<policyNumber>.pdf` (rendered per visitor) and the static
+  policy wording `templates/Policy_Document_July_2026.pdf`, loaded once from the
+  classpath and cached. If the bundled document can't be read it is logged and
+  skipped so the certificate still goes out.
 - `common/email/EmailService` is a thin, domain-agnostic wrapper over
   `JavaMailSender` (mirrors `common/messaging/EventPublisher`'s catch-and-log
-  style) — it never logs the email body or PDF bytes, only the outcome.
+  style) — it never logs the email body or PDF bytes, only the outcome. It
+  accepts either a single attachment or a `List<EmailAttachment>`.
 - SMTP config (`spring.mail.*`) is sourced from `SMTP_*` env vars with
   STARTTLS explicitly required (Spring Boot does not enable it by default);
   `app.mail.from` and `app.mail.emergency-assistance.{phone,email}`

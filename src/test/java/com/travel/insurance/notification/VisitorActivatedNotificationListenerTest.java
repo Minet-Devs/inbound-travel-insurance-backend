@@ -1,5 +1,6 @@
 package com.travel.insurance.notification;
 
+import com.travel.insurance.common.email.EmailAttachment;
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.insurer.InsurerService;
@@ -32,6 +33,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -136,13 +138,18 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(dataCaptor.getValue().underwriterLogoUrl()).isEqualTo("https://cdn.example/acme.png");
         assertThat(dataCaptor.getValue().benefits()).hasSize(1);
 
+        ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
         verify(emailService).send(
                 eq("no-reply@travelinsurance.example"),
                 eq("jane.traveler@example.com"),
                 anyString(),
                 anyString(),
-                eq("policy-certificate-POL-0001.pdf"),
-                eq("%PDF-1.4".getBytes()));
+                attachmentsCaptor.capture());
+        assertThat(attachmentsCaptor.getValue())
+                .extracting(EmailAttachment::filename)
+                .containsExactly("policy-certificate-POL-0001.pdf", "Policy_Document_July_2026.pdf");
+        assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-1.4".getBytes());
+        assertThat(attachmentsCaptor.getValue().get(1).content()).isNotEmpty();
     }
 
     @Test
@@ -178,7 +185,7 @@ class VisitorActivatedNotificationListenerTest {
                 new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE)))
                 .doesNotThrowAnyException();
 
-        verify(emailService, never()).send(anyString(), anyString(), anyString(), anyString(), anyString(), any());
+        verify(emailService, never()).send(anyString(), anyString(), anyString(), anyString(), anyList());
     }
 
     @Test
@@ -192,7 +199,7 @@ class VisitorActivatedNotificationListenerTest {
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
-        verify(emailService).send(anyString(), anyString(), anyString(), anyString(), anyString(), any());
+        verify(emailService).send(anyString(), anyString(), anyString(), anyString(), anyList());
     }
 
     @Test
@@ -206,7 +213,7 @@ class VisitorActivatedNotificationListenerTest {
 
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
 
-        verify(emailService).send(anyString(), anyString(), anyString(), anyString(), anyString(), any());
+        verify(emailService).send(anyString(), anyString(), anyString(), anyString(), anyList());
     }
 
     @Test

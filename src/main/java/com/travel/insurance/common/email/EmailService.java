@@ -8,6 +8,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * Thin wrapper over {@link JavaMailSender}, deliberately generic (no domain
  * knowledge) — mirrors {@code common/messaging/EventPublisher}'s catch-and-log
@@ -24,6 +26,12 @@ public class EmailService {
 
     public void send(String from, String to, String subject, String htmlBody,
                       String attachmentFilename, byte[] attachmentBytes) {
+        send(from, to, subject, htmlBody,
+                attachmentBytes == null ? List.of() : List.of(new EmailAttachment(attachmentFilename, attachmentBytes)));
+    }
+
+    public void send(String from, String to, String subject, String htmlBody,
+                      List<EmailAttachment> attachments) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -31,8 +39,12 @@ public class EmailService {
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
-            if (attachmentBytes != null) {
-                helper.addAttachment(attachmentFilename, new ByteArrayResource(attachmentBytes));
+            if (attachments != null) {
+                for (EmailAttachment attachment : attachments) {
+                    if (attachment != null && attachment.content() != null) {
+                        helper.addAttachment(attachment.filename(), new ByteArrayResource(attachment.content()));
+                    }
+                }
             }
             mailSender.send(message);
         } catch (Exception ex) {
