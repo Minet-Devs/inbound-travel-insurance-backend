@@ -9,6 +9,8 @@ public record InsurerResponse(
         String contactEmail,
         String contactPhone,
         String address,
+        String logoUrl,
+        Long policyToken,
         Instant createdDate,
         Instant updatedDate
 ) {

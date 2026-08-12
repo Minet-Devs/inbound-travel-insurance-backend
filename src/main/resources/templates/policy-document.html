@@ -2,90 +2,232 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8"/>
-    <title>Travel Insurance Certificate</title>
+    <title>Certificate of Insurance</title>
     <style>
-        body { font-family: Helvetica, Arial, sans-serif; font-size: 11pt; color: #1a1a1a; }
-        h1 { font-size: 16pt; color: #0b3d91; border-bottom: 2px solid #0b3d91; padding-bottom: 6px; }
-        h2 { font-size: 12pt; color: #0b3d91; margin-top: 18px; margin-bottom: 6px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        td, th { padding: 4px 6px; text-align: left; vertical-align: top; }
-        .details-table td:first-child { font-weight: bold; width: 40%; }
-        .benefits-table th { background-color: #0b3d91; color: #ffffff; }
-        .benefits-table td, .benefits-table th { border: 1px solid #cccccc; }
-        .note { font-size: 9pt; color: #555555; margin-top: 4px; }
-        .footer { margin-top: 24px; font-size: 9pt; color: #555555; border-top: 1px solid #cccccc; padding-top: 8px; }
+        @page { size: A4; margin: 1.4cm; }
+        * { box-sizing: border-box; }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 9.5pt;
+            color: #1a1a1a;
+            margin: 0;
+        }
+        .cert { border: 1.5pt solid #0b6b3a; padding: 16pt; }
+
+        /* Masthead */
+        .masthead { width: 100%; border-collapse: collapse; }
+        .masthead td { vertical-align: middle; padding: 0; }
+        .ministry { line-height: 1.35; }
+        .ministry .country { font-size: 12pt; font-weight: bold; letter-spacing: 1pt; color: #0b6b3a; }
+        .ministry .moh { font-size: 10.5pt; font-weight: bold; letter-spacing: 0.5pt; }
+        .ministry .prog { font-size: 9pt; letter-spacing: 3pt; color: #555555; }
+        .logo-box {
+            width: 130pt; height: 46pt;
+            border: 0.75pt dashed #9a9a9a; color: #9a9a9a;
+            text-align: center; font-size: 7.5pt; letter-spacing: 1pt;
+        }
+        .logo-box div { padding-top: 17pt; }
+
+        /* Title band */
+        .title-band { text-align: center; margin-top: 12pt; padding: 8pt 0; border-top: 0.75pt solid #cfcfcf; border-bottom: 0.75pt solid #cfcfcf; }
+        .title-band .t1 { font-size: 16pt; font-weight: bold; letter-spacing: 3pt; color: #0b6b3a; }
+        .title-band .t2 { font-size: 9.5pt; margin-top: 3pt; }
+        .title-band .t3 { font-size: 7.5pt; color: #555555; margin-top: 3pt; font-style: italic; }
+
+        /* Meta strip */
+        .meta { width: 100%; border-collapse: collapse; margin-top: 12pt; }
+        .meta td { vertical-align: top; padding: 0 6pt; width: 33%; }
+        .meta .k { font-size: 7pt; letter-spacing: 1pt; color: #777777; text-transform: uppercase; }
+        .meta .v { font-size: 10.5pt; font-weight: bold; color: #111111; }
+        .verify-box { border: 0.75pt dashed #9a9a9a; text-align: center; color: #6a6a6a; font-size: 7pt; padding: 8pt 4pt; }
+
+        /* Section headers */
+        .section { margin-top: 14pt; }
+        .section-title {
+            background-color: #eaf4ee; color: #0b6b3a;
+            font-size: 9pt; font-weight: bold; letter-spacing: 1.5pt;
+            padding: 4pt 8pt; border-left: 3pt solid #0b6b3a;
+        }
+
+        /* Field grid */
+        .fields { width: 100%; border-collapse: collapse; margin-top: 6pt; }
+        .fields td { vertical-align: top; padding: 4pt 8pt; width: 50%; }
+        .fields .k { font-size: 7pt; letter-spacing: 0.5pt; color: #777777; text-transform: uppercase; display: block; }
+        .fields .v { font-size: 10pt; color: #111111; }
+
+        /* Benefits table */
+        .benefits { width: 100%; border-collapse: collapse; margin-top: 6pt; }
+        .benefits th {
+            background-color: #0b6b3a; color: #ffffff;
+            text-align: left; font-size: 8.5pt; letter-spacing: 0.5pt;
+            padding: 5pt 8pt;
+        }
+        .benefits th.amt, .benefits td.amt { text-align: right; }
+        .benefits td { border-bottom: 0.5pt solid #d8d8d8; padding: 5pt 8pt; font-size: 9.5pt; }
+        .benefits tr.total td { border-top: 1pt solid #0b6b3a; border-bottom: none; font-weight: bold; background-color: #f4f9f6; }
+        .empty { color: #777777; font-style: italic; }
+
+        /* Covers list */
+        .covers { margin: 6pt 0 0 0; padding-left: 16pt; }
+        .covers li { margin-bottom: 2pt; }
+
+        /* Assistance */
+        .assist { margin-top: 6pt; line-height: 1.5; }
+        .assist .lbl { font-weight: bold; }
+
+        /* Signature */
+        .sign { width: 100%; border-collapse: collapse; margin-top: 20pt; }
+        .sign td { vertical-align: bottom; width: 50%; padding: 0 6pt; }
+        .sign .line { border-top: 0.75pt solid #333333; padding-top: 4pt; font-size: 8.5pt; }
+        .sign .sysgen { text-align: right; font-size: 8pt; color: #555555; }
+
+        .footer { margin-top: 16pt; padding-top: 8pt; border-top: 0.75pt solid #cfcfcf; font-size: 7.5pt; color: #666666; line-height: 1.5; }
     </style>
 </head>
 <body>
-    <h1>Travel Insurance Certificate</h1>
-    <p th:if="${not #strings.isEmpty(insurerNamesJoined)}">
-        Underwritten by: <strong th:text="${insurerNamesJoined}">Insurer Name</strong>
-    </p>
+<div class="cert">
 
-    <h2>Insured Person</h2>
-    <table class="details-table">
-        <tr><td>Full Name</td><td th:text="${data.visitorFullName}">Jane Traveler</td></tr>
-        <tr><td>Passport Number</td><td th:text="${data.passportNumber}">P1234567</td></tr>
-        <tr><td>Date of Birth</td><td th:text="${data.dateOfBirth}">1990-01-01</td></tr>
-        <tr><td>Nationality</td><td th:text="${data.nationality}">Kenya</td></tr>
-        <tr><td>Address</td><td th:text="${data.address}">123 Main Street</td></tr>
-        <tr><td>Email</td><td th:text="${data.email}">visitor@example.com</td></tr>
-        <tr><td>Phone Number</td><td th:text="${data.phoneNumber}">+254700000000</td></tr>
-    </table>
-
-    <h2>Policy Details</h2>
-    <table class="details-table">
-        <tr><td>Policy Number</td><td th:text="${data.policyNumber}">POL-0001</td></tr>
-        <tr><td>Cover Type</td><td th:text="${policyTypeLabel}">Single Entry Up To 30 Days</td></tr>
-        <tr><td>Travel Period</td>
-            <td th:text="|${data.dateIn} to ${data.dateOut}|">2026-01-01 to 2026-01-30</td></tr>
-        <tr><td>Reason for Travel</td><td th:text="${data.reasonForTravel}">Tourism</td></tr>
-    </table>
-
-    <h2>Schedule of Benefits</h2>
-    <table class="benefits-table">
+    <table class="masthead">
         <tr>
-            <th>Benefit</th>
-            <th>Limit (USD)</th>
-        </tr>
-        <tr th:each="line : ${benefitLines}">
-            <td th:text="${line.label}">Emergency Medical Expenses</td>
-            <td th:text="${line.limitAmount}">20000.00</td>
-        </tr>
-        <tr th:if="${#lists.isEmpty(benefitLines)}">
-            <td colspan="2">No benefits assigned yet.</td>
-        </tr>
-    </table>
-    <p class="note">
-        This schedule reflects the benefits assigned to you under the mandatory Inbound Travel
-        Health Insurance framework, with a cumulative minimum cover of USD 50,000.
-    </p>
-
-    <h2>Emergency Assistance</h2>
-    <table class="details-table">
-        <tr th:if="${not #strings.isEmpty(data.emergencyAssistancePhone)}">
-            <td>24-Hour Helpline</td><td th:text="${data.emergencyAssistancePhone}">+254 700 000000</td>
-        </tr>
-        <tr th:if="${not #strings.isEmpty(data.emergencyAssistanceEmail)}">
-            <td>Email</td><td th:text="${data.emergencyAssistanceEmail}">assistance@example.com</td>
+            <td class="ministry">
+                <div class="country">REPUBLIC OF KENYA</div>
+                <div class="moh">MINISTRY OF HEALTH</div>
+                <div class="prog">KENYA CARES</div>
+            </td>
+            <td style="text-align: right;">
+                <div class="logo-box"><div>[ UNDERWRITER LOGO ]</div></div>
+            </td>
         </tr>
     </table>
 
-    <h2>Claims Process</h2>
-    <p>
-        In the event of a medical emergency, contact the 24-hour helpline above before incurring
-        expenses where possible. Retain all receipts, medical reports, and police reports (where
-        applicable) — these will be required to process any claim.
-    </p>
+    <div class="title-band">
+        <div class="t1">CERTIFICATE OF INSURANCE</div>
+        <div class="t2">Mandatory Inbound Travel Health Insurance</div>
+        <div class="t3">Issued pursuant to Section 26(6) of the Social Health Insurance Act No. 16 of 2023</div>
+    </div>
 
-    <p class="note">
-        This certificate is issued as confirmation of cover and does not itself constitute a
-        guarantee of payment to any medical or service provider. Full terms, conditions, and
-        exclusions are set out in the master policy held with the insurer(s) named above.
-    </p>
+    <table class="meta">
+        <tr>
+            <td>
+                <div class="k">Policy Number</div>
+                <div class="v" th:text="${data.policyNumber}">POL-0001</div>
+            </td>
+            <td>
+                <div class="k">Date of Issue</div>
+                <div class="v" th:text="${issueDate}">08 August 2026</div>
+            </td>
+            <td>
+                <div class="verify-box">
+                    Scan to verify<br/>
+                    kenyacares.go.ke/verify
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <div class="section">
+        <div class="section-title">INSURED PERSON</div>
+        <table class="fields">
+            <tr>
+                <td><span class="k">Full Name (as per passport)</span><span class="v" th:text="${data.visitorFullName}">Jane Traveler</span></td>
+                <td><span class="k">Passport Number</span><span class="v" th:text="${data.passportNumber}">P1234567</span></td>
+            </tr>
+            <tr>
+                <td><span class="k">Nationality</span><span class="v" th:text="${data.nationality}">Germany</span></td>
+                <td><span class="k">Date of Birth</span><span class="v" th:text="${dateOfBirthLabel}">12 May 1990</span></td>
+            </tr>
+            <tr>
+                <td><span class="k">Gender</span><span class="v" th:text="${genderLabel}">Female</span></td>
+                <td><span class="k">Reason for Travel</span><span class="v" th:text="${data.reasonForTravel}">Tourism</span></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">COVER DETAILS</div>
+        <table class="fields">
+            <tr>
+                <td><span class="k">Underwriter</span><span class="v" th:text="${#strings.isEmpty(underwriterName)} ? '—' : ${underwriterName}">Acme Insurance</span></td>
+                <td><span class="k">Product</span><span class="v" th:text="|Kenya CARES Inbound Cover — ${productLabel}|">Kenya CARES Inbound Cover — Single Entry Up To 30 Days</span></td>
+            </tr>
+            <tr>
+                <td><span class="k">Cover Period</span><span class="v" th:text="|${coverStart} — ${coverEnd} (${coverDays} days)|">08 Aug 2026 — 06 Sep 2026 (30 days)</span></td>
+                <td><span class="k">Territorial Scope</span><span class="v">Republic of Kenya</span></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">SCHEDULE OF BENEFITS</div>
+        <table class="benefits">
+            <tr>
+                <th>Benefit</th>
+                <th class="amt">Insurable Limit (USD)</th>
+            </tr>
+            <tr th:each="line : ${benefitLines}">
+                <td th:text="${line.label}">Medical expenses (outpatient &amp; inpatient)</td>
+                <td class="amt" th:text="${#numbers.formatDecimal(line.limitAmount, 1, 'COMMA', 0, 'POINT')}">20,000</td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(benefitLines)}">
+                <td colspan="2" class="empty">No benefits assigned yet.</td>
+            </tr>
+            <tr class="total" th:unless="${#lists.isEmpty(benefitLines)}">
+                <td>Cumulative benefit limit</td>
+                <td class="amt" th:text="${#numbers.formatDecimal(cumulativeLimit, 1, 'COMMA', 0, 'POINT')}">50,000</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <div class="section-title">WHAT THIS CERTIFICATE COVERS</div>
+        <ul class="covers">
+            <li>Personal accident leading to death or permanent total disability</li>
+            <li>Emergency medical expenses, including hospitalization and out-patient care</li>
+            <li>Emergency medical evacuation to the nearest appropriate facility</li>
+            <li>Repatriation of mortal remains to the country of origin</li>
+            <li>Prescribed medication for an insured event</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <div class="section-title">24-HOUR EMERGENCY ASSISTANCE</div>
+        <div class="assist">
+            <div th:if="${not #strings.isEmpty(data.emergencyAssistancePhone)}">
+                <span class="lbl">Hotline:</span>
+                <span th:text="${data.emergencyAssistancePhone}">+254 700 000 000</span>
+                (English, Kiswahili, French, German)
+            </div>
+            <div th:if="${not #strings.isEmpty(data.emergencyAssistanceEmail)}">
+                <span class="lbl">Email:</span>
+                <span th:text="${data.emergencyAssistanceEmail}">assist@underwriter.co.ke</span>
+            </div>
+            <div>Verify this certificate at kenyacares.go.ke/verify using the Policy Number above, or by scanning the QR code.</div>
+        </div>
+    </div>
+
+    <table class="sign">
+        <tr>
+            <td>
+                <div class="line">
+                    For and on behalf of
+                    <strong th:text="${#strings.isEmpty(underwriterName)} ? 'the Underwriter' : ${underwriterName}">Acme Insurance</strong><br/>
+                    Authorized Signatory
+                </div>
+            </td>
+            <td class="sysgen">
+                Kenya CARES Secretariat — System Generated<br/>
+                No wet signature required
+            </td>
+        </tr>
+    </table>
 
     <div class="footer">
-        <p>This is a system-generated certificate issued on activation of your travel insurance cover.</p>
+        This certificate is evidence of cover under the Mandatory Inbound Travel Health Insurance
+        Policy and is issued subject to the full policy wording held by the underwriter named above.
+        Personal data on this certificate is processed in accordance with the Data Protection Act
+        No. 24 of 2019.
     </div>
+
+</div>
 </body>
 </html>

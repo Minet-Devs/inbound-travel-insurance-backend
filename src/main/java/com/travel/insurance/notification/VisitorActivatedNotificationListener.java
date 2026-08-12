@@ -81,6 +81,7 @@ public class VisitorActivatedNotificationListener {
                 visitor.getFullName(),
                 visitor.getPassportNumber(),
                 visitor.getDateOfBirth(),
+                visitor.getGender(),
                 visitor.getNationality(),
                 visitor.getAddress(),
                 visitor.getEmail(),

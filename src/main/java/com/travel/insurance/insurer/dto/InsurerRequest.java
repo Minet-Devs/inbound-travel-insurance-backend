@@ -7,6 +7,8 @@ public record InsurerRequest(
         @NotBlank String name,
         @NotBlank @Email String contactEmail,
         String contactPhone,
-        String address
+        String address,
+        String logoUrl,
+        Long policyToken
 ) {
 }
