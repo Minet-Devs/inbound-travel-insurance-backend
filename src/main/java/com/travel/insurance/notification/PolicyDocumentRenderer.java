@@ -58,7 +58,7 @@ public class PolicyDocumentRenderer {
         context.setVariable("benefitLines", data.benefits().stream()
                 .map(line -> new BenefitLineView(line.benefitName(), line.limitAmount()))
                 .toList());
-        return templateEngine.process("policy-document", context);
+        return templateEngine.process("policy-certificate", context);
     }
 
     byte[] renderPdf(PolicyDocumentData data) {

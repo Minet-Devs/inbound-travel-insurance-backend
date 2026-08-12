@@ -1,5 +1,6 @@
 package com.travel.insurance.notification;
 
+import com.travel.insurance.common.email.EmailAttachment;
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.common.util.LogoUrlNormalizer;
 import com.travel.insurance.config.MailProperties;
@@ -17,10 +18,13 @@ import com.travel.insurance.visitorbenefit.VisitorBenefitService;
 import com.travel.insurance.visitorbenefit.dto.VisitorBenefitResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -45,6 +49,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class VisitorActivatedNotificationListener {
+
+    private static final String POLICY_DOCUMENT_RESOURCE = "templates/Policy_Document_July_2026.pdf";
+    private static final String POLICY_DOCUMENT_ATTACHMENT_NAME = "Policy_Document_July_2026.pdf";
+
+    private byte[] policyDocumentCache;
 
     private final VisitorService visitorService;
     private final PolicyService policyService;
@@ -125,13 +134,38 @@ public class VisitorActivatedNotificationListener {
                 mailProperties.getEmergencyAssistance().getEmail());
 
         byte[] pdf = renderer.renderPdf(data);
+        List<EmailAttachment> attachments = new ArrayList<>();
+        attachments.add(new EmailAttachment(
+                "policy-certificate-" + policy.getPolicyNumber() + ".pdf", pdf));
+        byte[] policyDocument = loadPolicyDocument();
+        if (policyDocument != null) {
+            attachments.add(new EmailAttachment(POLICY_DOCUMENT_ATTACHMENT_NAME, policyDocument));
+        }
         emailService.send(
                 mailProperties.getFrom(),
                 visitor.getEmail(),
                 "Your Travel Insurance Policy Document",
                 "<p>Dear " + visitor.getFullName() + ",</p>"
                         + "<p>Your travel insurance cover is now active. Your policy certificate is attached.</p>",
-                "policy-certificate-" + policy.getPolicyNumber() + ".pdf",
-                pdf);
+                attachments);
+    }
+
+    /**
+     * Loads the bundled policy wording PDF from the classpath, cached after the
+     * first read. A load failure is logged and returns {@code null} so the
+     * certificate still goes out without the supplementary document.
+     */
+    private synchronized byte[] loadPolicyDocument() {
+        if (policyDocumentCache == null) {
+            try {
+                policyDocumentCache = new ClassPathResource(POLICY_DOCUMENT_RESOURCE)
+                        .getInputStream().readAllBytes();
+            } catch (IOException ex) {
+                log.error("Could not load bundled policy document {}: {}",
+                        POLICY_DOCUMENT_RESOURCE, ex.getMessage(), ex);
+                return null;
+            }
+        }
+        return policyDocumentCache;
     }
 }

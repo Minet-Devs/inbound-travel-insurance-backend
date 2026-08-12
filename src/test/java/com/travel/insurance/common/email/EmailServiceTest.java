@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 
+import java.util.List;
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -37,6 +38,19 @@ class EmailServiceTest {
 
         emailService.send("from@example.com", "to@example.com", "Subject",
                 "<p>Body</p>", "certificate.pdf", "%PDF-1.4".getBytes());
+
+        verify(mailSender).send(message);
+    }
+
+    @Test
+    void sendsMimeMessageWithMultipleAttachments() {
+        emailService = new EmailService(mailSender);
+        MimeMessage message = newMimeMessage();
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        emailService.send("from@example.com", "to@example.com", "Subject", "<p>Body</p>",
+                List.of(new EmailAttachment("certificate.pdf", "%PDF-1".getBytes()),
+                        new EmailAttachment("policy.pdf", "%PDF-2".getBytes())));
 
         verify(mailSender).send(message);
     }
