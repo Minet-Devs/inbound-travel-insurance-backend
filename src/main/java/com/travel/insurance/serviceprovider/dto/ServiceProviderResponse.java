@@ -9,7 +9,6 @@ public record ServiceProviderResponse(
         String contactEmail,
         String contactPhone,
         String address,
-        String country,
         Instant createdDate,
         Instant updatedDate
 ) {
