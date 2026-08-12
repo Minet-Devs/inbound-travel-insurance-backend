@@ -15,6 +15,11 @@ spring:
       connection-timeout: 30000
       max-lifetime: 1800000
 
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
+
   jpa:
     hibernate:
       ddl-auto: none

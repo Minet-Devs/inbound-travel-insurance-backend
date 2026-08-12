@@ -114,7 +114,7 @@ com.travel.insurance/
 │   ├── ServiceProviderService.java         # Interface
 │   ├── ServiceProviderServiceImpl.java
 │   ├── ServiceProviderRepository.java
-│   ├── ServiceProvider.java
+│   ├── ServiceProvider.java                # name (unique), contactEmail, contactPhone, address
 │   ├── ServiceProviderMapper.java
 │   └── 📁 dto/
 │       ├── ServiceProviderRequest.java
@@ -209,6 +209,18 @@ com.travel.insurance/
 │       ├── ClaimDecisionRequest.java
 │       └── ClaimResponse.java
 │
+├── 📁 icd11/                               # Feature: ICD-11 diagnosis code catalog
+│   ├── Icd11CodeController.java
+│   ├── Icd11CodeService.java               # Interface
+│   ├── Icd11CodeServiceImpl.java
+│   ├── Icd11CodeRepository.java
+│   ├── Icd11Code.java                      # code (unique), title
+│   ├── Icd11ExcelParser.java               # parses uploaded .xlsx → code/title rows
+│   ├── Icd11CodeMapper.java
+│   └── 📁 dto/
+│       ├── Icd11CodeResponse.java
+│       └── Icd11ImportResult.java          # totalRows, inserted, updated, skipped
+│
 └── TravelInsuranceApplication.java         # @SpringBootApplication entry point
 ```
 
@@ -258,6 +270,15 @@ Policy
   `Claim` validate that the referenced benefit exists (via
   `BenefitService.getEntityById`), but no longer that it belongs to a
   particular policy.
+- **ICD-11 Code** is a reference catalog of diagnosis codes, each a unique
+  `code` and a `title`. It is bulk-loaded by an admin uploading an `.xlsx`
+  workbook to `POST /api/v1/icd11-codes/import` (multipart; `Icd11ExcelParser`
+  locates the `code`/`title` header columns case-insensitively). The import
+  upserts by `code` — existing codes are updated, new ones inserted, blank rows
+  skipped — and returns an `Icd11ImportResult` count summary, so re-uploading
+  the same file is idempotent. Lookups use `GET /api/v1/icd11-codes?query=…`
+  (matches code or title, paged) and `GET /api/v1/icd11-codes/{code}`. Import is
+  restricted to `ADMIN`; the read endpoints are open to any authenticated user.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,
@@ -402,6 +423,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Visitor Benefit   | `/api/v1/visitor-benefits`    | `visitor_benefits`  |
 | Pre-authorization | `/api/v1/preauthorizations`   | `preauthorizations` |
 | Claim             | `/api/v1/claims`              | `claims`            |
+| ICD-11 Code       | `/api/v1/icd11-codes`         | `icd11_codes`       |
 
 ## Messaging (RabbitMQ)
 
