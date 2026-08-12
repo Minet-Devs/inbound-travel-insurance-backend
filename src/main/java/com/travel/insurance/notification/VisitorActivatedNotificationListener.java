@@ -7,6 +7,7 @@ import com.travel.insurance.notification.PolicyDocumentData.BenefitLine;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.visitor.Visitor;
+import com.travel.insurance.visitor.VisitorCreatedEvent;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.VisitorStatus;
 import com.travel.insurance.visitor.VisitorStatusChangedEvent;
@@ -22,8 +23,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Emails the visitor their personalized policy certificate once their status
- * becomes ACTIVE. Unlike {@code visitorbenefit.VisitorStatusChangedListener}
+ * Emails the visitor their personalized policy certificate once their cover is
+ * active — either on a status transition to ACTIVE, or on creation when the
+ * visitor is created already ACTIVE (the default). Both paths are gated on the
+ * ACTIVE status so exactly one certificate goes out per activation.
+ * Unlike {@code visitorbenefit.VisitorStatusChangedListener}
  * (which stays synchronous and in-transaction because it must mirror the
  * status onto VisitorBenefit rows consistently), this listener uses
  * {@code AFTER_COMMIT}: sending mail over SMTP inside the same transaction
@@ -53,11 +57,23 @@ public class VisitorActivatedNotificationListener {
         if (event.newStatus() != VisitorStatus.ACTIVE) {
             return;
         }
+        sendActivationDocumentQuietly(event.visitorId());
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onVisitorCreated(VisitorCreatedEvent event) {
+        if (visitorService.getEntityById(event.visitorId()).getVisitorStatus() != VisitorStatus.ACTIVE) {
+            return;
+        }
+        sendActivationDocumentQuietly(event.visitorId());
+    }
+
+    private void sendActivationDocumentQuietly(UUID visitorId) {
         try {
-            sendActivationDocument(event.visitorId());
+            sendActivationDocument(visitorId);
         } catch (Exception ex) {
             log.error("Failed to generate/send policy document for visitor {}: {}",
-                    event.visitorId(), ex.getMessage(), ex);
+                    visitorId, ex.getMessage(), ex);
         }
     }
 

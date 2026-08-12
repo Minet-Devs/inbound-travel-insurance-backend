@@ -281,7 +281,7 @@ Policy
   dependencies acyclic. The paged list and create/update endpoints return
   plain `VisitorResponse` rows without benefits.
 - A visitor carries a `VisitorStatus` with guarded transitions
-  (`canTransitionTo`). It is updated via
+  (`canTransitionTo`). A newly created visitor defaults to `ACTIVE`. It is updated via
   `PATCH /api/v1/visitors/{id}/status` or
   `PATCH /api/v1/visitors/by-passport/status?passportNumber=…`, both taking a
   `VisitorStatusUpdate` body; an allowed transition publishes a
@@ -290,7 +290,8 @@ Policy
   `VisitorServiceImpl` publishes an in-process `VisitorCreatedEvent`, which
   `visitorbenefit.VisitorCreatedListener` consumes to create one
   `VisitorBenefit` per global `Benefit` (each snapshotting the catalog
-  `limitAmount` and starting in `PENDING`). The listener skips benefits already
+  `limitAmount` and taking the visitor's current status, `ACTIVE` by default).
+  The listener skips benefits already
   assigned to the visitor, so it is idempotent. Further benefits can still be
   attached explicitly via the `VisitorBenefit` endpoints.
 - A **VisitorBenefit** assigns a global catalog benefit to a visitor. It
@@ -415,11 +416,14 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 
 ## Notifications (Policy Document Email)
 
-When a `Visitor`'s status transitions to `ACTIVE`, the `notification` package
+When a `Visitor`'s cover becomes `ACTIVE`, the `notification` package
 emails them a personalized policy certificate as a PDF attachment:
 
-- `VisitorActivatedNotificationListener` listens for the existing
-  `VisitorStatusChangedEvent` and filters for `newStatus == ACTIVE`. Unlike
+- `VisitorActivatedNotificationListener` sends the certificate on two paths,
+  both gated on `ACTIVE`: `VisitorStatusChangedEvent` with `newStatus == ACTIVE`
+  (a transition), and `VisitorCreatedEvent` when the newly created visitor is
+  already `ACTIVE` (the default status), so visitors created active still get a
+  certificate without a separate activation step. Unlike
   the sibling `visitorbenefit.VisitorStatusChangedListener` (which stays
   synchronous and in-transaction because it must mirror the status onto
   `VisitorBenefit` rows consistently), this listener uses

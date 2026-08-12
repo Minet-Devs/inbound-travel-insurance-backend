@@ -10,6 +10,7 @@ import com.travel.insurance.policy.PolicyType;
 import com.travel.insurance.visitor.Gender;
 import com.travel.insurance.visitor.MaritalStatus;
 import com.travel.insurance.visitor.Visitor;
+import com.travel.insurance.visitor.VisitorCreatedEvent;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.VisitorStatus;
 import com.travel.insurance.visitor.VisitorStatusChangedEvent;
@@ -171,5 +172,30 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
         verify(emailService).send(anyString(), anyString(), anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void sendsCertificateWhenVisitorCreatedAlreadyActive() {
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
+                insurerId, "Acme Insurance", "contact@acme.example", null, null, null, null, Instant.now(), Instant.now()));
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
+
+        listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
+
+        verify(emailService).send(anyString(), anyString(), anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void doesNotSendCertificateWhenCreatedVisitorNotActive() {
+        Visitor pending = sampleVisitor();
+        pending.setVisitorStatus(VisitorStatus.PENDING);
+        when(visitorService.getEntityById(visitorId)).thenReturn(pending);
+
+        listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
+
+        verifyNoInteractions(policyService, visitorBenefitService, insurerService, renderer, emailService);
     }
 }

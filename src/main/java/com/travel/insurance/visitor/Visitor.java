@@ -72,7 +72,7 @@ public class Visitor extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private VisitorStatus visitorStatus = VisitorStatus.PENDING;
+    private VisitorStatus visitorStatus = VisitorStatus.ACTIVE;
 
     private String nextOfKinName;
 

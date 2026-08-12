@@ -86,6 +86,7 @@ class VisitorServiceImplTest {
 
         assertThat(response.fullName()).isEqualTo("Jane Traveler");
         assertThat(response.policyId()).isEqualTo(policyId);
+        assertThat(response.visitorStatus()).isEqualTo(VisitorStatus.ACTIVE);
         verify(visitorRepository).save(any(Visitor.class));
         verify(eventPublisher).publishEvent(any(VisitorCreatedEvent.class));
     }
@@ -255,6 +256,7 @@ class VisitorServiceImplTest {
     void updateVisitorStatusAppliesAllowedTransitionAndPublishesEvent() {
         UUID id = UUID.randomUUID();
         Visitor existing = visitorMapper.toEntity(request);
+        existing.setVisitorStatus(VisitorStatus.PENDING);
         when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
 
         visitorService.updateVisitorStatus(id, new VisitorStatusUpdate(VisitorStatus.ACTIVE));
@@ -297,6 +299,7 @@ class VisitorServiceImplTest {
     @Test
     void updateVisitorStatusByPassportNumberAppliesAllowedTransitionAndPublishesEvent() {
         Visitor existing = visitorMapper.toEntity(request);
+        existing.setVisitorStatus(VisitorStatus.PENDING);
         when(visitorRepository.findByPassportNumberIgnoreCase("P1234567"))
                 .thenReturn(Optional.of(existing));
 
