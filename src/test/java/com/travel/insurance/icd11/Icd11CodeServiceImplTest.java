@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -150,6 +151,29 @@ class Icd11CodeServiceImplTest {
         when(icd11CodeRepository.findByCode("ZZZZ")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getByCode("ZZZZ"))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void getByIdReturnsCode() {
+        UUID id = UUID.randomUUID();
+        Icd11Code code = new Icd11Code();
+        code.setCode("1A00");
+        code.setTitle("Cholera");
+        when(icd11CodeRepository.findById(id)).thenReturn(Optional.of(code));
+
+        Icd11CodeResponse result = service.getById(id);
+
+        assertThat(result.code()).isEqualTo("1A00");
+        assertThat(result.title()).isEqualTo("Cholera");
+    }
+
+    @Test
+    void getByIdThrowsWhenMissing() {
+        UUID id = UUID.randomUUID();
+        when(icd11CodeRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getById(id))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 }

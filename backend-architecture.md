@@ -349,8 +349,9 @@ Policy
   skipped — and returns an `Icd11ImportResult` count summary, so re-uploading
   the same file is idempotent. Lookups use `GET /api/v1/icd11-codes?query=…`
   (matches code or title, paged), `GET /api/v1/icd11-codes/search?title=…`
-  (title-only substring match, paged — the diagnosis picker use case) and
-  `GET /api/v1/icd11-codes/{code}`. Import is restricted to `ADMIN`; the read
+  (title-only substring match, paged — the diagnosis picker use case),
+  `GET /api/v1/icd11-codes/{code}` and `GET /api/v1/icd11-codes/by-id/{id}`
+  (resolves a claim's `diagnosisIds` back to code/title for display). Import is restricted to `ADMIN`; the read
   endpoints are open to any authenticated user.
 - A **Department** is a plain name-only catalog entry (e.g. `PHARMACY`,
   `LABORATORY`) — nothing beyond the `BaseEntity` fields and a unique `name`.

@@ -18,5 +18,7 @@ public interface Icd11CodeService {
 
     Icd11CodeResponse getByCode(String code);
 
+    Icd11CodeResponse getById(UUID id);
+
     Icd11Code getEntityById(UUID id);
 }
