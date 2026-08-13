@@ -30,14 +30,14 @@ public class ClaimController {
     private final ClaimService claimService;
 
     @PostMapping
-    public ResponseEntity<ClaimResponse> create(@RequestBody ClaimRequest request) {
+    public ResponseEntity<ClaimResponse> create(@Valid @RequestBody ClaimRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(claimService.create(request));
     }
 
     @PutMapping("/{id}/invoice")
     @PreAuthorize("hasAnyRole('ADMIN', 'AGENT', 'PROVIDER_USER')")
     public ResponseEntity<ClaimResponse> attachInvoice(
-            @PathVariable UUID id, @RequestBody AttachInvoiceRequest request) {
+            @PathVariable UUID id, @Valid @RequestBody AttachInvoiceRequest request) {
         return ResponseEntity.ok(claimService.attachInvoice(id, request));
     }
 
