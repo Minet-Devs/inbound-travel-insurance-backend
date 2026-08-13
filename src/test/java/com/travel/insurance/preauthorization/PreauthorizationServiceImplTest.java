@@ -155,6 +155,13 @@ class PreauthorizationServiceImplTest {
         return preauthorization;
     }
 
+    private Preauthorization legacyPreauthorizationWithoutVisitorOrDiagnosis() {
+        Preauthorization preauthorization = pendingPreauthorization();
+        preauthorization.setVisitorId(null);
+        preauthorization.setIcd11CodeId(null);
+        return preauthorization;
+    }
+
     private void authenticateAs(UUID organizationId, String... roles) {
         AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), organizationId, Set.of(roles));
         SecurityContextHolder.getContext().setAuthentication(
@@ -213,6 +220,21 @@ class PreauthorizationServiceImplTest {
         assertThat(response.decidedBy()).isNull();
         assertThat(response.decidedAt()).isNull();
         verify(preauthorizationRepository).save(any(Preauthorization.class));
+    }
+
+    @Test
+    void getByIdToleratesLegacyRowsMissingVisitorAndDiagnosis() {
+        Preauthorization legacy = legacyPreauthorizationWithoutVisitorOrDiagnosis();
+        when(preauthorizationRepository.findById(legacy.getId())).thenReturn(Optional.of(legacy));
+
+        PreauthorizationResponse response = preauthorizationService.getById(legacy.getId());
+
+        assertThat(response.visitorId()).isNull();
+        assertThat(response.visitorName()).isNull();
+        assertThat(response.icd11CodeId()).isNull();
+        assertThat(response.icd11Code()).isNull();
+        assertThat(response.icd11Title()).isNull();
+        assertThat(response.benefitName()).isEqualTo("Medical Expenses");
     }
 
     @Test

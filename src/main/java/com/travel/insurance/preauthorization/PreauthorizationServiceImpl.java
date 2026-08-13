@@ -101,8 +101,12 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
 
     private PreauthorizationResponse enrich(Preauthorization preauthorization) {
         Policy policy = policyService.getEntityById(preauthorization.getPolicyId());
-        Visitor visitor = visitorService.getEntityById(preauthorization.getVisitorId());
-        Icd11Code icd11Code = icd11CodeService.getEntityById(preauthorization.getIcd11CodeId());
+        Visitor visitor = preauthorization.getVisitorId() != null
+                ? visitorService.getEntityById(preauthorization.getVisitorId())
+                : null;
+        Icd11Code icd11Code = preauthorization.getIcd11CodeId() != null
+                ? icd11CodeService.getEntityById(preauthorization.getIcd11CodeId())
+                : null;
         Benefit benefit = benefitService.getEntityById(preauthorization.getBenefitId());
         var serviceProvider = serviceProviderService.getById(preauthorization.getServiceProviderId());
         return preauthorizationMapper.toResponse(preauthorization, policy, visitor, icd11Code, benefit, serviceProvider);
