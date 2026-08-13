@@ -199,15 +199,36 @@ com.travel.insurance/
 │   ├── ClaimServiceImpl.java
 │   ├── ClaimRepository.java
 │   ├── Claim.java                          # policyId, benefitId, serviceProviderId,
-│   │                                       # preauthorizationId (nullable), claimedAmount,
-│   │                                       # approvedAmount
+│   │                                       # preauthorizationId, visitorId (all nullable
+│   │                                       # except policy/benefit), insurerId (derived
+│   │                                       # from the policy), claimedAmount,
+│   │                                       # approvedAmount, prescription, diagnosisIds /
+│   │                                       # procedureIds / invoiceIds / documentIds (UUID
+│   │                                       # element collections)
 │   ├── ClaimStatus.java                    # Enum: SUBMITTED, UNDER_REVIEW, APPROVED,
 │   │                                       #       PARTIALLY_APPROVED, REJECTED, PAID
 │   ├── ClaimMapper.java
 │   └── 📁 dto/
-│       ├── ClaimRequest.java
+│       ├── ClaimRequest.java               # insurerId NOT accepted — derived server-side
 │       ├── ClaimDecisionRequest.java
-│       └── ClaimResponse.java
+│       └── ClaimResponse.java              # embeds full visitor/insurer/invoice objects
+│
+├── 📁 invoice/                             # Feature: claim supporting invoices
+│   ├── InvoiceController.java              # /api/v1/invoices
+│   ├── InvoiceService.java                 # Interface
+│   ├── InvoiceServiceImpl.java
+│   ├── InvoiceRepository.java
+│   ├── Invoice.java                        # claimId (ID-only), medicalServiceId (ID-only),
+│   │                                       # invoiceNumber, issueDate, currency, totalAmount
+│   ├── InvoiceItem.java                    # description, quantity, unitPrice, amount,
+│   │                                       # serviceDate (owned by the invoice)
+│   ├── InvoiceMapper.java
+│   └── 📁 dto/
+│       ├── InvoiceRequest.java
+│       ├── InvoiceResponse.java            # medicalServiceName resolved via
+│       │                                   # MedicalServiceService
+│       ├── InvoiceItemRequest.java
+│       └── InvoiceItemResponse.java
 │
 ├── 📁 icd11/                               # Feature: ICD-11 diagnosis code catalog
 │   ├── Icd11CodeController.java
@@ -264,9 +285,15 @@ Policy
    ├──1:N── Preauthorization ──0:1── Claim
    │            (provider asks for approval  (a claim may reference the
    │             before rendering a service)  pre-authorization that authorized it)
-   └──1:N── Claim                          (claims may also arrive without a
-                                            pre-authorization, e.g. reimbursement
-                                            of out-of-pocket costs)
+   ├──1:N── Claim ──1:N── Invoice           (supporting invoices; each invoice
+   │            (claims may also arrive     references a MedicalService by ID and
+   │             without a pre-auth, e.g.    owns its invoice_items)
+   │             reimbursement of out-of-
+   │             pocket costs)
+   │
+   └── MedicalService ──0:1── Invoice       (ID-only; the service name is resolved
+                                            into InvoiceResponse via the
+                                            MedicalServiceService — no JPA relation)
 ```
 
 - A **Policy** is the insurance contract. It references a set of backing
@@ -403,11 +430,32 @@ Policy
 - A **Claim** is the request for payment. It is either provider-submitted
   against an approved pre-authorization, or customer-submitted for
   reimbursement (no pre-authorization). Decisions are made by the insurer;
-  `PAID` is the terminal status.
+  `PAID` is the terminal status. Since the augmentation, a claim may also
+  carry a `visitorId` (must belong to the claim's policy), a `prescription`,
+  and four optional UUID sets — `diagnosisIds` / `procedureIds` (free-form
+  references, no catalog), `invoiceIds` (must reference existing invoices,
+  validated through `InvoiceService`), and `documentIds` (a placeholder for a
+  future upload service; the `claim_documents` join table persists them but no
+  documents feature exists yet). The claim's `insurerId` is **not** accepted
+  on the request: it is derived server-side from the policy, which must cover
+  exactly one insurer (409 otherwise). `ClaimResponse` embeds the full
+  `visitor`, `insurer` and `invoices` objects — resolved through the
+  respective feature services — alongside the raw IDs, so consumers never
+  have to display a raw UUID.
+- An **Invoice** is a supporting document for a claim, referenced by ID only.
+  It is created through its own feature (`POST /api/v1/invoices`) and a claim
+  attaches already-existing invoices by UUID. An invoice optionally references
+  a `MedicalService` by ID (`medicalServiceId`, validated through
+  `MedicalServiceService` on create/update); `InvoiceResponse` resolves that
+  ID to `medicalServiceName` (the "resolve the display name, don't nest the
+  entity" shape) and embeds its line items as a child aggregate
+  (`invoice_items`, owned via a unidirectional `@OneToMany`).
 - Cross-feature references are **ID columns only** (the same rule as
   `User.organizationId`): the `claim` feature calls `PolicyService` and
   `BenefitService`, never their repositories, and no JPA relations cross
-  package boundaries.
+  package boundaries. Likewise the `invoice` feature calls
+  `MedicalServiceService` (never its repository) to validate and resolve the
+  medical service reference.
 
 ## Users, Roles & Organizations
 
@@ -495,6 +543,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Visitor Benefit   | `/api/v1/visitor-benefits`    | `visitor_benefits`  |
 | Pre-authorization | `/api/v1/preauthorizations`   | `preauthorizations` |
 | Claim             | `/api/v1/claims`              | `claims`            |
+| Invoice           | `/api/v1/invoices`            | `invoices`          |
 | ICD-11 Code       | `/api/v1/icd11-codes`         | `icd11_codes`       |
 | Department        | `/api/v1/departments`         | `departments`       |
 | Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
