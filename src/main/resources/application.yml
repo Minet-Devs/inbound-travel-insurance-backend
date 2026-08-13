@@ -33,6 +33,7 @@ spring:
 
   flyway:
     enabled: true
+    repair-on-migrate: true
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
