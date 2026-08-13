@@ -1,6 +1,7 @@
 package com.travel.insurance.visitor;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyType;
@@ -36,6 +37,9 @@ class VisitorServiceImplTest {
     private PolicyService policyService;
 
     @Mock
+    private InsurerRepository insurerRepository;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private final VisitorMapper visitorMapper = new VisitorMapper();
@@ -48,7 +52,7 @@ class VisitorServiceImplTest {
     @BeforeEach
     void setUp() {
         visitorService = new VisitorServiceImpl(
-                visitorRepository, visitorMapper, policyService, eventPublisher);
+                visitorRepository, visitorMapper, policyService, insurerRepository, eventPublisher);
         policyId = UUID.randomUUID();
         request = new VisitorRequest(
                 policyId,
