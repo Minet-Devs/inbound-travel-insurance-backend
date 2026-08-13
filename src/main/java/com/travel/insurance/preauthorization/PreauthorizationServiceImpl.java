@@ -9,10 +9,12 @@ import com.travel.insurance.common.util.SecurityUtils;
 import com.travel.insurance.config.RabbitConfig;
 import com.travel.insurance.icd11.Icd11Code;
 import com.travel.insurance.icd11.Icd11CodeService;
+import com.travel.insurance.medicalservice.MedicalServiceService;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyStatus;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
+import com.travel.insurance.preauthorization.dto.PreauthorizationItemRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
@@ -26,7 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -41,12 +45,15 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
             PreauthorizationStatus.REJECTED);
 
     private final PreauthorizationRepository preauthorizationRepository;
+    private final PreauthorizationEnhancementRepository preauthorizationEnhancementRepository;
+    private final PreauthorizationItemRepository preauthorizationItemRepository;
     private final PreauthorizationMapper preauthorizationMapper;
     private final PolicyService policyService;
     private final BenefitService benefitService;
     private final VisitorService visitorService;
     private final Icd11CodeService icd11CodeService;
     private final ServiceProviderService serviceProviderService;
+    private final MedicalServiceService medicalServiceService;
     private final EventPublisher eventPublisher;
 
     @Override
@@ -56,7 +63,13 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         validateBenefitExists(request.benefitId());
         icd11CodeService.getEntityById(request.icd11CodeId());
         serviceProviderService.getById(request.serviceProviderId());
+        if (request.medicalServiceId() != null) {
+            medicalServiceService.getById(request.medicalServiceId());
+        }
         Preauthorization saved = preauthorizationRepository.save(preauthorizationMapper.toEntity(request));
+        PreauthorizationEnhancement enhancement = preauthorizationEnhancementRepository.save(
+                preauthorizationMapper.toEnhancement(saved.getId(), request));
+        saveItems(enhancement.getId(), request.preauthorizationItems());
         return enrich(saved);
     }
 
@@ -99,6 +112,13 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Preauthorization", id));
     }
 
+    private void saveItems(UUID enhancementId, List<PreauthorizationItemRequest> itemRequests) {
+        List<PreauthorizationItem> items = Optional.ofNullable(itemRequests).orElse(List.of()).stream()
+                .map(itemRequest -> preauthorizationMapper.toItem(itemRequest, enhancementId))
+                .toList();
+        preauthorizationItemRepository.saveAll(items);
+    }
+
     private PreauthorizationResponse enrich(Preauthorization preauthorization) {
         Policy policy = policyService.getEntityById(preauthorization.getPolicyId());
         Visitor visitor = preauthorization.getVisitorId() != null
@@ -109,7 +129,20 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
                 : null;
         Benefit benefit = benefitService.getEntityById(preauthorization.getBenefitId());
         var serviceProvider = serviceProviderService.getById(preauthorization.getServiceProviderId());
-        return preauthorizationMapper.toResponse(preauthorization, policy, visitor, icd11Code, benefit, serviceProvider);
+
+        Optional<PreauthorizationEnhancement> enhancement =
+                preauthorizationEnhancementRepository.findByPreauthorizationId(preauthorization.getId());
+        UUID medicalServiceId = enhancement.map(PreauthorizationEnhancement::getMedicalServiceId).orElse(null);
+        String medicalServiceName = medicalServiceId != null
+                ? medicalServiceService.getById(medicalServiceId).name()
+                : null;
+        List<PreauthorizationItem> items = enhancement
+                .map(e -> preauthorizationItemRepository.findAllByEnhancementId(e.getId()))
+                .orElse(List.of());
+
+        return preauthorizationMapper.toResponse(
+                preauthorization, policy, visitor, icd11Code, benefit, serviceProvider,
+                medicalServiceId, medicalServiceName, items);
     }
 
     private void applyDecision(Preauthorization preauthorization, PreauthorizationDecisionRequest request) {

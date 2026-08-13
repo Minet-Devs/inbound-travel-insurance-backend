@@ -8,10 +8,13 @@ import com.travel.insurance.common.util.AuthenticatedUser;
 import com.travel.insurance.config.RabbitConfig;
 import com.travel.insurance.icd11.Icd11Code;
 import com.travel.insurance.icd11.Icd11CodeService;
+import com.travel.insurance.medicalservice.MedicalServiceService;
+import com.travel.insurance.medicalservice.dto.MedicalServiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyStatus;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
+import com.travel.insurance.preauthorization.dto.PreauthorizationItemRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
@@ -33,6 +36,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -54,6 +58,12 @@ class PreauthorizationServiceImplTest {
     private PreauthorizationRepository preauthorizationRepository;
 
     @Mock
+    private PreauthorizationEnhancementRepository preauthorizationEnhancementRepository;
+
+    @Mock
+    private PreauthorizationItemRepository preauthorizationItemRepository;
+
+    @Mock
     private PolicyService policyService;
 
     @Mock
@@ -69,6 +79,9 @@ class PreauthorizationServiceImplTest {
     private ServiceProviderService serviceProviderService;
 
     @Mock
+    private MedicalServiceService medicalServiceService;
+
+    @Mock
     private EventPublisher eventPublisher;
 
     private final PreauthorizationMapper preauthorizationMapper = new PreauthorizationMapper();
@@ -80,18 +93,30 @@ class PreauthorizationServiceImplTest {
     private final UUID icd11CodeId = UUID.randomUUID();
     private final UUID benefitId = UUID.randomUUID();
     private final UUID serviceProviderId = UUID.randomUUID();
+    private final UUID medicalServiceId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
         preauthorizationService = new PreauthorizationServiceImpl(
-                preauthorizationRepository, preauthorizationMapper, policyService, benefitService,
-                visitorService, icd11CodeService, serviceProviderService, eventPublisher);
+                preauthorizationRepository, preauthorizationEnhancementRepository, preauthorizationItemRepository,
+                preauthorizationMapper, policyService, benefitService, visitorService, icd11CodeService,
+                serviceProviderService, medicalServiceService, eventPublisher);
 
         lenient().when(policyService.getEntityById(policyId)).thenReturn(activePolicy());
         lenient().when(visitorService.getEntityById(visitorId)).thenReturn(visitor());
         lenient().when(icd11CodeService.getEntityById(icd11CodeId)).thenReturn(icd11Code());
         lenient().when(benefitService.getEntityById(benefitId)).thenReturn(benefit());
         lenient().when(serviceProviderService.getById(serviceProviderId)).thenReturn(serviceProviderResponse());
+        lenient().when(preauthorizationEnhancementRepository.save(any(PreauthorizationEnhancement.class)))
+                .thenAnswer(invocation -> {
+                    PreauthorizationEnhancement enhancement = invocation.getArgument(0);
+                    enhancement.setId(UUID.randomUUID());
+                    return enhancement;
+                });
+        lenient().when(preauthorizationEnhancementRepository.findByPreauthorizationId(any()))
+                .thenReturn(Optional.empty());
+        lenient().when(preauthorizationItemRepository.findAllByEnhancementId(any())).thenReturn(List.of());
+        lenient().when(preauthorizationItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @AfterEach
@@ -136,10 +161,15 @@ class PreauthorizationServiceImplTest {
                 "contact@agakhan.co.ke", null, null, Instant.now(), Instant.now());
     }
 
+    private MedicalServiceResponse medicalServiceResponse() {
+        return new MedicalServiceResponse(medicalServiceId, "Malaria Test", UUID.randomUUID(),
+                "Laboratory", Instant.now(), Instant.now());
+    }
+
     private PreauthorizationRequest validRequest() {
         return new PreauthorizationRequest(
-                policyId, visitorId, icd11CodeId, benefitId, serviceProviderId,
-                new BigDecimal("500.00"), "X-ray");
+                policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, null,
+                new BigDecimal("500.00"), "X-ray", null);
     }
 
     private Preauthorization pendingPreauthorization() {
@@ -202,6 +232,20 @@ class PreauthorizationServiceImplTest {
     }
 
     @Test
+    void createValidatesMedicalServiceWhenProvided() {
+        when(medicalServiceService.getById(medicalServiceId))
+                .thenThrow(new ResourceNotFoundException("MedicalService", medicalServiceId));
+
+        PreauthorizationRequest request = new PreauthorizationRequest(
+                policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, medicalServiceId,
+                new BigDecimal("500.00"), "X-ray", null);
+
+        assertThatThrownBy(() -> preauthorizationService.create(request))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(preauthorizationRepository, never()).save(any());
+    }
+
+    @Test
     void createSavesPreauthorizationWhenAllReferencesAreValid() {
         when(preauthorizationRepository.save(any(Preauthorization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -220,6 +264,39 @@ class PreauthorizationServiceImplTest {
         assertThat(response.decidedBy()).isNull();
         assertThat(response.decidedAt()).isNull();
         verify(preauthorizationRepository).save(any(Preauthorization.class));
+        verify(preauthorizationEnhancementRepository).save(any(PreauthorizationEnhancement.class));
+    }
+
+    @Test
+    void createPersistsEnhancementAndLineItemsInOneCall() {
+        when(medicalServiceService.getById(medicalServiceId)).thenReturn(medicalServiceResponse());
+        when(preauthorizationRepository.save(any(Preauthorization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PreauthorizationItemRequest itemRequest = new PreauthorizationItemRequest(
+                "Malaria test (rapid)", new BigDecimal("1"), new BigDecimal("500.00"),
+                new BigDecimal("500.00"), LocalDate.of(2026, 8, 10));
+        PreauthorizationRequest request = new PreauthorizationRequest(
+                policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, medicalServiceId,
+                new BigDecimal("500.00"), "X-ray", List.of(itemRequest));
+
+        UUID savedEnhancementId = UUID.randomUUID();
+        PreauthorizationEnhancement savedEnhancement = preauthorizationMapper.toEnhancement(UUID.randomUUID(), request);
+        savedEnhancement.setId(savedEnhancementId);
+        when(preauthorizationEnhancementRepository.save(any(PreauthorizationEnhancement.class)))
+                .thenReturn(savedEnhancement);
+        when(preauthorizationEnhancementRepository.findByPreauthorizationId(any()))
+                .thenReturn(Optional.of(savedEnhancement));
+        PreauthorizationItem savedItem = preauthorizationMapper.toItem(itemRequest, savedEnhancementId);
+        when(preauthorizationItemRepository.findAllByEnhancementId(savedEnhancementId)).thenReturn(List.of(savedItem));
+
+        PreauthorizationResponse response = preauthorizationService.create(request);
+
+        assertThat(response.medicalServiceId()).isEqualTo(medicalServiceId);
+        assertThat(response.medicalServiceName()).isEqualTo("Malaria Test");
+        assertThat(response.preauthorizationItems()).hasSize(1);
+        assertThat(response.preauthorizationItems().getFirst().description()).isEqualTo("Malaria test (rapid)");
+        verify(preauthorizationItemRepository).saveAll(any());
     }
 
     @Test
@@ -234,6 +311,9 @@ class PreauthorizationServiceImplTest {
         assertThat(response.icd11CodeId()).isNull();
         assertThat(response.icd11Code()).isNull();
         assertThat(response.icd11Title()).isNull();
+        assertThat(response.medicalServiceId()).isNull();
+        assertThat(response.medicalServiceName()).isNull();
+        assertThat(response.preauthorizationItems()).isEmpty();
         assertThat(response.benefitName()).isEqualTo("Medical Expenses");
     }
 
