@@ -47,7 +47,7 @@ pipeline {
                         branches: [[name: "*/${targetBranch}"]],
                         extensions: [[$class: 'CleanCheckout']],
                         userRemoteConfigs: [[
-                            url: 'https://github.com/iamkibeh/travel-insurance.git'
+                            url: 'https://github.com/mishobo/inbound-travel-medical-insurance-backend.git'
                         ]]
                     ])
                 }
@@ -205,7 +205,7 @@ pipeline {
 def getBranchForEnvironment() {
     switch(env.ENVIRONMENT) {
         case 'dev':
-            return 'master'
+            return 'main'
         case 'uat':
             return 'uat'
         case 'production':
