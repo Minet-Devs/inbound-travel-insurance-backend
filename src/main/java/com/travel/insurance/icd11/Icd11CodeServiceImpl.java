@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -86,5 +87,12 @@ public class Icd11CodeServiceImpl implements Icd11CodeService {
         return icd11CodeRepository.findByCode(code)
                 .map(icd11CodeMapper::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Icd11Code", code));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Icd11Code getEntityById(UUID id) {
+        return icd11CodeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Icd11Code", id));
     }
 }

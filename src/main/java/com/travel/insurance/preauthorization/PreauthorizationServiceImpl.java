@@ -1,17 +1,23 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.benefit.Benefit;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
 import com.travel.insurance.common.util.AuthenticatedUser;
 import com.travel.insurance.common.util.SecurityUtils;
 import com.travel.insurance.config.RabbitConfig;
+import com.travel.insurance.icd11.Icd11Code;
+import com.travel.insurance.icd11.Icd11CodeService;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyStatus;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
+import com.travel.insurance.serviceprovider.ServiceProviderService;
+import com.travel.insurance.visitor.Visitor;
+import com.travel.insurance.visitor.VisitorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -38,26 +44,32 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     private final PreauthorizationMapper preauthorizationMapper;
     private final PolicyService policyService;
     private final BenefitService benefitService;
+    private final VisitorService visitorService;
+    private final Icd11CodeService icd11CodeService;
+    private final ServiceProviderService serviceProviderService;
     private final EventPublisher eventPublisher;
 
     @Override
     public PreauthorizationResponse create(PreauthorizationRequest request) {
         validatePolicyActive(request.policyId());
+        validateVisitorExists(request.visitorId());
         validateBenefitExists(request.benefitId());
+        icd11CodeService.getEntityById(request.icd11CodeId());
+        serviceProviderService.getById(request.serviceProviderId());
         Preauthorization saved = preauthorizationRepository.save(preauthorizationMapper.toEntity(request));
-        return preauthorizationMapper.toResponse(saved);
+        return enrich(saved);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PreauthorizationResponse getById(UUID id) {
-        return preauthorizationMapper.toResponse(getEntityById(id));
+        return enrich(getEntityById(id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<PreauthorizationResponse> list(Pageable pageable) {
-        return findScoped(pageable).map(preauthorizationMapper::toResponse);
+        return findScoped(pageable).map(this::enrich);
     }
 
     @Override
@@ -72,7 +84,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         applyDecision(preauthorization, request);
         Preauthorization saved = preauthorizationRepository.save(preauthorization);
         publishDecided(saved);
-        return preauthorizationMapper.toResponse(saved);
+        return enrich(saved);
     }
 
     @Override
@@ -85,6 +97,15 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     public Preauthorization getEntityById(UUID id) {
         return preauthorizationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Preauthorization", id));
+    }
+
+    private PreauthorizationResponse enrich(Preauthorization preauthorization) {
+        Policy policy = policyService.getEntityById(preauthorization.getPolicyId());
+        Visitor visitor = visitorService.getEntityById(preauthorization.getVisitorId());
+        Icd11Code icd11Code = icd11CodeService.getEntityById(preauthorization.getIcd11CodeId());
+        Benefit benefit = benefitService.getEntityById(preauthorization.getBenefitId());
+        var serviceProvider = serviceProviderService.getById(preauthorization.getServiceProviderId());
+        return preauthorizationMapper.toResponse(preauthorization, policy, visitor, icd11Code, benefit, serviceProvider);
     }
 
     private void applyDecision(Preauthorization preauthorization, PreauthorizationDecisionRequest request) {
@@ -111,8 +132,11 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     }
 
     private void validateBenefitExists(UUID benefitId) {
-        // Benefits are a global catalog, so only existence is validated here.
         benefitService.getEntityById(benefitId);
+    }
+
+    private void validateVisitorExists(UUID visitorId) {
+        visitorService.getEntityById(visitorId);
     }
 
     private Page<Preauthorization> findScoped(Pageable pageable) {

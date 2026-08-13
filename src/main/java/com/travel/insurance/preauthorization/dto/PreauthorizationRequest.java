@@ -9,6 +9,8 @@ import java.util.UUID;
 
 public record PreauthorizationRequest(
         @NotNull UUID policyId,
+        @NotNull UUID visitorId,
+        @NotNull UUID icd11CodeId,
         @NotNull UUID benefitId,
         @NotNull UUID serviceProviderId,
         @NotNull @Positive BigDecimal requestedAmount,
