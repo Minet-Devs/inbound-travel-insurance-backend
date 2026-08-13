@@ -3,7 +3,7 @@
 -- spreadsheet row with its validation/import outcome. upload time is the
 -- BaseEntity created_date column.
 
-create table procedure_uploads (
+create table if not exists procedure_uploads (
     id                    uuid primary key,
     original_filename     varchar(255),
     department_public_id  uuid not null,
@@ -25,7 +25,7 @@ create table procedure_uploads (
     updated_by            uuid
 );
 
-create table procedure_upload_rows (
+create table if not exists procedure_upload_rows (
     id                          uuid primary key,
     upload_id                   uuid not null,
     excel_row_number            integer not null,
@@ -47,4 +47,4 @@ create table procedure_upload_rows (
         foreign key (upload_id) references procedure_uploads (id)
 );
 
-create index idx_procedure_upload_rows_upload on procedure_upload_rows (upload_id);
+create index if not exists idx_procedure_upload_rows_upload on procedure_upload_rows (upload_id);
