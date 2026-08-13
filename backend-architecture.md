@@ -499,6 +499,96 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Department        | `/api/v1/departments`         | `departments`       |
 | Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
 
+## Policy Tokenization (Quota Management)
+
+The system enforces **per-insurer policy quotas** to prevent insurers from overselling policies.
+
+**Concept:**
+- Each `Insurer` is allocated a fixed number of policies via `policyToken` (e.g., 1000 policies for Minet Insurance)
+- When a `Visitor` is created using a policy backed by an insurer, that insurer's available quota decreases by 1
+- The system prevents visitor creation if any backing insurer has exhausted their quota (policyToken ≤ 0)
+- If a visitor is deleted, the quota is restored
+
+**Data Model:**
+- `Insurer.policyToken: Long` — available (unconsumed) policies for this insurer
+- `InsurerResponse.availablePolicies: Long` — exposed in API responses (same as policyToken, defaults to 0 if null)
+
+**Event-Driven Flow:**
+
+1. **Visitor Creation → Policy Consumption**
+   - `VisitorServiceImpl.create()` validates that all backing insurers have `policyToken > 0`
+   - If validation passes, visitor is saved and `VisitorCreatedEvent` is published
+   - `PolicyConsumptionListener` receives the event and decrements `policyToken` for each backing insurer
+   - Example: Minet Insurance 1000 → 999 when first visitor is created
+
+2. **Visitor Deletion → Policy Restoration**
+   - `VisitorServiceImpl.delete()` soft-deletes the visitor and publishes `VisitorDeletedEvent`
+   - `PolicyRestorationListener` receives the event and restores (increments) `policyToken` for each backing insurer
+   - Example: Minet Insurance 999 → 1000 when that visitor is deleted
+
+3. **Quota Exhaustion**
+   - When `policyToken` reaches 0, any attempt to create a visitor using that insurer's policy fails with:
+   - `IllegalStateException: "Insurer 'Minet Insurance' has no available policies left"`
+   - HTTP 400 (Bad Request)
+
+**Implementation Details:**
+
+| Component | Responsibility |
+|-----------|-----------------|
+| `PolicyConsumptionListener` | Listens to `VisitorCreatedEvent`; decrements `policyToken` for all backing insurers |
+| `PolicyRestorationListener` | Listens to `VisitorDeletedEvent`; restores `policyToken` for all backing insurers |
+| `VisitorServiceImpl.validatePolicyQuota()` | Pre-creation validation; checks all insurers have available policies |
+| `VisitorServiceImpl.delete()` | Publishes `VisitorDeletedEvent` after soft-delete |
+| `InsurerResponse.availablePolicies` | Exposes quota count in API responses for admin monitoring |
+
+**Example API Usage:**
+
+```bash
+# Create insurer with 1000 policies
+POST /api/v1/insurers
+{
+  "name": "Minet Insurance",
+  "policyToken": 1000
+}
+
+# Create policy linked to insurer
+POST /api/v1/policies
+{
+  "policyNumber": "POL-001",
+  "insurerIds": ["<insurer-id>"],
+  "policyType": "SINGLE_ENTRY_UP_TO_30_DAYS",
+  "status": "ACTIVE"
+}
+
+# Create first visitor → Minet.policyToken: 1000 → 999
+POST /api/v1/visitors
+{ "policyId": "<policy-id>", ... }
+
+# Create second visitor → Minet.policyToken: 999 → 998
+POST /api/v1/visitors
+{ "policyId": "<policy-id>", ... }
+
+# Check available policies
+GET /api/v1/insurers/<insurer-id>
+# Response includes: "availablePolicies": 998
+
+# After 1000 visitors created, next attempt fails
+POST /api/v1/visitors
+# 400 Bad Request: "Insurer 'Minet Insurance' has no available policies left"
+```
+
+**Multi-Insurer Policies:**
+
+Policies can be backed by multiple insurers (via `insurerIds` collection). When a visitor is created:
+- ALL backing insurers' quotas are decremented
+- If ANY insurer has exhausted quota, visitor creation is rejected
+- All insurers must have available policies for the visitor to succeed
+
+Example:
+- Policy ABC backed by Insurer A (500 policies) and Insurer B (200 policies)
+- Creating a visitor decrements both: A: 500→499, B: 200→199
+- When B reaches 0 but A has 100+ left, visitor creation still fails because B is exhausted
+
 ## Messaging (RabbitMQ)
 
 - Uses `spring-boot-starter-amqp`, with exchanges, queues, and bindings
