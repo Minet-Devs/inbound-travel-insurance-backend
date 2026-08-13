@@ -12,6 +12,8 @@ public interface ClaimService {
 
     ClaimResponse create(ClaimRequest request);
 
+    ClaimResponse update(UUID id, ClaimRequest request);
+
     ClaimResponse getById(UUID id);
 
     Page<ClaimResponse> list(Pageable pageable);
