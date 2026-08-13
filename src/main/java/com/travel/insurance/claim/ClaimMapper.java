@@ -11,6 +11,11 @@ public class ClaimMapper {
 
     public Claim toEntity(ClaimRequest request) {
         Claim claim = new Claim();
+        updateEntity(claim, request);
+        return claim;
+    }
+
+    public void updateEntity(Claim claim, ClaimRequest request) {
         claim.setPolicyId(request.policyId());
         claim.setBenefitId(request.benefitId());
         claim.setServiceProviderId(request.serviceProviderId());
@@ -23,7 +28,6 @@ public class ClaimMapper {
         claim.setProcedureIds(orEmpty(request.procedureIds()));
         claim.setInvoiceIds(orEmpty(request.invoiceIds()));
         claim.setDocumentIds(orEmpty(request.documentIds()));
-        return claim;
     }
 
     private static Set<UUID> orEmpty(Set<UUID> ids) {

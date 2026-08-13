@@ -65,6 +65,18 @@ public class ClaimServiceImpl implements ClaimService {
     }
 
     @Override
+    public ClaimResponse update(UUID id, ClaimRequest request) {
+        Claim claim = getEntity(id);
+        if (!OPEN_STATUSES.contains(claim.getStatus())) {
+            throw new IllegalStateException("Claim is not open for updates: " + claim.getStatus());
+        }
+        UUID insurerId = validateReferences(request);
+        claimMapper.updateEntity(claim, request);
+        claim.setInsurerId(insurerId);
+        return toResponse(claimRepository.save(claim));
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public ClaimResponse getById(UUID id) {
         return toResponse(getEntity(id));
