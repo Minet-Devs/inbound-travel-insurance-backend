@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -89,5 +90,20 @@ public class DepartmentServiceImpl implements DepartmentService {
         }
         return departmentRepository.findAllById(departmentIds).stream()
                 .collect(Collectors.toMap(Department::getId, Department::getName));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, UUID> idsByName(Collection<String> names) {
+        Set<String> keys = names.stream()
+                .filter(name -> name != null && !name.isBlank())
+                .map(name -> name.trim().toLowerCase())
+                .collect(Collectors.toSet());
+        if (keys.isEmpty()) {
+            return Map.of();
+        }
+        return departmentRepository.findByLowerTrimmedNameIn(keys).stream()
+                .collect(Collectors.toMap(department -> department.getName().trim().toLowerCase(),
+                        Department::getId, (first, second) -> first));
     }
 }
