@@ -6,5 +6,6 @@ public enum ClaimStatus {
     APPROVED,
     PARTIALLY_APPROVED,
     REJECTED,
-    PAID
+    PAID,
+    OPEN
 }
