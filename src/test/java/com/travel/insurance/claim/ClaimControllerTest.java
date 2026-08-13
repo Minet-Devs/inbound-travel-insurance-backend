@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -130,6 +131,31 @@ class ClaimControllerTest {
                         .content("{\"status\":\"APPROVED\",\"approvedAmount\":40000.00,\"reason\":\"ok\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SUBMITTED"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void attachInvoiceAttachesInvoiceToClaim() throws Exception {
+        when(claimService.attachInvoice(any(), any())).thenReturn(sampleClaim());
+
+        mockMvc.perform(put("/api/v1/claims/{id}/invoice", claimId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invoiceId\":\"" + invoiceId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(claimId.toString()))
+                .andExpect(jsonPath("$.invoiceIds[0]").value(invoiceId.toString()));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void attachInvoiceRejectsMissingInvoiceId() throws Exception {
+        mockMvc.perform(put("/api/v1/claims/{id}/invoice", claimId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.travel.insurance.claim;
 
 import com.travel.insurance.benefit.BenefitService;
+import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
@@ -74,6 +75,18 @@ public class ClaimServiceImpl implements ClaimService {
         claimMapper.updateEntity(claim, request);
         claim.setInsurerId(insurerId);
         return toResponse(claimRepository.save(claim));
+    }
+
+    @Override
+    public ClaimResponse attachInvoice(UUID id, AttachInvoiceRequest request) {
+        Claim claim = getEntity(id);
+        if (!OPEN_STATUSES.contains(claim.getStatus())) {
+            throw new IllegalStateException("Claim is not open for updates: " + claim.getStatus());
+        }
+        invoiceService.getEntityById(request.invoiceId());
+        claim.getInvoiceIds().add(request.invoiceId());
+        Claim saved = claimRepository.save(claim);
+        return toResponse(saved);
     }
 
     @Override

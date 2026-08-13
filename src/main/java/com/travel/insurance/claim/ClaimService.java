@@ -1,5 +1,6 @@
 package com.travel.insurance.claim;
 
+import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
@@ -13,6 +14,8 @@ public interface ClaimService {
     ClaimResponse create(ClaimRequest request);
 
     ClaimResponse update(UUID id, ClaimRequest request);
+
+    ClaimResponse attachInvoice(UUID id, AttachInvoiceRequest request);
 
     ClaimResponse getById(UUID id);
 
