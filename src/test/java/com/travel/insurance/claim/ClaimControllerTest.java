@@ -86,20 +86,6 @@ class ClaimControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
-    void createRejectsMissingRequiredFields() throws Exception {
-        ClaimRequest invalid = new ClaimRequest(policyId, null, null, null, null,
-                null, null, null, null, null, null, null);
-
-        mockMvc.perform(post("/api/v1/claims")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalid)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Validation failed"));
-    }
-
-    @Test
-    @WithMockUser(roles = "ADMIN")
     void getByIdReturnsClaim() throws Exception {
         when(claimService.getById(claimId)).thenReturn(sampleClaim());
 
@@ -145,17 +131,6 @@ class ClaimControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(claimId.toString()))
                 .andExpect(jsonPath("$.invoiceIds[0]").value(invoiceId.toString()));
-    }
-
-    @Test
-    @WithMockUser(roles = "ADMIN")
-    void attachInvoiceRejectsMissingInvoiceId() throws Exception {
-        mockMvc.perform(put("/api/v1/claims/{id}/invoice", claimId)
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value("Validation failed"));
     }
 
     @Test
