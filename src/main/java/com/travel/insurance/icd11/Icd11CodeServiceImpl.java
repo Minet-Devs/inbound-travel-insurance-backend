@@ -91,6 +91,14 @@ public class Icd11CodeServiceImpl implements Icd11CodeService {
 
     @Override
     @Transactional(readOnly = true)
+    public Icd11CodeResponse getById(UUID id) {
+        return icd11CodeRepository.findById(id)
+                .map(icd11CodeMapper::toResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Icd11Code", id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Icd11Code getEntityById(UUID id) {
         return icd11CodeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Icd11Code", id));
