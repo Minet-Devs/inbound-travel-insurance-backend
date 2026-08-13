@@ -2,6 +2,7 @@ package com.travel.insurance.procedure;
 
 import com.travel.insurance.procedure.dto.ProcedureRequest;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -38,11 +39,10 @@ public class ProcedureController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<ProcedureResponse>> list(
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) UUID departmentPublicId,
-            @RequestParam(required = false) Boolean active,
-            Pageable pageable) {
+    public ResponseEntity<Page<ProcedureResponse>> list(@RequestParam(required = false) String search,
+                                                        @RequestParam(required = false) UUID departmentPublicId,
+                                                        @RequestParam(required = false) Boolean active,
+                                                        @Parameter(hidden = true) Pageable pageable) {
         return ResponseEntity.ok(procedureService.list(search, departmentPublicId, active, pageable));
     }
 
