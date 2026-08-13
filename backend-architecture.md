@@ -183,8 +183,8 @@ com.travel.insurance/
 │   ├── PreauthorizationService.java        # Interface
 │   ├── PreauthorizationServiceImpl.java
 │   ├── PreauthorizationRepository.java
-│   ├── Preauthorization.java               # policyId, benefitId, serviceProviderId,
-│   │                                       # requestedAmount, approvedAmount
+│   ├── Preauthorization.java               # policyId, visitorId, icd11CodeId, benefitId,
+│   │                                       # serviceProviderId, requestedAmount, approvedAmount
 │   ├── PreauthorizationStatus.java         # Enum: PENDING, APPROVED, PARTIALLY_APPROVED,
 │   │                                       #       REJECTED, EXPIRED
 │   ├── PreauthorizationMapper.java
@@ -385,7 +385,21 @@ Policy
   benefit has since been deleted) so clients can display assignments without
   extra lookups.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
-  service and is decided by an `INSURER_USER` (or a admin agent).
+  service and is decided by an `INSURER_USER` (or a admin agent). Create
+  requires the diagnosis (`icd11CodeId`, validated via `Icd11CodeService`),
+  the patient (`visitorId`, validated via `VisitorService`, existence only —
+  not checked against the request's `policyId`), the accessed hospital
+  (`serviceProviderId`, validated via `ServiceProviderService`), the services
+  rendered (`serviceDescription`), the utilised `benefitId`, and
+  `requestedAmount`. On `decide`, the approver and decision time are not
+  separate columns — they reuse `BaseEntity`'s existing `updatedBy`/`updatedDate`
+  audit columns (already populated by `AuditorAware` on every save) and are
+  surfaced in `PreauthorizationResponse` as `decidedBy`/`decidedAt`, `null`
+  while the request is still `PENDING`. `PreauthorizationResponse` also
+  resolves display names for every referenced ID — `policyNumber`,
+  `visitorName`, `icd11Code`/`icd11Title`, `benefitName`,
+  `serviceProviderName` — via the respective feature services, so API
+  consumers never have to display a raw UUID.
 - A **Claim** is the request for payment. It is either provider-submitted
   against an approved pre-authorization, or customer-submitted for
   reimbursement (no pre-authorization). Decisions are made by the insurer;
