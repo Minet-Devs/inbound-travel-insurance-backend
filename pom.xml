@@ -27,8 +27,10 @@
         <flyway.url>jdbc:postgresql://localhost:5433/travel_insurance</flyway.url>
         <flyway.user>travel</flyway.user>
         <flyway.password>travel</flyway.password>
-        <!-- Keep in sync with the flyway-core version managed by the Spring Boot parent. -->
-        <flyway.plugin.version>10.10.0</flyway.plugin.version>
+        <!-- Keep in sync with the flyway-core version managed by the Spring Boot parent.
+             Note: must NOT be named flyway.* — the flyway-maven-plugin treats every
+             flyway.* property as a config key and rejects unknown ones. -->
+        <flywaydb.plugin.version>10.10.0</flywaydb.plugin.version>
     </properties>
 
     <dependencies>
@@ -157,7 +159,7 @@
                     <dependency>
                         <groupId>org.flywaydb</groupId>
                         <artifactId>flyway-database-postgresql</artifactId>
-                        <version>${flyway.plugin.version}</version>
+                        <version>${flywaydb.plugin.version}</version>
                     </dependency>
                     <dependency>
                         <groupId>org.postgresql</groupId>

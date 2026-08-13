@@ -2,6 +2,6 @@
 -- following the pattern of claim_invoices). The service name is resolved
 -- through MedicalServiceService when building the API response.
 
-alter table invoices add column medical_service_id uuid references medical_services (id);
+alter table invoices add column if not exists medical_service_id uuid references medical_services (id);
 
-create index idx_invoices_medical_service_id on invoices (medical_service_id);
+create index if not exists idx_invoices_medical_service_id on invoices (medical_service_id);
