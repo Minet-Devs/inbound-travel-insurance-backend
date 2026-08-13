@@ -339,6 +339,66 @@ Policy
   `BenefitService`, never their repositories, and no JPA relations cross
   package boundaries.
 
+## Procedures (Catalogue & Excel Upload)
+
+The `procedure` feature is a catalogue of service items (e.g. `Nebulization`,
+`Lumbar Puncture`) scoped to a department. It is independent of the insurance
+flow above.
+
+- A **Procedure** carries a generated `procedureCode`, a display `name`, an
+  internal `normalizedName` (never exposed), an optional `description`, a
+  `departmentPublicId` (ID-only reference — **no** JPA relationship to the
+  department feature), an `active` flag, a `source` (`MANUAL` / `EXCEL_UPLOAD`)
+  and a nullable `uploadBatchPublicId`. The entity's UUID `id` is its public id.
+- **Codes** come from a dedicated Postgres sequence (`procedure_code_seq`, via
+  `ProcedureRepository.nextProcedureCodeValue()`), formatted `PRC-0001` by
+  `ProcedureCodeGenerator`. The same generator serves manual creation and Excel
+  import; codes are never derived from a count/`MAX+1`, never editable, never
+  reused (gaps are fine). Uniqueness is enforced by `uq_procedures_code`.
+- **Name cleaning/normalization** lives in `ProcedureNameNormalizer` and is shared
+  by manual create, update, Excel validation and Excel import: trim, collapse
+  whitespace, replace non-breaking spaces, strip control/format characters; the
+  cleaned value is the display name and its upper-cased form the normalized name.
+  Medical terminology is never altered.
+- **Duplicate rule**: unique on `departmentPublicId + normalizedName`, enforced in
+  the application and by a partial unique index (`where deleted = false`). An
+  active match is rejected (`409`); an inactive match is rejected advising
+  reactivation. Activation re-checks for an active conflict first.
+- **Department validation** goes through the `department.DepartmentService`
+  interface (`existsActive(UUID)`) — the full Department feature is owned by
+  another team. Until their bean exists, `procedure.DepartmentValidationFallbackConfig`
+  supplies a fail-closed `@ConditionalOnMissingBean` fallback so the app still
+  boots; it backs off automatically once the real implementation is on the
+  classpath.
+- **Endpoints**: CRUD + search/filter (`GET /api/v1/procedures?search=&departmentPublicId=&active=`,
+  paged/sortable), `PATCH /{id}/activate`, `PATCH /{id}/deactivate` (no hard
+  delete in normal operation).
+
+Bulk creation is a synchronous two-stage Excel flow under
+`/api/v1/procedures/uploads` (`procedure.upload`):
+
+- The department is chosen outside the file (`departmentPublicId` request param);
+  the template (`Procedure Name*`, `Description`) never repeats it per row.
+- **Validate** (`POST /validate`) reads the whole workbook once
+  (`ProcedureExcelParser`, preserving real Excel row numbers, formulas never
+  evaluated), detects in-file duplicates via in-memory maps, bulk-loads existing
+  matches with one query, classifies each row (`VALID` / `SKIPPED` (already
+  exists) / `FAILED` (name required, too long, duplicate-in-file, inactive
+  exists)), persists a `ProcedureUpload` + `ProcedureUploadRow` rows, and returns
+  a summary. No procedures are created.
+- **Import** (`POST /{uploadPublicId}/import`) is guarded against repeat/parallel
+  runs by status transitions (`RECEIVED → VALIDATING → READY_FOR_IMPORT →
+  PROCESSING → COMPLETED[/_WITH_ERRORS]/FAILED`), re-checks duplicates immediately
+  before saving, generates a code per new procedure, sets `source = EXCEL_UPLOAD`
+  and the upload-batch id, and persists in batches (`hibernate.jdbc.batch_size`).
+  A late uniqueness race surfaces as a `409`.
+- **Downloads**: `GET /uploads/template` (cached static bytes) and
+  `GET /uploads/{uploadPublicId}/errors` (failed/skipped rows only), both
+  streamed as `.xlsx` attachments with the correct content type.
+- Operational limits (`procedure.upload.*` → `ProcedureUploadProperties`): max
+  file size, max rows, batch size, max name length. Background/`@Async` +
+  streaming (SXSSF) processing for very large files is intentionally deferred.
+
 ## Users, Roles & Organizations
 
 A single `User` entity serves everyone — admin staff, insurer staff, and
@@ -426,6 +486,8 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Pre-authorization | `/api/v1/preauthorizations`   | `preauthorizations` |
 | Claim             | `/api/v1/claims`              | `claims`            |
 | ICD-11 Code       | `/api/v1/icd11-codes`         | `icd11_codes`       |
+| Procedure         | `/api/v1/procedures`          | `procedures`        |
+| Procedure Upload  | `/api/v1/procedures/uploads`  | `procedure_uploads`, `procedure_upload_rows` |
 
 ## Messaging (RabbitMQ)
 
