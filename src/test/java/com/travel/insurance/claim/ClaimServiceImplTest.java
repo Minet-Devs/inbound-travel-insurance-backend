@@ -1,6 +1,7 @@
 package com.travel.insurance.claim;
 
 import com.travel.insurance.benefit.BenefitService;
+import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
@@ -308,5 +309,87 @@ class ClaimServiceImplTest {
         claimService.delete(id);
 
         verify(claimRepository).delete(claim);
+    }
+
+    @Test
+    void attachInvoiceAttachesToSubmittedClaimAndReturnsPopulatedInvoices() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(claimId);
+        claim.setStatus(ClaimStatus.SUBMITTED);
+
+        when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
+        when(invoiceService.getEntityById(invoiceId)).thenReturn(new Invoice());
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
+
+        ClaimResponse response = claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId));
+
+        assertThat(response.id()).isEqualTo(claimId);
+        assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
+        assertThat(response.invoiceIds()).containsExactly(invoiceId);
+        assertThat(response.invoices()).extracting(InvoiceResponse::invoiceNumber)
+                .containsExactly("INV-2026-001");
+        verify(claimRepository).save(claim);
+    }
+
+    @Test
+    void attachInvoiceAttachesToUnderReviewClaim() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(claimId);
+        claim.setStatus(ClaimStatus.UNDER_REVIEW);
+
+        when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
+        when(invoiceService.getEntityById(invoiceId)).thenReturn(new Invoice());
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
+
+        ClaimResponse response = claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId));
+
+        assertThat(response.id()).isEqualTo(claimId);
+        assertThat(response.status()).isEqualTo(ClaimStatus.UNDER_REVIEW);
+        assertThat(response.invoiceIds()).contains(invoiceId);
+    }
+
+    @Test
+    void attachInvoiceThrowsConflictWhenClaimIsNotOpen() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(claimId);
+        claim.setStatus(ClaimStatus.APPROVED);
+
+        when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
+
+        assertThatThrownBy(() -> claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Claim is not open for updates: APPROVED");
+        verify(claimRepository, never()).save(any());
+    }
+
+    @Test
+    void attachInvoiceThrowsNotFoundWhenClaimDoesNotExist() {
+        UUID claimId = UUID.randomUUID();
+        when(claimRepository.findById(claimId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId)))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(claimRepository, never()).save(any());
+    }
+
+    @Test
+    void attachInvoiceThrowsNotFoundWhenInvoiceDoesNotExist() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(claimId);
+        claim.setStatus(ClaimStatus.SUBMITTED);
+
+        when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
+        when(invoiceService.getEntityById(invoiceId))
+                .thenThrow(new ResourceNotFoundException("Invoice", invoiceId));
+
+        assertThatThrownBy(() -> claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId)))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(claimRepository, never()).save(any());
     }
 }

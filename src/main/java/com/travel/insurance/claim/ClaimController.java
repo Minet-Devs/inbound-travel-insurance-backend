@@ -1,5 +1,6 @@
 package com.travel.insurance.claim;
 
+import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
@@ -31,6 +32,14 @@ public class ClaimController {
     @PostMapping
     public ResponseEntity<ClaimResponse> create(@Valid @RequestBody ClaimRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(claimService.create(request));
+    }
+
+    @PutMapping("/{id}/invoice")
+    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT', 'PROVIDER_USER')")
+    public ResponseEntity<ClaimResponse> attachInvoice(
+            @PathVariable UUID id,
+            @Valid @RequestBody AttachInvoiceRequest request) {
+        return ResponseEntity.ok(claimService.attachInvoice(id, request));
     }
 
     @GetMapping("/{id}")

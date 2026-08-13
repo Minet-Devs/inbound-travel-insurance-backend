@@ -482,7 +482,10 @@ Policy
   references, no catalog), `invoiceIds` (must reference existing invoices,
   validated through `InvoiceService`), and `documentIds` (a placeholder for a
   future upload service; the `claim_documents` join table persists them but no
-  documents feature exists yet). The claim's `insurerId` is **not** accepted
+  documents feature exists yet). Existing invoices can be attached to an open claim
+  (`SUBMITTED` or `UNDER_REVIEW`) via `PUT /api/v1/claims/{id}/invoice` (`AttachInvoiceRequest`);
+  attempting to attach an invoice to a closed claim returns 409 Conflict (`IllegalStateException`).
+  The claim's `insurerId` is **not** accepted
   on the request: it is derived server-side from the policy, which must cover
   exactly one insurer (409 otherwise). `ClaimResponse` embeds the full
   `visitor`, `insurer` and `invoices` objects — resolved through the
