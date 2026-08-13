@@ -42,7 +42,7 @@ class InsurerControllerTest {
 
     private InsurerResponse sampleResponse() {
         return new InsurerResponse(insurerId, "Acme Insurance", "contact@acme.example",
-                null, null, "https://cdn.example/acme.png", 42L, Instant.now(), Instant.now());
+                null, null, "https://cdn.example/acme.png", 42L, 42L, Instant.now(), Instant.now());
     }
 
     @Test

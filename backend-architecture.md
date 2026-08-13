@@ -183,8 +183,8 @@ com.travel.insurance/
 │   ├── PreauthorizationService.java        # Interface
 │   ├── PreauthorizationServiceImpl.java
 │   ├── PreauthorizationRepository.java
-│   ├── Preauthorization.java               # policyId, benefitId, serviceProviderId,
-│   │                                       # requestedAmount, approvedAmount
+│   ├── Preauthorization.java               # policyId, visitorId, icd11CodeId, benefitId,
+│   │                                       # serviceProviderId, requestedAmount, approvedAmount
 │   ├── PreauthorizationStatus.java         # Enum: PENDING, APPROVED, PARTIALLY_APPROVED,
 │   │                                       #       REJECTED, EXPIRED
 │   ├── PreauthorizationMapper.java
@@ -385,7 +385,21 @@ Policy
   benefit has since been deleted) so clients can display assignments without
   extra lookups.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
-  service and is decided by an `INSURER_USER` (or a admin agent).
+  service and is decided by an `INSURER_USER` (or a admin agent). Create
+  requires the diagnosis (`icd11CodeId`, validated via `Icd11CodeService`),
+  the patient (`visitorId`, validated via `VisitorService`, existence only —
+  not checked against the request's `policyId`), the accessed hospital
+  (`serviceProviderId`, validated via `ServiceProviderService`), the services
+  rendered (`serviceDescription`), the utilised `benefitId`, and
+  `requestedAmount`. On `decide`, the approver and decision time are not
+  separate columns — they reuse `BaseEntity`'s existing `updatedBy`/`updatedDate`
+  audit columns (already populated by `AuditorAware` on every save) and are
+  surfaced in `PreauthorizationResponse` as `decidedBy`/`decidedAt`, `null`
+  while the request is still `PENDING`. `PreauthorizationResponse` also
+  resolves display names for every referenced ID — `policyNumber`,
+  `visitorName`, `icd11Code`/`icd11Title`, `benefitName`,
+  `serviceProviderName` — via the respective feature services, so API
+  consumers never have to display a raw UUID.
 - A **Claim** is the request for payment. It is either provider-submitted
   against an approved pre-authorization, or customer-submitted for
   reimbursement (no pre-authorization). Decisions are made by the insurer;
@@ -550,6 +564,96 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Procedure Upload  | `/api/v1/procedures/uploads`  | `procedure_uploads`, `procedure_upload_rows` |
 | Department        | `/api/v1/departments`         | `departments`       |
 | Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
+
+## Policy Tokenization (Quota Management)
+
+The system enforces **per-insurer policy quotas** to prevent insurers from overselling policies.
+
+**Concept:**
+- Each `Insurer` is allocated a fixed number of policies via `policyToken` (e.g., 1000 policies for Minet Insurance)
+- When a `Visitor` is created using a policy backed by an insurer, that insurer's available quota decreases by 1
+- The system prevents visitor creation if any backing insurer has exhausted their quota (policyToken ≤ 0)
+- If a visitor is deleted, the quota is restored
+
+**Data Model:**
+- `Insurer.policyToken: Long` — available (unconsumed) policies for this insurer
+- `InsurerResponse.availablePolicies: Long` — exposed in API responses (same as policyToken, defaults to 0 if null)
+
+**Event-Driven Flow:**
+
+1. **Visitor Creation → Policy Consumption**
+   - `VisitorServiceImpl.create()` validates that all backing insurers have `policyToken > 0`
+   - If validation passes, visitor is saved and `VisitorCreatedEvent` is published
+   - `PolicyConsumptionListener` receives the event and decrements `policyToken` for each backing insurer
+   - Example: Minet Insurance 1000 → 999 when first visitor is created
+
+2. **Visitor Deletion → Policy Restoration**
+   - `VisitorServiceImpl.delete()` soft-deletes the visitor and publishes `VisitorDeletedEvent`
+   - `PolicyRestorationListener` receives the event and restores (increments) `policyToken` for each backing insurer
+   - Example: Minet Insurance 999 → 1000 when that visitor is deleted
+
+3. **Quota Exhaustion**
+   - When `policyToken` reaches 0, any attempt to create a visitor using that insurer's policy fails with:
+   - `IllegalStateException: "Insurer 'Minet Insurance' has no available policies left"`
+   - HTTP 400 (Bad Request)
+
+**Implementation Details:**
+
+| Component | Responsibility |
+|-----------|-----------------|
+| `PolicyConsumptionListener` | Listens to `VisitorCreatedEvent`; decrements `policyToken` for all backing insurers |
+| `PolicyRestorationListener` | Listens to `VisitorDeletedEvent`; restores `policyToken` for all backing insurers |
+| `VisitorServiceImpl.validatePolicyQuota()` | Pre-creation validation; checks all insurers have available policies |
+| `VisitorServiceImpl.delete()` | Publishes `VisitorDeletedEvent` after soft-delete |
+| `InsurerResponse.availablePolicies` | Exposes quota count in API responses for admin monitoring |
+
+**Example API Usage:**
+
+```bash
+# Create insurer with 1000 policies
+POST /api/v1/insurers
+{
+  "name": "Minet Insurance",
+  "policyToken": 1000
+}
+
+# Create policy linked to insurer
+POST /api/v1/policies
+{
+  "policyNumber": "POL-001",
+  "insurerIds": ["<insurer-id>"],
+  "policyType": "SINGLE_ENTRY_UP_TO_30_DAYS",
+  "status": "ACTIVE"
+}
+
+# Create first visitor → Minet.policyToken: 1000 → 999
+POST /api/v1/visitors
+{ "policyId": "<policy-id>", ... }
+
+# Create second visitor → Minet.policyToken: 999 → 998
+POST /api/v1/visitors
+{ "policyId": "<policy-id>", ... }
+
+# Check available policies
+GET /api/v1/insurers/<insurer-id>
+# Response includes: "availablePolicies": 998
+
+# After 1000 visitors created, next attempt fails
+POST /api/v1/visitors
+# 400 Bad Request: "Insurer 'Minet Insurance' has no available policies left"
+```
+
+**Multi-Insurer Policies:**
+
+Policies can be backed by multiple insurers (via `insurerIds` collection). When a visitor is created:
+- ALL backing insurers' quotas are decremented
+- If ANY insurer has exhausted quota, visitor creation is rejected
+- All insurers must have available policies for the visitor to succeed
+
+Example:
+- Policy ABC backed by Insurer A (500 policies) and Insurer B (200 policies)
+- Creating a visitor decrements both: A: 500→499, B: 200→199
+- When B reaches 0 but A has 100+ left, visitor creation still fails because B is exhausted
 
 ## Messaging (RabbitMQ)
 

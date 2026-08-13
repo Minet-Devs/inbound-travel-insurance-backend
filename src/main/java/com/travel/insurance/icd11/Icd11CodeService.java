@@ -6,6 +6,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.UUID;
+
 public interface Icd11CodeService {
 
     Icd11ImportResult importFromExcel(MultipartFile file);
@@ -15,4 +17,6 @@ public interface Icd11CodeService {
     Page<Icd11CodeResponse> searchByTitle(String title, Pageable pageable);
 
     Icd11CodeResponse getByCode(String code);
+
+    Icd11Code getEntityById(UUID id);
 }

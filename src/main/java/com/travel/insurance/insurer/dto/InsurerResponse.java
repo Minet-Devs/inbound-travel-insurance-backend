@@ -11,6 +11,7 @@ public record InsurerResponse(
         String address,
         String logoUrl,
         Long policyToken,
+        Long availablePolicies,
         Instant createdDate,
         Instant updatedDate
 ) {
