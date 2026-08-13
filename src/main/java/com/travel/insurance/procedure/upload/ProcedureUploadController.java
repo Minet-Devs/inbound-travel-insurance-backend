@@ -49,7 +49,7 @@ public class ProcedureUploadController {
         return ResponseEntity.ok(procedureUploadService.getUpload(uploadPublicId));
     }
 
-    @GetMapping("/upload/download")
+    @GetMapping("/download")
     public ResponseEntity<byte[]> downloadTemplate() {
         return responseEntity(procedureUploadService.template(), "procedure-upload-template.xlsx");
     }
