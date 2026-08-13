@@ -60,6 +60,7 @@ public class ClaimServiceImpl implements ClaimService {
     public ClaimResponse create(ClaimRequest request) {
         UUID insurerId = validateReferences(request);
         Claim claim = claimMapper.toEntity(request);
+        claim.setStatus(ClaimStatus.OPEN);
         claim.setInsurerId(insurerId);
         claim = claimRepository.save(claim);
         return toResponse(claim);
