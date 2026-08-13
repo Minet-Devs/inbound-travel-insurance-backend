@@ -449,7 +449,9 @@ Policy
   `MedicalServiceService` on create/update); `InvoiceResponse` resolves that
   ID to `medicalServiceName` (the "resolve the display name, don't nest the
   entity" shape) and embeds its line items as a child aggregate
-  (`invoice_items`, owned via a unidirectional `@OneToMany`).
+  (`invoice_items`, a bidirectional `@OneToMany`/`@ManyToOne` owned on the
+  item side so the `invoice_id` FK is set on insert — the schema column is
+  `NOT NULL`).
 - Cross-feature references are **ID columns only** (the same rule as
   `User.organizationId`): the `claim` feature calls `PolicyService` and
   `BenefitService`, never their repositories, and no JPA relations cross

@@ -4,7 +4,6 @@ import com.travel.insurance.common.domain.BaseEntity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -42,7 +41,6 @@ public class Invoice extends BaseEntity {
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal totalAmount;
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "invoice_id")
+    @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<InvoiceItem> invoiceItems = new ArrayList<>();
 }

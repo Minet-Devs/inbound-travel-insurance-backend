@@ -26,7 +26,7 @@ public class InvoiceMapper {
         invoice.setCurrency(request.currency());
         invoice.setTotalAmount(request.totalAmount());
         List<InvoiceItem> items = Optional.ofNullable(request.invoiceItems()).orElse(List.of()).stream()
-                .map(this::toItem)
+                .map(requestItem -> toItem(requestItem, invoice))
                 .toList();
         invoice.getInvoiceItems().clear();
         invoice.getInvoiceItems().addAll(items);
@@ -51,8 +51,9 @@ public class InvoiceMapper {
         );
     }
 
-    private InvoiceItem toItem(InvoiceItemRequest request) {
+    private InvoiceItem toItem(InvoiceItemRequest request, Invoice invoice) {
         InvoiceItem item = new InvoiceItem();
+        item.setInvoice(invoice);
         item.setDescription(request.description());
         item.setQuantity(request.quantity());
         item.setUnitPrice(request.unitPrice());
