@@ -9,8 +9,15 @@ import com.travel.insurance.common.messaging.EventPublisher;
 import com.travel.insurance.common.util.AuthenticatedUser;
 import com.travel.insurance.common.util.SecurityUtils;
 import com.travel.insurance.config.RabbitConfig;
+import com.travel.insurance.insurer.InsurerService;
+import com.travel.insurance.insurer.dto.InsurerResponse;
+import com.travel.insurance.invoice.InvoiceService;
+import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.visitor.Visitor;
+import com.travel.insurance.visitor.VisitorService;
+import com.travel.insurance.visitor.dto.VisitorResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -42,25 +50,30 @@ public class ClaimServiceImpl implements ClaimService {
     private final ClaimMapper claimMapper;
     private final PolicyService policyService;
     private final BenefitService benefitService;
+    private final VisitorService visitorService;
+    private final InsurerService insurerService;
+    private final InvoiceService invoiceService;
     private final EventPublisher eventPublisher;
 
     @Override
     public ClaimResponse create(ClaimRequest request) {
-        validateReferences(request);
-        Claim claim = claimRepository.save(claimMapper.toEntity(request));
-        return claimMapper.toResponse(claim);
+        UUID insurerId = validateReferences(request);
+        Claim claim = claimMapper.toEntity(request);
+        claim.setInsurerId(insurerId);
+        claim = claimRepository.save(claim);
+        return toResponse(claim);
     }
 
     @Override
     @Transactional(readOnly = true)
     public ClaimResponse getById(UUID id) {
-        return claimMapper.toResponse(getEntity(id));
+        return toResponse(getEntity(id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<ClaimResponse> list(Pageable pageable) {
-        return findScoped(pageable).map(claimMapper::toResponse);
+        return findScoped(pageable).map(this::toResponse);
     }
 
     @Override
@@ -75,7 +88,7 @@ public class ClaimServiceImpl implements ClaimService {
         applyDecision(claim, request);
         Claim saved = claimRepository.save(claim);
         publishIfApproved(saved);
-        return claimMapper.toResponse(saved);
+        return toResponse(saved);
     }
 
     @Override
@@ -85,7 +98,7 @@ public class ClaimServiceImpl implements ClaimService {
             throw new IllegalStateException("Only approved claims can be marked as paid");
         }
         claim.setStatus(ClaimStatus.PAID);
-        return claimMapper.toResponse(claimRepository.save(claim));
+        return toResponse(claimRepository.save(claim));
     }
 
     @Override
@@ -112,10 +125,38 @@ public class ClaimServiceImpl implements ClaimService {
         claim.setApprovedAmount(approved);
     }
 
-    private void validateReferences(ClaimRequest request) {
-        policyService.getEntityById(request.policyId());
+    private UUID validateReferences(ClaimRequest request) {
+        Policy policy = policyService.getEntityById(request.policyId());
         // Benefits are a global catalog, so only existence is validated here.
         benefitService.getEntityById(request.benefitId());
+
+        // The claim's insurer is not supplied by the client; it is derived
+        // from the policy, which must cover exactly one insurer.
+        UUID insurerId = singleInsurer(policy);
+        if (!insurerService.exists(insurerId)) {
+            throw new ResourceNotFoundException("Insurer", insurerId);
+        }
+
+        if (request.visitorId() != null) {
+            Visitor visitor = visitorService.getEntityById(request.visitorId());
+            if (!policy.getId().equals(visitor.getPolicyId())) {
+                throw new IllegalStateException("Visitor does not belong to the claim's policy");
+            }
+        }
+
+        if (request.invoiceIds() != null) {
+            request.invoiceIds().forEach(invoiceService::getEntityById);
+        }
+        return insurerId;
+    }
+
+    private static UUID singleInsurer(Policy policy) {
+        Set<UUID> insurerIds = policy.getInsurerIds();
+        if (insurerIds.size() != 1) {
+            throw new IllegalStateException(
+                    "Policy must cover exactly one insurer to create a claim, found: " + insurerIds.size());
+        }
+        return insurerIds.iterator().next();
     }
 
     private Page<Claim> findScoped(Pageable pageable) {
@@ -142,5 +183,41 @@ public class ClaimServiceImpl implements ClaimService {
     private Claim getEntity(UUID id) {
         return claimRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Claim", id));
+    }
+
+    private ClaimResponse toResponse(Claim claim) {
+        VisitorResponse visitor = claim.getVisitorId() != null
+                ? visitorService.getById(claim.getVisitorId())
+                : null;
+        InsurerResponse insurer = claim.getInsurerId() != null
+                ? insurerService.getById(claim.getInsurerId())
+                : null;
+        List<InvoiceResponse> invoices = claim.getInvoiceIds().stream()
+                .map(invoiceService::getById)
+                .toList();
+        return new ClaimResponse(
+                claim.getId(),
+                claim.getPolicyId(),
+                claim.getBenefitId(),
+                claim.getServiceProviderId(),
+                claim.getPreauthorizationId(),
+                claim.getVisitorId(),
+                visitor,
+                claim.getInsurerId(),
+                insurer,
+                claim.getClaimedAmount(),
+                claim.getApprovedAmount(),
+                claim.getDescription(),
+                claim.getPrescription(),
+                Set.copyOf(claim.getDiagnosisIds()),
+                Set.copyOf(claim.getProcedureIds()),
+                Set.copyOf(claim.getInvoiceIds()),
+                invoices,
+                Set.copyOf(claim.getDocumentIds()),
+                claim.getDecisionReason(),
+                claim.getStatus(),
+                claim.getCreatedDate(),
+                claim.getUpdatedDate()
+        );
     }
 }
