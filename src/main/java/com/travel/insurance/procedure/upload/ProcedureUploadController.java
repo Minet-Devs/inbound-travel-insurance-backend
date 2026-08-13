@@ -17,13 +17,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
-/**
- * Procedure Excel upload: two-stage validate/import, upload status, plus the
- * template and error-report downloads. All endpoints live under {@code /upload}
- * so they never collide with the procedure CRUD routes on
- * {@code /api/v1/procedures/{id}}. The department is chosen per row inside the
- * file, so validation takes only the file.
- */
 @RestController
 @RequestMapping("/api/v1/procedures")
 @RequiredArgsConstructor

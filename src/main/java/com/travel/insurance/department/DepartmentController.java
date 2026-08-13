@@ -19,11 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-/**
- * Manages the department catalog: a plain name-only master list. Services are
- * looked up separately by department id via {@code /api/v1/medical-services};
- * a department response never embeds its services.
- */
+
 @RestController
 @RequestMapping("/api/v1/departments")
 @RequiredArgsConstructor
