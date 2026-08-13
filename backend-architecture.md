@@ -183,8 +183,8 @@ com.travel.insurance/
 │   ├── PreauthorizationService.java        # Interface
 │   ├── PreauthorizationServiceImpl.java
 │   ├── PreauthorizationRepository.java
-│   ├── Preauthorization.java               # policyId, benefitId, serviceProviderId,
-│   │                                       # requestedAmount, approvedAmount
+│   ├── Preauthorization.java               # policyId, visitorId, icd11CodeId, benefitId,
+│   │                                       # serviceProviderId, requestedAmount, approvedAmount
 │   ├── PreauthorizationStatus.java         # Enum: PENDING, APPROVED, PARTIALLY_APPROVED,
 │   │                                       #       REJECTED, EXPIRED
 │   ├── PreauthorizationMapper.java
@@ -220,6 +220,31 @@ com.travel.insurance/
 │   └── 📁 dto/
 │       ├── Icd11CodeResponse.java
 │       └── Icd11ImportResult.java          # totalRows, inserted, updated, skipped
+│
+├── 📁 department/                          # Feature: Department catalog
+│   ├── DepartmentController.java
+│   ├── DepartmentService.java              # Interface
+│   ├── DepartmentServiceImpl.java
+│   ├── DepartmentRepository.java
+│   ├── Department.java                     # name (unique) — nothing else
+│   ├── DepartmentMapper.java
+│   └── 📁 dto/
+│       ├── DepartmentRequest.java
+│       └── DepartmentResponse.java
+│
+├── 📁 medicalservice/                      # Feature: Service catalog (belongs to a department)
+│   ├── MedicalServiceController.java
+│   ├── MedicalServiceService.java          # Interface
+│   ├── MedicalServiceServiceImpl.java
+│   ├── MedicalServiceRepository.java
+│   ├── MedicalService.java                 # name, departmentId (unique per department)
+│   ├── MedicalServiceExcelParser.java      # parses uploaded .xlsx → service/department rows
+│   ├── MedicalServiceMapper.java
+│   └── 📁 dto/
+│       ├── MedicalServiceRequest.java
+│       ├── MedicalServiceResponse.java
+│       └── MedicalServiceImportResult.java  # totalRows, departmentsCreated,
+│                                            # servicesInserted, servicesSkipped
 │
 └── TravelInsuranceApplication.java         # @SpringBootApplication entry point
 ```
@@ -281,6 +306,37 @@ Policy
   (title-only substring match, paged — the diagnosis picker use case) and
   `GET /api/v1/icd11-codes/{code}`. Import is restricted to `ADMIN`; the read
   endpoints are open to any authenticated user.
+- A **Department** is a plain name-only catalog entry (e.g. `PHARMACY`,
+  `LABORATORY`) — nothing beyond the `BaseEntity` fields and a unique `name`.
+  A **MedicalService** belongs to exactly one department, referenced by
+  `departmentId` (ID-only, same convention as every other cross-feature
+  reference — no JPA relation), and its `name` is unique per department rather
+  than globally, so two departments may each have an identically-named
+  service. `GET /api/v1/departments/{id}` never embeds that department's
+  services — callers fetch them separately via
+  `GET /api/v1/medical-services?departmentId=…` (paged) or
+  `GET /api/v1/medical-services/by-department/{departmentId}` (unpaged),
+  keeping department reads cheap regardless of catalog size.
+  `MedicalServiceResponse` additionally carries the owning department's
+  `departmentName` (resolved through `DepartmentService.namesByIds`; `null` if
+  the department has since been deleted), the same "resolve the display name,
+  don't nest the entity" shape already used by `VisitorBenefitResponse`.
+  Both catalogs are bulk-loaded from the master list: an admin uploads a
+  two-column (`service`/`department`) `.xlsx` workbook to
+  `POST /api/v1/medical-services/import` (multipart;
+  `MedicalServiceExcelParser` locates the header columns case-insensitively,
+  mirroring `Icd11ExcelParser`). For each row, `MedicalServiceServiceImpl`
+  resolves the department by exact name — creating it via
+  `DepartmentService.findOrCreateByName` if it doesn't exist yet, caching the
+  lookup within the run so a department referenced by hundreds of rows is
+  only resolved once — then upserts the service by (`name`, `departmentId`);
+  rows with a blank service or department name, or a service already present
+  in that department, are skipped. The returned `MedicalServiceImportResult`
+  reports `totalRows`/`departmentsCreated`/`servicesInserted`/`servicesSkipped`,
+  so re-uploading the same file is idempotent (a second run reports zero
+  inserted/created). Writes (create/update/delete/import) on both
+  `/api/v1/departments` and `/api/v1/medical-services` are restricted to
+  `ADMIN`; reads are open to any authenticated user.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,
@@ -329,7 +385,21 @@ Policy
   benefit has since been deleted) so clients can display assignments without
   extra lookups.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
-  service and is decided by an `INSURER_USER` (or a admin agent).
+  service and is decided by an `INSURER_USER` (or a admin agent). Create
+  requires the diagnosis (`icd11CodeId`, validated via `Icd11CodeService`),
+  the patient (`visitorId`, validated via `VisitorService`, existence only —
+  not checked against the request's `policyId`), the accessed hospital
+  (`serviceProviderId`, validated via `ServiceProviderService`), the services
+  rendered (`serviceDescription`), the utilised `benefitId`, and
+  `requestedAmount`. On `decide`, the approver and decision time are not
+  separate columns — they reuse `BaseEntity`'s existing `updatedBy`/`updatedDate`
+  audit columns (already populated by `AuditorAware` on every save) and are
+  surfaced in `PreauthorizationResponse` as `decidedBy`/`decidedAt`, `null`
+  while the request is still `PENDING`. `PreauthorizationResponse` also
+  resolves display names for every referenced ID — `policyNumber`,
+  `visitorName`, `icd11Code`/`icd11Title`, `benefitName`,
+  `serviceProviderName` — via the respective feature services, so API
+  consumers never have to display a raw UUID.
 - A **Claim** is the request for payment. It is either provider-submitted
   against an approved pre-authorization, or customer-submitted for
   reimbursement (no pre-authorization). Decisions are made by the insurer;
@@ -426,6 +496,98 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Pre-authorization | `/api/v1/preauthorizations`   | `preauthorizations` |
 | Claim             | `/api/v1/claims`              | `claims`            |
 | ICD-11 Code       | `/api/v1/icd11-codes`         | `icd11_codes`       |
+| Department        | `/api/v1/departments`         | `departments`       |
+| Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
+
+## Policy Tokenization (Quota Management)
+
+The system enforces **per-insurer policy quotas** to prevent insurers from overselling policies.
+
+**Concept:**
+- Each `Insurer` is allocated a fixed number of policies via `policyToken` (e.g., 1000 policies for Minet Insurance)
+- When a `Visitor` is created using a policy backed by an insurer, that insurer's available quota decreases by 1
+- The system prevents visitor creation if any backing insurer has exhausted their quota (policyToken ≤ 0)
+- If a visitor is deleted, the quota is restored
+
+**Data Model:**
+- `Insurer.policyToken: Long` — available (unconsumed) policies for this insurer
+- `InsurerResponse.availablePolicies: Long` — exposed in API responses (same as policyToken, defaults to 0 if null)
+
+**Event-Driven Flow:**
+
+1. **Visitor Creation → Policy Consumption**
+   - `VisitorServiceImpl.create()` validates that all backing insurers have `policyToken > 0`
+   - If validation passes, visitor is saved and `VisitorCreatedEvent` is published
+   - `PolicyConsumptionListener` receives the event and decrements `policyToken` for each backing insurer
+   - Example: Minet Insurance 1000 → 999 when first visitor is created
+
+2. **Visitor Deletion → Policy Restoration**
+   - `VisitorServiceImpl.delete()` soft-deletes the visitor and publishes `VisitorDeletedEvent`
+   - `PolicyRestorationListener` receives the event and restores (increments) `policyToken` for each backing insurer
+   - Example: Minet Insurance 999 → 1000 when that visitor is deleted
+
+3. **Quota Exhaustion**
+   - When `policyToken` reaches 0, any attempt to create a visitor using that insurer's policy fails with:
+   - `IllegalStateException: "Insurer 'Minet Insurance' has no available policies left"`
+   - HTTP 400 (Bad Request)
+
+**Implementation Details:**
+
+| Component | Responsibility |
+|-----------|-----------------|
+| `PolicyConsumptionListener` | Listens to `VisitorCreatedEvent`; decrements `policyToken` for all backing insurers |
+| `PolicyRestorationListener` | Listens to `VisitorDeletedEvent`; restores `policyToken` for all backing insurers |
+| `VisitorServiceImpl.validatePolicyQuota()` | Pre-creation validation; checks all insurers have available policies |
+| `VisitorServiceImpl.delete()` | Publishes `VisitorDeletedEvent` after soft-delete |
+| `InsurerResponse.availablePolicies` | Exposes quota count in API responses for admin monitoring |
+
+**Example API Usage:**
+
+```bash
+# Create insurer with 1000 policies
+POST /api/v1/insurers
+{
+  "name": "Minet Insurance",
+  "policyToken": 1000
+}
+
+# Create policy linked to insurer
+POST /api/v1/policies
+{
+  "policyNumber": "POL-001",
+  "insurerIds": ["<insurer-id>"],
+  "policyType": "SINGLE_ENTRY_UP_TO_30_DAYS",
+  "status": "ACTIVE"
+}
+
+# Create first visitor → Minet.policyToken: 1000 → 999
+POST /api/v1/visitors
+{ "policyId": "<policy-id>", ... }
+
+# Create second visitor → Minet.policyToken: 999 → 998
+POST /api/v1/visitors
+{ "policyId": "<policy-id>", ... }
+
+# Check available policies
+GET /api/v1/insurers/<insurer-id>
+# Response includes: "availablePolicies": 998
+
+# After 1000 visitors created, next attempt fails
+POST /api/v1/visitors
+# 400 Bad Request: "Insurer 'Minet Insurance' has no available policies left"
+```
+
+**Multi-Insurer Policies:**
+
+Policies can be backed by multiple insurers (via `insurerIds` collection). When a visitor is created:
+- ALL backing insurers' quotas are decremented
+- If ANY insurer has exhausted quota, visitor creation is rejected
+- All insurers must have available policies for the visitor to succeed
+
+Example:
+- Policy ABC backed by Insurer A (500 policies) and Insurer B (200 policies)
+- Creating a visitor decrements both: A: 500→499, B: 200→199
+- When B reaches 0 but A has 100+ left, visitor creation still fails because B is exhausted
 
 ## Messaging (RabbitMQ)
 

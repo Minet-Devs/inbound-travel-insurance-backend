@@ -6,6 +6,7 @@ local.env
 .vscode/
 .DS_Store
 *.log
+docker-compose.override.yml
 Britam_redacted.pdf
 ICEA_Certificate_redacted.pdf
 Mayfair_Certificate_redacted.pdf

@@ -1,6 +1,8 @@
 package com.travel.insurance.visitor;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.insurer.Insurer;
+import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyType;
@@ -26,12 +28,14 @@ public class VisitorServiceImpl implements VisitorService {
     private final VisitorRepository visitorRepository;
     private final VisitorMapper visitorMapper;
     private final PolicyService policyService;
+    private final InsurerRepository insurerRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public VisitorResponse create(VisitorRequest request) {
         Policy policy = policyService.getEntityById(request.policyId());
         validateCoverPeriod(policy, request);
+        validatePolicyQuota(policy);
         if (visitorRepository.existsByPassportNumberIgnoreCase(request.passportNumber())) {
             throw new IllegalStateException(
                     "Visitor already exists with passport number: " + request.passportNumber());
@@ -85,7 +89,9 @@ public class VisitorServiceImpl implements VisitorService {
 
     @Override
     public void delete(UUID id) {
-        visitorRepository.delete(getEntityById(id));
+        Visitor visitor = getEntityById(id);
+        visitorRepository.delete(visitor);
+        eventPublisher.publishEvent(new VisitorDeletedEvent(visitor.getId(), visitor.getPolicyId()));
     }
 
     @Override
@@ -123,6 +129,26 @@ public class VisitorServiceImpl implements VisitorService {
             throw new IllegalArgumentException(
                     "Travel period of %d day(s) is not valid for policy type %s (must be between %d and %d days)"
                             .formatted(days, policyType, policyType.getMinDays(), policyType.getMaxDays()));
+        }
+    }
+
+    /**
+     * Validates that all backing insurers of the policy have available policy tokens.
+     * Prevents visitor creation if any insurer has exhausted their quota.
+     *
+     * @param policy the policy to validate
+     * @throws IllegalStateException if any backing insurer has no available policies
+     */
+    private void validatePolicyQuota(Policy policy) {
+        for (UUID insurerId : policy.getInsurerIds()) {
+            Insurer insurer = insurerRepository.findById(insurerId)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Insurer not found: " + insurerId));
+
+            if (insurer.getPolicyToken() == null || insurer.getPolicyToken() <= 0) {
+                throw new IllegalStateException(
+                        "Insurer '" + insurer.getName() + "' has no available policies left");
+            }
         }
     }
 

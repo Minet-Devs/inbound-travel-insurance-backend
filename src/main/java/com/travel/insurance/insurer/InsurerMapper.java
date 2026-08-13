@@ -32,6 +32,7 @@ public class InsurerMapper {
                 insurer.getAddress(),
                 insurer.getLogoUrl(),
                 insurer.getPolicyToken(),
+                insurer.getPolicyToken() != null ? insurer.getPolicyToken() : 0L,
                 insurer.getCreatedDate(),
                 insurer.getUpdatedDate()
         );
