@@ -4,6 +4,7 @@ import com.travel.insurance.preauthorization.PreauthorizationStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public record PreauthorizationResponse(
@@ -19,6 +20,8 @@ public record PreauthorizationResponse(
         String benefitName,
         UUID serviceProviderId,
         String serviceProviderName,
+        UUID medicalServiceId,
+        String medicalServiceName,
         BigDecimal requestedAmount,
         BigDecimal approvedAmount,
         String serviceDescription,
@@ -27,6 +30,7 @@ public record PreauthorizationResponse(
         Instant createdDate,
         Instant updatedDate,
         UUID decidedBy,
-        Instant decidedAt
+        Instant decidedAt,
+        List<PreauthorizationItemResponse> preauthorizationItems
 ) {
 }

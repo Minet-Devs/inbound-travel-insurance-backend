@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -53,9 +54,9 @@ class PreauthorizationControllerTest {
         return new PreauthorizationResponse(
                 preauthorizationId, policyId, "POL-001", visitorId, "Jane Traveler",
                 icd11CodeId, "1A00", "Cholera", benefitId, "Medical Expenses",
-                serviceProviderId, "Aga Khan Hospital",
+                serviceProviderId, "Aga Khan Hospital", null, null,
                 new BigDecimal("500.00"), null, "X-ray", null, status,
-                Instant.now(), Instant.now(), null, null);
+                Instant.now(), Instant.now(), null, null, List.of());
     }
 
     @Test
@@ -65,8 +66,8 @@ class PreauthorizationControllerTest {
                 .thenReturn(sampleResponse(PreauthorizationStatus.PENDING));
 
         PreauthorizationRequest request = new PreauthorizationRequest(
-                policyId, visitorId, icd11CodeId, benefitId, serviceProviderId,
-                new BigDecimal("500.00"), "X-ray");
+                policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, null,
+                new BigDecimal("500.00"), "X-ray", null);
 
         mockMvc.perform(post("/api/v1/preauthorizations")
                         .with(csrf())
@@ -82,8 +83,8 @@ class PreauthorizationControllerTest {
     @WithMockUser(roles = "PROVIDER_USER")
     void createRejectsMissingVisitorId() throws Exception {
         PreauthorizationRequest request = new PreauthorizationRequest(
-                policyId, null, icd11CodeId, benefitId, serviceProviderId,
-                new BigDecimal("500.00"), "X-ray");
+                policyId, null, icd11CodeId, benefitId, serviceProviderId, null,
+                new BigDecimal("500.00"), "X-ray", null);
 
         mockMvc.perform(post("/api/v1/preauthorizations")
                         .with(csrf())

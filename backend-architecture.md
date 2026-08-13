@@ -179,17 +179,35 @@ com.travel.insurance/
 │       └── VisitorBenefitResponse.java
 │
 ├── 📁 preauthorization/                    # Feature: Pre-authorization Requests
-│   ├── PreauthorizationController.java
+│   ├── PreauthorizationController.java     # /api/v1/preauthorizations — the only preauth
+│   │                                       # endpoints; enhancement/items have no controller
+│   │                                       # of their own, folded into create/get here
 │   ├── PreauthorizationService.java        # Interface
 │   ├── PreauthorizationServiceImpl.java
 │   ├── PreauthorizationRepository.java
+│   ├── PreauthorizationEnhancementRepository.java
+│   ├── PreauthorizationItemRepository.java
 │   ├── Preauthorization.java               # policyId, visitorId, icd11CodeId, benefitId,
-│   │                                       # serviceProviderId, requestedAmount, approvedAmount
+│   │                                       # serviceProviderId, requestedAmount,
+│   │                                       # approvedAmount — the raw ask, decided via
+│   │                                       # PENDING/APPROVED/PARTIALLY_APPROVED/REJECTED
+│   ├── PreauthorizationEnhancement.java    # preauthorizationId (plain UUID column, no JPA
+│   │                                       # relation — same convention as VisitorBenefit),
+│   │                                       # medicalServiceId, requestedAmount. Exactly one
+│   │                                       # per Preauthorization (unique constraint). No
+│   │                                       # status of its own — it's the itemized billing
+│   │                                       # detail attached to the preauth, not something
+│   │                                       # decided independently
+│   ├── PreauthorizationItem.java           # enhancementId (plain UUID column, no JPA
+│   │                                       # relation), description, quantity, unitPrice,
+│   │                                       # amount, serviceDate
 │   ├── PreauthorizationStatus.java         # Enum: PENDING, APPROVED, PARTIALLY_APPROVED,
 │   │                                       #       REJECTED, EXPIRED
 │   ├── PreauthorizationMapper.java
 │   └── 📁 dto/
-│       ├── PreauthorizationRequest.java
+│       ├── PreauthorizationRequest.java    # embeds medicalServiceId + preauthorizationItems
+│       ├── PreauthorizationItemRequest.java
+│       ├── PreauthorizationItemResponse.java
 │       ├── PreauthorizationDecisionRequest.java   # Approve/reject with amount and reason
 │       └── PreauthorizationResponse.java
 │
@@ -427,6 +445,34 @@ Policy
   `visitorName`, `icd11Code`/`icd11Title`, `benefitName`,
   `serviceProviderName` — via the respective feature services, so API
   consumers never have to display a raw UUID.
+
+  Optionally, the same create call also carries a `medicalServiceId`
+  (validated via `MedicalServiceService`) and a list of
+  `preauthorizationItems` (description, quantity, unitPrice, amount,
+  serviceDate) — an itemized billing breakdown. Under the hood these live on
+  a separate `PreauthorizationEnhancement` row (exactly one per
+  `Preauthorization`, unique-constrained on `preauthorizationId`), not on
+  `Preauthorization` itself — mirroring why `Invoice` is separate from
+  `Claim` (a claim can carry multiple invoices, each with its own header),
+  except a preauth has exactly one enhancement, created/read transparently
+  through the same `POST`/`GET /api/v1/preauthorizations` endpoints —
+  **there is no separate enhancement endpoint**, `PreauthorizationServiceImpl`
+  creates the `Preauthorization` + `PreauthorizationEnhancement` + its items
+  together in one transaction, and `enrich()` folds the enhancement's
+  `medicalServiceName`/`preauthorizationItems` back into
+  `PreauthorizationResponse` on every read. Neither `PreauthorizationEnhancement`
+  nor `PreauthorizationItem` is a JPA relation — both carry a plain
+  `preauthorizationId`/`enhancementId` UUID column and are loaded via
+  repository queries (`findByPreauthorizationId` /
+  `findAllByEnhancementId`), the same ID-only convention `VisitorBenefit`
+  uses for `Visitor`. The enhancement has no status of its own — it isn't
+  decided independently; its approval state is read off the parent
+  `Preauthorization.status`. `requestedAmount` (on both `Preauthorization`
+  and the enhancement) stays independent of the items — no cross-validation
+  that it equals their sum (same as `Invoice.totalAmount` vs. `invoiceItems`
+  today). A preauth with no enhancement (legacy rows, or simply never
+  itemized) returns `medicalServiceId`/`medicalServiceName` as `null` and
+  `preauthorizationItems` as an empty list.
 - A **Claim** is the request for payment. It is either provider-submitted
   against an approved pre-authorization, or customer-submitted for
   reimbursement (no pre-authorization). Decisions are made by the insurer;
