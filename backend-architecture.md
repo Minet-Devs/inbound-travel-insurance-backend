@@ -404,8 +404,8 @@ flow above.
 - A **Procedure** carries a generated `procedureCode`, a display `name`, an
   internal `normalizedName` (never exposed), an optional `description`, a
   `departmentPublicId` (ID-only reference — **no** JPA relationship to the
-  department feature), an `active` flag, a `source` (`MANUAL` / `EXCEL_UPLOAD`)
-  and a nullable `uploadBatchPublicId`. The entity's UUID `id` is its public id.
+  department feature), an `active` flag and a nullable `uploadBatchPublicId`
+  (set on rows created by Excel import). The entity's UUID `id` is its public id.
 - **Codes** come from a dedicated Postgres sequence (`procedure_code_seq`, via
   `ProcedureRepository.nextProcedureCodeValue()`), formatted `PRC-0001` by
   `ProcedureCodeGenerator`. The same generator serves manual creation and Excel
@@ -421,11 +421,9 @@ flow above.
   active match is rejected (`409`); an inactive match is rejected advising
   reactivation. Activation re-checks for an active conflict first.
 - **Department validation** goes through the `department.DepartmentService`
-  interface (`existsActive(UUID)`) — the full Department feature is owned by
-  another team. Until their bean exists, `procedure.DepartmentValidationFallbackConfig`
-  supplies a fail-closed `@ConditionalOnMissingBean` fallback so the app still
-  boots; it backs off automatically once the real implementation is on the
-  classpath.
+  interface (`getEntityById(UUID)`), which throws `ResourceNotFoundException`
+  (`404`) for an unknown department id — no repository reach-across. The
+  Department entity has no active flag, so validation is existence-only.
 - **Endpoints**: CRUD + search/filter (`GET /api/v1/procedures?search=&departmentPublicId=&active=`,
   paged/sortable), `PATCH /{id}/activate`, `PATCH /{id}/deactivate` (no hard
   delete in normal operation).
@@ -433,23 +431,29 @@ flow above.
 Bulk creation is a synchronous two-stage Excel flow under
 `/api/v1/procedures/uploads` (`procedure.upload`):
 
-- The department is chosen outside the file (`departmentPublicId` request param);
-  the template (`Procedure Name*`, `Description`) never repeats it per row.
-- **Validate** (`POST /validate`) reads the whole workbook once
+- The **department is chosen per row, inside the file**. The template is
+  `Procedure Name*` | `Department*` | `Description`. Each row's department **name**
+  is resolved to a department id **case-insensitively and trimmed**, in one bulk
+  query for the whole file (`DepartmentService.idsByName`). A blank department cell
+  fails the row (`DEPARTMENT_REQUIRED`); an unmatched name fails the row
+  (`DEPARTMENT_NOT_FOUND`) — departments are never auto-created. In-file and DB
+  duplicate detection is keyed by **department + normalized name**, so the same
+  name under two departments is not a duplicate.
+- **Validate** (`POST /upload`, multipart `file` only) reads the whole workbook once
   (`ProcedureExcelParser`, preserving real Excel row numbers, formulas never
   evaluated), detects in-file duplicates via in-memory maps, bulk-loads existing
   matches with one query, classifies each row (`VALID` / `SKIPPED` (already
   exists) / `FAILED` (name required, too long, duplicate-in-file, inactive
   exists)), persists a `ProcedureUpload` + `ProcedureUploadRow` rows, and returns
   a summary. No procedures are created.
-- **Import** (`POST /{uploadPublicId}/import`) is guarded against repeat/parallel
+- **Import** (`POST /upload/{uploadPublicId}/import`) is guarded against repeat/parallel
   runs by status transitions (`RECEIVED → VALIDATING → READY_FOR_IMPORT →
   PROCESSING → COMPLETED[/_WITH_ERRORS]/FAILED`), re-checks duplicates immediately
-  before saving, generates a code per new procedure, sets `source = EXCEL_UPLOAD`
-  and the upload-batch id, and persists in batches (`hibernate.jdbc.batch_size`).
-  A late uniqueness race surfaces as a `409`.
-- **Downloads**: `GET /uploads/template` (cached static bytes) and
-  `GET /uploads/{uploadPublicId}/errors` (failed/skipped rows only), both
+  before saving, generates a code per new procedure, sets the upload-batch id,
+  and persists in batches (`hibernate.jdbc.batch_size`). A late uniqueness race
+  surfaces as a `409`.
+- **Downloads**: `GET /upload/download` (cached static template bytes) and
+  `GET /upload/{uploadPublicId}/errors` (failed/skipped rows only, with a Department column), both
   streamed as `.xlsx` attachments with the correct content type.
 - Operational limits (`procedure.upload.*` → `ProcedureUploadProperties`): max
   file size, max rows, batch size, max name length. Background/`@Async` +

@@ -13,7 +13,6 @@ create table procedures (
     description            varchar(2000),
     department_public_id   uuid not null,
     active                 boolean not null default true,
-    source                 varchar(30) not null,
     upload_batch_public_id uuid,
     deleted                boolean not null default false,
     created_date           timestamptz,

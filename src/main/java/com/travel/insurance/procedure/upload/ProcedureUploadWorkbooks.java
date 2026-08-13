@@ -18,9 +18,9 @@ import java.util.List;
 @Component
 public class ProcedureUploadWorkbooks {
 
-    private static final String[] TEMPLATE_HEADERS = {"Procedure Name*", "Description"};
+    private static final String[] TEMPLATE_HEADERS = {"Procedure Name*", "Department*", "Description"};
     private static final String[] ERROR_REPORT_HEADERS =
-            {"Excel Row", "Procedure Name", "Description", "Result", "Error Code", "Error Message"};
+            {"Excel Row", "Procedure Name", "Department", "Description", "Result", "Error Code", "Error Message"};
 
     private volatile byte[] cachedTemplate;
 
@@ -46,10 +46,11 @@ public class ProcedureUploadWorkbooks {
                 Row dataRow = sheet.createRow(rowIndex++);
                 dataRow.createCell(0).setCellValue(row.getExcelRowNumber());
                 dataRow.createCell(1).setCellValue(nullSafe(row.getSubmittedName()));
-                dataRow.createCell(2).setCellValue(nullSafe(row.getSubmittedDescription()));
-                dataRow.createCell(3).setCellValue(row.getRowStatus() == null ? "" : row.getRowStatus().name());
-                dataRow.createCell(4).setCellValue(nullSafe(row.getErrorCode()));
-                dataRow.createCell(5).setCellValue(nullSafe(row.getErrorMessage()));
+                dataRow.createCell(2).setCellValue(nullSafe(row.getSubmittedDepartment()));
+                dataRow.createCell(3).setCellValue(nullSafe(row.getSubmittedDescription()));
+                dataRow.createCell(4).setCellValue(row.getRowStatus() == null ? "" : row.getRowStatus().name());
+                dataRow.createCell(5).setCellValue(nullSafe(row.getErrorCode()));
+                dataRow.createCell(6).setCellValue(nullSafe(row.getErrorMessage()));
             }
             workbook.write(out);
             return out.toByteArray();

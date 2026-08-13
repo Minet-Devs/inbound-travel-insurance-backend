@@ -11,7 +11,6 @@ import java.util.UUID;
 public record ProcedureUploadResponse(
         UUID uploadPublicId,
         String originalFilename,
-        UUID departmentPublicId,
         ProcedureUploadStatus status,
         int totalRows,
         int validRows,

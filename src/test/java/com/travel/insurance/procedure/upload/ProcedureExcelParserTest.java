@@ -42,41 +42,42 @@ class ProcedureExcelParserTest {
 
     @Test
     void parsesRowsAndPreservesExcelRowNumbers() throws IOException {
-        InputStream in = workbook(new String[]{"Procedure Name*", "Description"},
-                new String[][]{{"Nebulization", "Aerosol therapy"}, {"Lumbar Puncture", ""}});
+        InputStream in = workbook(new String[]{"Procedure Name*", "Department*", "Description"},
+                new String[][]{{"Nebulization", "Radiology", "Aerosol therapy"},
+                        {"Lumbar Puncture", "Neurology", ""}});
 
         List<ProcedureExcelRow> rows = parser.parse(in);
 
         assertThat(rows).containsExactly(
-                new ProcedureExcelRow(2, "Nebulization", "Aerosol therapy"),
-                new ProcedureExcelRow(3, "Lumbar Puncture", ""));
+                new ProcedureExcelRow(2, "Nebulization", "Radiology", "Aerosol therapy"),
+                new ProcedureExcelRow(3, "Lumbar Puncture", "Neurology", ""));
     }
 
     @Test
-    void matchesHeaderCaseInsensitivelyAndTreatsDescriptionAsOptional() throws IOException {
-        InputStream in = workbook(new String[]{"procedure name"},
-                new String[][]{{"Chest Tube Insertion"}});
+    void matchesHeadersCaseInsensitivelyAndTreatsDescriptionAsOptional() throws IOException {
+        InputStream in = workbook(new String[]{"department", "procedure name"},
+                new String[][]{{"Radiology", "Chest Tube Insertion"}});
 
         List<ProcedureExcelRow> rows = parser.parse(in);
 
-        assertThat(rows).containsExactly(new ProcedureExcelRow(2, "Chest Tube Insertion", ""));
+        assertThat(rows).containsExactly(new ProcedureExcelRow(2, "Chest Tube Insertion", "Radiology", ""));
     }
 
     @Test
     void skipsFullyBlankRowsButKeepsTheirNumbering() throws IOException {
-        InputStream in = workbook(new String[]{"Procedure Name*", "Description"},
-                new String[][]{{"Nebulization", ""}, {"", ""}, {"Lumbar Puncture", ""}});
+        InputStream in = workbook(new String[]{"Procedure Name*", "Department*", "Description"},
+                new String[][]{{"Nebulization", "Radiology", ""}, {"", "", ""}, {"Lumbar Puncture", "Neurology", ""}});
 
         List<ProcedureExcelRow> rows = parser.parse(in);
 
         assertThat(rows).containsExactly(
-                new ProcedureExcelRow(2, "Nebulization", ""),
-                new ProcedureExcelRow(4, "Lumbar Puncture", ""));
+                new ProcedureExcelRow(2, "Nebulization", "Radiology", ""),
+                new ProcedureExcelRow(4, "Lumbar Puncture", "Neurology", ""));
     }
 
     @Test
     void throwsWhenProcedureNameHeaderMissing() throws IOException {
-        InputStream in = workbook(new String[]{"Name", "Description"}, new String[][]{{"x", "y"}});
+        InputStream in = workbook(new String[]{"Name", "Department*"}, new String[][]{{"x", "Radiology"}});
 
         assertThatThrownBy(() -> parser.parse(in))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -84,9 +85,18 @@ class ProcedureExcelParserTest {
     }
 
     @Test
+    void throwsWhenDepartmentHeaderMissing() throws IOException {
+        InputStream in = workbook(new String[]{"Procedure Name*", "Description"}, new String[][]{{"Nebulization", "x"}});
+
+        assertThatThrownBy(() -> parser.parse(in))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Department");
+    }
+
+    @Test
     void throwsWhenProcedureNameHeaderDuplicated() throws IOException {
-        InputStream in = workbook(new String[]{"Procedure Name*", "Procedure Name*"},
-                new String[][]{{"a", "b"}});
+        InputStream in = workbook(new String[]{"Procedure Name*", "Procedure Name*", "Department*"},
+                new String[][]{{"a", "b", "Radiology"}});
 
         assertThatThrownBy(() -> parser.parse(in))
                 .isInstanceOf(IllegalArgumentException.class)

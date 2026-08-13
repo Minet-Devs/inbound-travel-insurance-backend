@@ -35,9 +35,13 @@ public class ProcedureUploadRow extends BaseEntity {
     private int excelRowNumber;
 
     private String submittedName;
+    private String submittedDepartment;
     private String submittedDescription;
     private String cleanedName;
     private String normalizedName;
+
+    @Column(name = "department_public_id")
+    private UUID departmentPublicId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "row_status", nullable = false)

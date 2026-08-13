@@ -1,6 +1,7 @@
 package com.travel.insurance.procedure;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.department.Department;
 import com.travel.insurance.department.DepartmentService;
 import com.travel.insurance.procedure.dto.ProcedureRequest;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
@@ -60,7 +61,7 @@ class ProcedureServiceImplTest {
 
     @Test
     void createGeneratesCodeAndSavesActiveProcedure() {
-        when(departmentService.existsActive(departmentId)).thenReturn(true);
+        when(departmentService.getEntityById(departmentId)).thenReturn(new Department());
         when(procedureRepository.findByDepartmentPublicIdAndNormalizedName(departmentId, "CHEST TUBE INSERTION"))
                 .thenReturn(Optional.empty());
         when(codeGenerator.next()).thenReturn("PRC-0001");
@@ -78,17 +79,17 @@ class ProcedureServiceImplTest {
 
     @Test
     void createRejectsInvalidDepartment() {
-        when(departmentService.existsActive(departmentId)).thenReturn(false);
+        when(departmentService.getEntityById(departmentId))
+                .thenThrow(new ResourceNotFoundException("Department", departmentId));
 
         assertThatThrownBy(() -> procedureService.create(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Department");
+                .isInstanceOf(ResourceNotFoundException.class);
         verify(procedureRepository, never()).saveAndFlush(any());
     }
 
     @Test
     void createRejectsBlankNameAfterCleaning() {
-        when(departmentService.existsActive(departmentId)).thenReturn(true);
+        when(departmentService.getEntityById(departmentId)).thenReturn(new Department());
 
         ProcedureRequest blank = new ProcedureRequest("   ", null, departmentId);
         assertThatThrownBy(() -> procedureService.create(blank))
@@ -98,7 +99,7 @@ class ProcedureServiceImplTest {
 
     @Test
     void createRejectsActiveDuplicate() {
-        when(departmentService.existsActive(departmentId)).thenReturn(true);
+        when(departmentService.getEntityById(departmentId)).thenReturn(new Department());
         when(procedureRepository.findByDepartmentPublicIdAndNormalizedName(departmentId, "CHEST TUBE INSERTION"))
                 .thenReturn(Optional.of(procedure("Chest Tube Insertion", "CHEST TUBE INSERTION", true)));
 
@@ -110,7 +111,7 @@ class ProcedureServiceImplTest {
 
     @Test
     void createRejectsInactiveDuplicateAdvisingReactivation() {
-        when(departmentService.existsActive(departmentId)).thenReturn(true);
+        when(departmentService.getEntityById(departmentId)).thenReturn(new Department());
         when(procedureRepository.findByDepartmentPublicIdAndNormalizedName(departmentId, "CHEST TUBE INSERTION"))
                 .thenReturn(Optional.of(procedure("Chest Tube Insertion", "CHEST TUBE INSERTION", false)));
 
@@ -135,7 +136,7 @@ class ProcedureServiceImplTest {
         Procedure existing = procedure("Chest Tube Insertion", "CHEST TUBE INSERTION", true);
         existing.setProcedureCode("PRC-0007");
         when(procedureRepository.findById(id)).thenReturn(Optional.of(existing));
-        when(departmentService.existsActive(newDepartment)).thenReturn(true);
+        when(departmentService.getEntityById(newDepartment)).thenReturn(new Department());
         when(procedureRepository.findByDepartmentPublicIdAndNormalizedName(newDepartment, "NEBULIZATION"))
                 .thenReturn(Optional.empty());
         when(procedureRepository.saveAndFlush(any(Procedure.class)))

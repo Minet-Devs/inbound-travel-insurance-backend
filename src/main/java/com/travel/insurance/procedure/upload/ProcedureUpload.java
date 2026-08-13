@@ -31,9 +31,6 @@ public class ProcedureUpload extends BaseEntity {
 
     private String originalFilename;
 
-    @Column(name = "department_public_id", nullable = false)
-    private UUID departmentPublicId;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ProcedureUploadStatus status;

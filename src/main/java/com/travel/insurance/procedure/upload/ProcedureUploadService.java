@@ -9,7 +9,7 @@ import java.util.UUID;
 
 public interface ProcedureUploadService {
 
-    ProcedureUploadValidationResponse validate(UUID departmentPublicId, MultipartFile file);
+    ProcedureUploadValidationResponse validate(MultipartFile file);
 
     ProcedureImportResponse importUpload(UUID uploadPublicId);
 

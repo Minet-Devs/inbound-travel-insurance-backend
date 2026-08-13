@@ -88,9 +88,7 @@ public class ProcedureServiceImpl implements ProcedureService {
     }
 
     private void validateDepartment(UUID departmentPublicId) {
-        if (!departmentService.existsActive(departmentPublicId)) {
-            throw new IllegalArgumentException("Department is not valid or is inactive: " + departmentPublicId);
-        }
+        departmentService.getEntityById(departmentPublicId);
     }
 
     private CleanedName cleanRequiredName(String rawName) {

@@ -11,6 +11,7 @@ import java.util.UUID;
 public record ProcedureUploadRowResult(
         int excelRowNumber,
         String submittedName,
+        String submittedDepartment,
         String submittedDescription,
         String cleanedName,
         ProcedureRowStatus status,

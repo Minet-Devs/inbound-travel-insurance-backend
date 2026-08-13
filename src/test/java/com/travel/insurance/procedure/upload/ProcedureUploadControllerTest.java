@@ -18,7 +18,6 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -45,14 +44,12 @@ class ProcedureUploadControllerTest {
     @Test
     @WithMockUser
     void validateReturnsSummary() throws Exception {
-        UUID departmentId = UUID.randomUUID();
-        when(procedureUploadService.validate(eq(departmentId), any())).thenReturn(
+        when(procedureUploadService.validate(any())).thenReturn(
                 new ProcedureUploadValidationResponse(UUID.randomUUID(), ProcedureUploadStatus.READY_FOR_IMPORT,
                         3, 2, 1, 0, true, List.of()));
         MockMultipartFile file = new MockMultipartFile("file", "procedures.xlsx", XLSX, new byte[]{1});
 
-        mockMvc.perform(multipart("/api/v1/procedures/uploads/validate")
-                        .file(file).param("departmentPublicId", departmentId.toString()).with(csrf()))
+        mockMvc.perform(multipart("/api/v1/procedures/upload").file(file).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalRows").value(3))
                 .andExpect(jsonPath("$.readyForImport").value(true));
@@ -65,7 +62,7 @@ class ProcedureUploadControllerTest {
         when(procedureUploadService.importUpload(uploadId)).thenReturn(
                 new ProcedureImportResponse(uploadId, ProcedureUploadStatus.COMPLETED, 2, 2, 0, 0, List.of()));
 
-        mockMvc.perform(post("/api/v1/procedures/uploads/{id}/import", uploadId).with(csrf()))
+        mockMvc.perform(post("/api/v1/procedures/upload/{id}/import", uploadId).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.createdRows").value(2))
                 .andExpect(jsonPath("$.status").value("COMPLETED"));
@@ -76,10 +73,10 @@ class ProcedureUploadControllerTest {
     void getUploadReturnsStatus() throws Exception {
         UUID uploadId = UUID.randomUUID();
         when(procedureUploadService.getUpload(uploadId)).thenReturn(new ProcedureUploadResponse(
-                uploadId, "procedures.xlsx", UUID.randomUUID(), ProcedureUploadStatus.COMPLETED,
+                uploadId, "procedures.xlsx", ProcedureUploadStatus.COMPLETED,
                 2, 2, 2, 0, 0, UUID.randomUUID(), Instant.now(), Instant.now(), Instant.now(), null));
 
-        mockMvc.perform(get("/api/v1/procedures/uploads/{id}", uploadId))
+        mockMvc.perform(get("/api/v1/procedures/upload/{id}", uploadId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"));
     }
@@ -89,7 +86,7 @@ class ProcedureUploadControllerTest {
     void downloadTemplateReturnsXlsxAttachment() throws Exception {
         when(procedureUploadService.template()).thenReturn(new byte[]{1, 2, 3});
 
-        mockMvc.perform(get("/api/v1/procedures/uploads/template"))
+        mockMvc.perform(get("/api/v1/procedures/upload/download"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", XLSX))
                 .andExpect(header().string("Content-Disposition",
@@ -102,7 +99,7 @@ class ProcedureUploadControllerTest {
         UUID uploadId = UUID.randomUUID();
         when(procedureUploadService.errorReport(uploadId)).thenReturn(new byte[]{1, 2, 3});
 
-        mockMvc.perform(get("/api/v1/procedures/uploads/{id}/errors", uploadId))
+        mockMvc.perform(get("/api/v1/procedures/upload/{id}/errors", uploadId))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Disposition",
                         containsString("procedure-upload-errors-" + uploadId + ".xlsx")));
@@ -112,8 +109,7 @@ class ProcedureUploadControllerTest {
     void validateWithoutAuthenticationIsRejected() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "procedures.xlsx", XLSX, new byte[]{1});
 
-        mockMvc.perform(multipart("/api/v1/procedures/uploads/validate")
-                        .file(file).param("departmentPublicId", UUID.randomUUID().toString()).with(csrf()))
+        mockMvc.perform(multipart("/api/v1/procedures/upload").file(file).with(csrf()))
                 .andExpect(status().isUnauthorized());
     }
 }

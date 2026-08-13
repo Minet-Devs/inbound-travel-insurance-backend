@@ -15,6 +15,7 @@ public class ProcedureUploadMapper {
         return new ProcedureUploadRowResult(
                 row.getExcelRowNumber(),
                 row.getSubmittedName(),
+                row.getSubmittedDepartment(),
                 row.getSubmittedDescription(),
                 row.getCleanedName(),
                 row.getRowStatus(),
@@ -54,7 +55,6 @@ public class ProcedureUploadMapper {
         return new ProcedureUploadResponse(
                 upload.getId(),
                 upload.getOriginalFilename(),
-                upload.getDepartmentPublicId(),
                 upload.getStatus(),
                 upload.getTotalRows(),
                 upload.getValidRows(),

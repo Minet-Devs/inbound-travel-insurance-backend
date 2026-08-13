@@ -17,37 +17,47 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
+/**
+ * Procedure Excel upload: two-stage validate/import, upload status, plus the
+ * template and error-report downloads. All endpoints live under {@code /upload}
+ * so they never collide with the procedure CRUD routes on
+ * {@code /api/v1/procedures/{id}}. The department is chosen per row inside the
+ * file, so validation takes only the file.
+ */
 @RestController
-@RequestMapping("/api/v1/procedures/uploads")
+@RequestMapping("/api/v1/procedures")
 @RequiredArgsConstructor
 public class ProcedureUploadController {
 
-    private static final String XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    private static final String XLSX_CONTENT_TYPE =
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
     private final ProcedureUploadService procedureUploadService;
 
-    @PostMapping(path = "/validate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ProcedureUploadValidationResponse> validate(@RequestParam UUID departmentPublicId, @RequestParam("file") MultipartFile file) {
-        return ResponseEntity.ok(procedureUploadService.validate(departmentPublicId, file));
+    @PostMapping(path = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ProcedureUploadValidationResponse> validate(@RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(procedureUploadService.validate(file));
     }
 
-    @PostMapping("/{uploadPublicId}/import")
+    @PostMapping("/upload/{uploadPublicId}/import")
     public ResponseEntity<ProcedureImportResponse> importUpload(@PathVariable UUID uploadPublicId) {
         return ResponseEntity.ok(procedureUploadService.importUpload(uploadPublicId));
     }
 
-    @GetMapping("/{uploadPublicId}")
+    @GetMapping("/upload/{uploadPublicId}")
     public ResponseEntity<ProcedureUploadResponse> getUpload(@PathVariable UUID uploadPublicId) {
         return ResponseEntity.ok(procedureUploadService.getUpload(uploadPublicId));
     }
 
-    @GetMapping("/download")
+    @GetMapping("/upload/download")
     public ResponseEntity<byte[]> downloadTemplate() {
         return responseEntity(procedureUploadService.template(), "procedure-upload-template.xlsx");
     }
 
-    @GetMapping("/{uploadPublicId}/errors")
+    @GetMapping("/upload/{uploadPublicId}/errors")
     public ResponseEntity<byte[]> downloadErrorReport(@PathVariable UUID uploadPublicId) {
-        return responseEntity(procedureUploadService.errorReport(uploadPublicId), "procedure-upload-errors-" + uploadPublicId + ".xlsx");
+        return responseEntity(procedureUploadService.errorReport(uploadPublicId),
+                "procedure-upload-errors-" + uploadPublicId + ".xlsx");
     }
 
     private ResponseEntity<byte[]> responseEntity(byte[] body, String filename) {

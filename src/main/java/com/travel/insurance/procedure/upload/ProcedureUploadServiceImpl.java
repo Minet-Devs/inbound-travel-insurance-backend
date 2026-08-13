@@ -24,13 +24,24 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
+/**
+ * Two-stage procedure Excel upload (validate then import) with per-row tracking.
+ *
+ * <p>Each spreadsheet row names its own department; the name is resolved to a
+ * department id case-insensitively, in one bulk query for the whole file. The
+ * duplicate rule (department + normalized name), name cleaning/normalization and
+ * code generator are reused from manual creation; this class only adds file
+ * parsing, bulk validation, batch persistence and row-level reporting.
+ * Background/streaming processing for very large files is deferred — this path is
+ * synchronous.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -49,15 +60,14 @@ public class ProcedureUploadServiceImpl implements ProcedureUploadService {
     private final ProcedureUploadProperties properties;
 
     @Override
-    public ProcedureUploadValidationResponse validate(UUID departmentPublicId, MultipartFile file) {
-        validateDepartment(departmentPublicId);
+    public ProcedureUploadValidationResponse validate(MultipartFile file) {
         validateFile(file);
         List<ProcedureExcelRow> parsed = parse(file);
 
-        ProcedureUpload upload = newUpload(departmentPublicId, file);
+        ProcedureUpload upload = newUpload(file);
         uploadRepository.saveAndFlush(upload);
 
-        List<ProcedureUploadRow> rows = evaluateRows(parsed, departmentPublicId, upload.getId());
+        List<ProcedureUploadRow> rows = evaluateRows(parsed, upload.getId());
         applyValidationCounts(upload, parsed.size(), rows);
         rowRepository.saveAll(rows);
         uploadRepository.save(upload);
@@ -74,8 +84,10 @@ public class ProcedureUploadServiceImpl implements ProcedureUploadService {
         uploadRepository.saveAndFlush(upload);
 
         List<ProcedureUploadRow> rows = rowRepository.findByUploadIdOrderByExcelRowNumberAsc(uploadPublicId);
-        List<ProcedureUploadRow> candidates = rows.stream().filter(row -> row.getRowStatus() == ProcedureRowStatus.VALID).toList();
-        List<ProcedureUploadRow> toCreate = recheckDuplicates(candidates, upload.getDepartmentPublicId());
+        List<ProcedureUploadRow> candidates = rows.stream()
+                .filter(row -> row.getRowStatus() == ProcedureRowStatus.VALID)
+                .toList();
+        List<ProcedureUploadRow> toCreate = recheckDuplicates(candidates);
         createInBatches(toCreate, upload);
 
         applyImportCounts(upload, rows);
@@ -105,21 +117,18 @@ public class ProcedureUploadServiceImpl implements ProcedureUploadService {
         return workbooks.errorReport(rows);
     }
 
-    private void validateDepartment(UUID departmentPublicId) {
-        if (!departmentService.existsActive(departmentPublicId)) {
-            throw new IllegalArgumentException("Department is not valid or is inactive: " + departmentPublicId);
-        }
-    }
+    // --- file / parsing ---
 
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("The uploaded file is empty");
         }
         if (file.getSize() > properties.getMaxFileSizeBytes()) {
-            throw new IllegalArgumentException("The uploaded file exceeds the maximum size of " + properties.getMaxFileSizeBytes() + " bytes");
+            throw new IllegalArgumentException(
+                    "The uploaded file exceeds the maximum size of " + properties.getMaxFileSizeBytes() + " bytes");
         }
         String filename = file.getOriginalFilename();
-        if (filename == null || !filename.toLowerCase().endsWith(".xlsx")) {
+        if (filename == null || !filename.toLowerCase(Locale.ROOT).endsWith(".xlsx")) {
             throw new IllegalArgumentException("The uploaded file must be a .xlsx workbook");
         }
     }
@@ -132,75 +141,110 @@ public class ProcedureUploadServiceImpl implements ProcedureUploadService {
             throw new IllegalArgumentException("Unable to read the uploaded file", e);
         }
         if (parsed.size() > properties.getMaxRows()) {
-            throw new IllegalArgumentException("The uploaded file exceeds the maximum of " + properties.getMaxRows());
+            throw new IllegalArgumentException("The uploaded file has " + parsed.size()
+                    + " rows which exceeds the maximum of " + properties.getMaxRows());
         }
         return parsed;
     }
 
-    private ProcedureUpload newUpload(UUID departmentPublicId, MultipartFile file) {
+    private ProcedureUpload newUpload(MultipartFile file) {
         ProcedureUpload upload = new ProcedureUpload();
         upload.setOriginalFilename(file.getOriginalFilename());
-        upload.setDepartmentPublicId(departmentPublicId);
         upload.setStatus(ProcedureUploadStatus.VALIDATING);
         upload.setUploadedBy(SecurityUtils.currentUserId().orElse(null));
         return upload;
     }
 
-    private List<ProcedureUploadRow> evaluateRows(List<ProcedureExcelRow> parsed, UUID departmentPublicId, UUID uploadId) {
-        List<CleanedRow> cleaned = parsed.stream().map(raw -> new CleanedRow(raw, nameNormalizer.clean(raw.name()))).toList();
-        Map<String, Procedure> existing = existingByNormalizedName(departmentPublicId, cleaned.stream()
-                .filter(this::eligibleForLookup)
-                .map(row -> row.name().normalized())
-                .collect(Collectors.toSet()));
+    // --- validation ---
 
-        Map<String, Integer> firstRowByNormalized = new HashMap<>();
-        List<ProcedureUploadRow> rows = new ArrayList<>(cleaned.size());
-        for (CleanedRow row : cleaned) {
-            rows.add(evaluateRow(row, uploadId, existing, firstRowByNormalized));
+    private List<ProcedureUploadRow> evaluateRows(List<ProcedureExcelRow> parsed, UUID uploadId) {
+        List<PreparedRow> prepared = prepare(parsed);
+        Map<String, Procedure> existing = loadExisting(groupNormalizedByDepartment(prepared));
+
+        Map<String, Integer> firstRowByKey = new HashMap<>();
+        List<ProcedureUploadRow> rows = new ArrayList<>(prepared.size());
+        for (PreparedRow row : prepared) {
+            rows.add(evaluateRow(row, uploadId, existing, firstRowByKey));
         }
         return rows;
     }
 
-    private ProcedureUploadRow evaluateRow(CleanedRow cleaned, UUID uploadId, Map<String, Procedure> existing, Map<String, Integer> firstRowByNormalized) {
-        ProcedureUploadRow row = baseRow(cleaned, uploadId);
-        CleanedName name = cleaned.name();
-        int excelRow = cleaned.raw().excelRowNumber();
+    /** Cleans each row's name and resolves its department name to an id in one bulk query. */
+    private List<PreparedRow> prepare(List<ProcedureExcelRow> parsed) {
+        Set<String> departmentKeys = parsed.stream()
+                .map(raw -> departmentKey(raw.department()))
+                .filter(key -> !key.isEmpty())
+                .collect(java.util.stream.Collectors.toSet());
+        Map<String, UUID> departmentIds = departmentKeys.isEmpty()
+                ? Map.of() : departmentService.idsByName(departmentKeys);
+
+        List<PreparedRow> prepared = new ArrayList<>(parsed.size());
+        for (ProcedureExcelRow raw : parsed) {
+            CleanedName name = nameNormalizer.clean(raw.name());
+            String key = departmentKey(raw.department());
+            UUID departmentId = key.isEmpty() ? null : departmentIds.get(key);
+            prepared.add(new PreparedRow(raw, name, blankToNull(raw.department()), departmentId));
+        }
+        return prepared;
+    }
+
+    private ProcedureUploadRow evaluateRow(PreparedRow prepared, UUID uploadId,
+                                           Map<String, Procedure> existing, Map<String, Integer> firstRowByKey) {
+        ProcedureUploadRow row = baseRow(prepared, uploadId);
+        CleanedName name = prepared.name();
+        int excelRow = prepared.raw().excelRowNumber();
 
         if (name.isBlank()) {
-            return result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.NAME_REQUIRED, "Procedure name is required.");
+            return result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.NAME_REQUIRED,
+                    "Row " + excelRow + ": Procedure name is required.");
         }
         if (name.display().length() > properties.getMaxNameLength()) {
-            return result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.NAME_TOO_LONG, "Procedure name exceeds characters.");
+            return result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.NAME_TOO_LONG,
+                    "Row " + excelRow + ": Procedure name exceeds " + properties.getMaxNameLength() + " characters.");
         }
-        Integer firstRow = firstRowByNormalized.get(name.normalized());
-        if (firstRow != null) {
-            return result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.DUPLICATE_IN_FILE, "Row is duplicated in this file");
+        if (departmentKey(prepared.raw().department()).isEmpty()) {
+            return result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.DEPARTMENT_REQUIRED,
+                    "Row " + excelRow + ": Department is required.");
         }
-        firstRowByNormalized.put(name.normalized(), excelRow);
+        if (prepared.departmentId() == null) {
+            return result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.DEPARTMENT_NOT_FOUND,
+                    "Row " + excelRow + ": Department \"" + prepared.departmentRaw() + "\" not found.");
+        }
 
-        Procedure match = existing.get(name.normalized());
+        String key = duplicateKey(prepared.departmentId(), name.normalized());
+        Integer firstRow = firstRowByKey.get(key);
+        if (firstRow != null) {
+            return result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.DUPLICATE_IN_FILE,
+                    "Row " + excelRow + ": \"" + name.display()
+                            + "\" is duplicated in this file for this department. It first appeared in row "
+                            + firstRow + ".");
+        }
+        firstRowByKey.put(key, excelRow);
+
+        Procedure match = existing.get(key);
         if (match != null && match.isActive()) {
-            return result(row, ProcedureRowStatus.SKIPPED, ProcedureUploadErrorCode.ALREADY_EXISTS, "Row already exists.");
+            return result(row, ProcedureRowStatus.SKIPPED, ProcedureUploadErrorCode.ALREADY_EXISTS,
+                    "Row " + excelRow + ": \"" + name.display() + "\" already exists in this department.");
         }
         if (match != null) {
-            return result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.INACTIVE_EXISTS, "Row " + excelRow + ": An inactive procedure exists. Reactivate it instead.");
+            return result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.INACTIVE_EXISTS,
+                    "Row " + excelRow + ": An inactive \"" + name.display()
+                            + "\" procedure exists in this department. Reactivate it instead.");
         }
         return result(row, ProcedureRowStatus.VALID, null, null);
     }
 
-    private ProcedureUploadRow baseRow(CleanedRow cleaned, UUID uploadId) {
+    private ProcedureUploadRow baseRow(PreparedRow prepared, UUID uploadId) {
         ProcedureUploadRow row = new ProcedureUploadRow();
         row.setUploadId(uploadId);
-        row.setExcelRowNumber(cleaned.raw().excelRowNumber());
-        row.setSubmittedName(cleaned.raw().name());
-        row.setSubmittedDescription(blankToNull(cleaned.raw().description()));
-        row.setCleanedName(cleaned.name().display());
-        row.setNormalizedName(cleaned.name().isBlank() ? null : cleaned.name().normalized());
+        row.setExcelRowNumber(prepared.raw().excelRowNumber());
+        row.setSubmittedName(prepared.raw().name());
+        row.setSubmittedDepartment(prepared.departmentRaw());
+        row.setSubmittedDescription(blankToNull(prepared.raw().description()));
+        row.setCleanedName(prepared.name().display());
+        row.setNormalizedName(prepared.name().isBlank() ? null : prepared.name().normalized());
+        row.setDepartmentPublicId(prepared.departmentId());
         return row;
-    }
-
-    private boolean eligibleForLookup(CleanedRow row) {
-        return !row.name().isBlank() && row.name().display().length() <= properties.getMaxNameLength();
     }
 
     private void applyValidationCounts(ProcedureUpload upload, int totalRows, List<ProcedureUploadRow> rows) {
@@ -212,28 +256,42 @@ public class ProcedureUploadServiceImpl implements ProcedureUploadService {
                 ? ProcedureUploadStatus.READY_FOR_IMPORT : ProcedureUploadStatus.VALIDATION_FAILED);
     }
 
+    // --- import ---
+
     private void guardImportEligible(ProcedureUpload upload) {
         switch (upload.getStatus()) {
             case READY_FOR_IMPORT -> { /* eligible */ }
-            case PROCESSING -> throw new IllegalStateException("Upload " + upload.getId() + " is already being processed");
-            case COMPLETED, COMPLETED_WITH_ERRORS -> throw new IllegalStateException("Upload " + upload.getId() + " has already been imported");
+            case PROCESSING -> throw new IllegalStateException(
+                    "Upload " + upload.getId() + " is already being processed");
+            case COMPLETED, COMPLETED_WITH_ERRORS -> throw new IllegalStateException(
+                    "Upload " + upload.getId() + " has already been imported");
             default -> throw new IllegalStateException("Upload " + upload.getId()
                     + " is not ready for import (status: " + upload.getStatus() + ")");
         }
     }
 
-    private List<ProcedureUploadRow> recheckDuplicates(List<ProcedureUploadRow> candidates, UUID departmentPublicId) {
-        Map<String, Procedure> existing = existingByNormalizedName(departmentPublicId, candidates.stream()
-                .map(ProcedureUploadRow::getNormalizedName)
-                .collect(Collectors.toSet()));
+    /** Re-checks the database for duplicates created since validation; returns rows still to create. */
+    private List<ProcedureUploadRow> recheckDuplicates(List<ProcedureUploadRow> candidates) {
+        Map<UUID, Set<String>> byDepartment = new HashMap<>();
+        for (ProcedureUploadRow row : candidates) {
+            if (row.getDepartmentPublicId() != null && row.getNormalizedName() != null) {
+                byDepartment.computeIfAbsent(row.getDepartmentPublicId(), key -> new HashSet<>())
+                        .add(row.getNormalizedName());
+            }
+        }
+        Map<String, Procedure> existing = loadExisting(byDepartment);
 
         List<ProcedureUploadRow> toCreate = new ArrayList<>();
         for (ProcedureUploadRow row : candidates) {
-            Procedure match = existing.get(row.getNormalizedName());
+            Procedure match = existing.get(duplicateKey(row.getDepartmentPublicId(), row.getNormalizedName()));
             if (match != null && match.isActive()) {
-                result(row, ProcedureRowStatus.SKIPPED, ProcedureUploadErrorCode.ALREADY_EXISTS, "Row already exists.");
+                result(row, ProcedureRowStatus.SKIPPED, ProcedureUploadErrorCode.ALREADY_EXISTS,
+                        "Row " + row.getExcelRowNumber() + ": \"" + row.getCleanedName()
+                                + "\" already exists in this department.");
             } else if (match != null) {
-                result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.INACTIVE_EXISTS, " An inactive procedure exists. Reactivate it instead.");
+                result(row, ProcedureRowStatus.FAILED, ProcedureUploadErrorCode.INACTIVE_EXISTS,
+                        "Row " + row.getExcelRowNumber() + ": An inactive \"" + row.getCleanedName()
+                                + "\" procedure exists in this department. Reactivate it instead.");
             } else {
                 toCreate.add(row);
             }
@@ -253,7 +311,7 @@ public class ProcedureUploadServiceImpl implements ProcedureUploadService {
         List<Procedure> procedures = chunk.stream().map(row -> procedureMapper.newProcedure(
                 new CleanedName(row.getCleanedName(), row.getNormalizedName()),
                 blankToNull(row.getSubmittedDescription()),
-                upload.getDepartmentPublicId(),
+                row.getDepartmentPublicId(),
                 codeGenerator.next(),
                 upload.getId())).toList();
         try {
@@ -264,7 +322,8 @@ public class ProcedureUploadServiceImpl implements ProcedureUploadService {
                 row.setCreatedProcedurePublicId(saved.get(i).getId());
             }
         } catch (DataIntegrityViolationException ex) {
-            throw new IllegalStateException("A concurrent change introduced a duplicate procedure; please re-validate and import again.");
+            throw new IllegalStateException(
+                    "A concurrent change introduced a duplicate procedure; please re-validate and import again.");
         }
     }
 
@@ -272,19 +331,52 @@ public class ProcedureUploadServiceImpl implements ProcedureUploadService {
         upload.setCreatedRows((int) count(rows, ProcedureRowStatus.CREATED));
         upload.setSkippedRows((int) count(rows, ProcedureRowStatus.SKIPPED));
         upload.setFailedRows((int) count(rows, ProcedureRowStatus.FAILED));
-        upload.setStatus(upload.getFailedRows() > 0 || upload.getSkippedRows() > 0 ? ProcedureUploadStatus.COMPLETED_WITH_ERRORS : ProcedureUploadStatus.COMPLETED);
+        upload.setStatus(upload.getFailedRows() > 0 || upload.getSkippedRows() > 0
+                ? ProcedureUploadStatus.COMPLETED_WITH_ERRORS : ProcedureUploadStatus.COMPLETED);
         upload.setCompletionTime(Instant.now());
     }
 
-    private Map<String, Procedure> existingByNormalizedName(UUID departmentPublicId, Set<String> normalizedNames) {
-        if (normalizedNames.isEmpty()) {
-            return Map.of();
+    // --- shared helpers ---
+
+    /** Groups the eligible rows' normalized names by their resolved department id. */
+    private Map<UUID, Set<String>> groupNormalizedByDepartment(List<PreparedRow> prepared) {
+        Map<UUID, Set<String>> byDepartment = new HashMap<>();
+        for (PreparedRow row : prepared) {
+            if (row.departmentId() != null && eligibleName(row.name())) {
+                byDepartment.computeIfAbsent(row.departmentId(), key -> new HashSet<>())
+                        .add(row.name().normalized());
+            }
         }
-        return procedureRepository.findByDepartmentPublicIdAndNormalizedNameIn(departmentPublicId, normalizedNames).stream()
-                .collect(Collectors.toMap(Procedure::getNormalizedName, Function.identity(), (a, b) -> a));
+        return byDepartment;
     }
 
-    private ProcedureUploadRow result(ProcedureUploadRow row, ProcedureRowStatus status, ProcedureUploadErrorCode code, String message) {
+    /** One bulk query per department; keyed by department id + normalized name. */
+    private Map<String, Procedure> loadExisting(Map<UUID, Set<String>> normalizedByDepartment) {
+        Map<String, Procedure> existing = new HashMap<>();
+        normalizedByDepartment.forEach((departmentId, names) -> {
+            if (!names.isEmpty()) {
+                procedureRepository.findByDepartmentPublicIdAndNormalizedNameIn(departmentId, names)
+                        .forEach(procedure -> existing.put(
+                                duplicateKey(departmentId, procedure.getNormalizedName()), procedure));
+            }
+        });
+        return existing;
+    }
+
+    private String departmentKey(String department) {
+        return department == null ? "" : department.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String duplicateKey(UUID departmentId, String normalizedName) {
+        return departmentId + "|" + normalizedName;
+    }
+
+    private boolean eligibleName(CleanedName name) {
+        return !name.isBlank() && name.display().length() <= properties.getMaxNameLength();
+    }
+
+    private ProcedureUploadRow result(ProcedureUploadRow row, ProcedureRowStatus status,
+                                      ProcedureUploadErrorCode code, String message) {
         row.setRowStatus(status);
         row.setErrorCode(code == null ? null : code.name());
         row.setErrorMessage(message);
@@ -300,9 +392,10 @@ public class ProcedureUploadServiceImpl implements ProcedureUploadService {
     }
 
     private ProcedureUpload getUploadEntity(UUID uploadPublicId) {
-        return uploadRepository.findById(uploadPublicId).orElseThrow(() -> new ResourceNotFoundException("ProcedureUpload", uploadPublicId));
+        return uploadRepository.findById(uploadPublicId)
+                .orElseThrow(() -> new ResourceNotFoundException("ProcedureUpload", uploadPublicId));
     }
 
-    private record CleanedRow(ProcedureExcelRow raw, CleanedName name) {
+    private record PreparedRow(ProcedureExcelRow raw, CleanedName name, String departmentRaw, UUID departmentId) {
     }
 }
