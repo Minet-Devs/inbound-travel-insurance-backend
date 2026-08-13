@@ -57,6 +57,6 @@ Tests run against in-memory H2 — no Docker required.
 ## Project layout
 
 Package-by-feature under `com.travel.insurance`: `auth`, `user`, `insurer`,
-`serviceprovider`, `policy`, `benefit`, `preauthorization`, `claim`, plus
-shared `common/` and `config/`. Layering, conventions, and the domain model
-are specified in `backend-architecture.md`.
+`serviceprovider`, `policy`, `benefit`, `preauthorization`, `claim`,
+`invoice`, plus shared `common/` and `config/`. Layering, conventions, and the
+domain model are specified in `backend-architecture.md`.
