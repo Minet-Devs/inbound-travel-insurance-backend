@@ -28,4 +28,12 @@ public interface DepartmentService {
     Department findOrCreateByName(String name);
 
     Map<UUID, String> namesByIds(Collection<UUID> departmentIds);
+
+    /**
+     * Resolves department ids by name, case-insensitively and ignoring surrounding
+     * whitespace. The returned map is keyed by the lower-cased, trimmed name;
+     * unknown names are simply absent. Used by the procedure Excel upload to map a
+     * per-row department name to its id in one bulk query.
+     */
+    Map<String, UUID> idsByName(Collection<String> names);
 }
