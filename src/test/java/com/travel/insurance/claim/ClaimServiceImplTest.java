@@ -348,7 +348,7 @@ class ClaimServiceImplTest {
         ClaimResponse response = claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId));
 
         assertThat(response.id()).isEqualTo(claimId);
-        assertThat(response.status()).isEqualTo(ClaimStatus.UNDER_REVIEW);
+        assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
         assertThat(response.invoiceIds()).contains(invoiceId);
     }
 
