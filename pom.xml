@@ -22,6 +22,13 @@
         <jjwt.version>0.12.6</jjwt.version>
         <openhtmltopdf.version>1.1.70</openhtmltopdf.version>
         <poi.version>5.3.0</poi.version>
+        <!-- Defaults for the flyway-maven-plugin (mvn flyway:repair, flyway:info, ...);
+             mirror application.yml. Override per-run with -Dflyway.url / -Dflyway.user / -Dflyway.password. -->
+        <flyway.url>jdbc:postgresql://localhost:5433/travel_insurance</flyway.url>
+        <flyway.user>travel</flyway.user>
+        <flyway.password>travel</flyway.password>
+        <!-- Keep in sync with the flyway-core version managed by the Spring Boot parent. -->
+        <flyway.plugin.version>10.10.0</flyway.plugin.version>
     </properties>
 
     <dependencies>
@@ -137,6 +144,27 @@
                         </exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <configuration>
+                    <url>${flyway.url}</url>
+                    <user>${flyway.user}</user>
+                    <password>${flyway.password}</password>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.flywaydb</groupId>
+                        <artifactId>flyway-database-postgresql</artifactId>
+                        <version>${flyway.plugin.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.postgresql</groupId>
+                        <artifactId>postgresql</artifactId>
+                        <version>${postgresql.version}</version>
+                    </dependency>
+                </dependencies>
             </plugin>
         </plugins>
     </build>
