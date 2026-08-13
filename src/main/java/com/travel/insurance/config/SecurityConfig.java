@@ -55,6 +55,12 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/v1/service-providers/**")
                             .hasAnyRole("ADMIN", "PROVIDER_USER");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/icd11-codes/**").hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/departments/**", "/api/v1/medical-services/**")
+                            .hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.PUT, "/api/v1/departments/**", "/api/v1/medical-services/**")
+                            .hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.DELETE, "/api/v1/departments/**", "/api/v1/medical-services/**")
+                            .hasRole("ADMIN");
                     auth.anyRequest().authenticated();
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

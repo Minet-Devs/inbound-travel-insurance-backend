@@ -221,6 +221,31 @@ com.travel.insurance/
 │       ├── Icd11CodeResponse.java
 │       └── Icd11ImportResult.java          # totalRows, inserted, updated, skipped
 │
+├── 📁 department/                          # Feature: Department catalog
+│   ├── DepartmentController.java
+│   ├── DepartmentService.java              # Interface
+│   ├── DepartmentServiceImpl.java
+│   ├── DepartmentRepository.java
+│   ├── Department.java                     # name (unique) — nothing else
+│   ├── DepartmentMapper.java
+│   └── 📁 dto/
+│       ├── DepartmentRequest.java
+│       └── DepartmentResponse.java
+│
+├── 📁 medicalservice/                      # Feature: Service catalog (belongs to a department)
+│   ├── MedicalServiceController.java
+│   ├── MedicalServiceService.java          # Interface
+│   ├── MedicalServiceServiceImpl.java
+│   ├── MedicalServiceRepository.java
+│   ├── MedicalService.java                 # name, departmentId (unique per department)
+│   ├── MedicalServiceExcelParser.java      # parses uploaded .xlsx → service/department rows
+│   ├── MedicalServiceMapper.java
+│   └── 📁 dto/
+│       ├── MedicalServiceRequest.java
+│       ├── MedicalServiceResponse.java
+│       └── MedicalServiceImportResult.java  # totalRows, departmentsCreated,
+│                                            # servicesInserted, servicesSkipped
+│
 └── TravelInsuranceApplication.java         # @SpringBootApplication entry point
 ```
 
@@ -281,6 +306,37 @@ Policy
   (title-only substring match, paged — the diagnosis picker use case) and
   `GET /api/v1/icd11-codes/{code}`. Import is restricted to `ADMIN`; the read
   endpoints are open to any authenticated user.
+- A **Department** is a plain name-only catalog entry (e.g. `PHARMACY`,
+  `LABORATORY`) — nothing beyond the `BaseEntity` fields and a unique `name`.
+  A **MedicalService** belongs to exactly one department, referenced by
+  `departmentId` (ID-only, same convention as every other cross-feature
+  reference — no JPA relation), and its `name` is unique per department rather
+  than globally, so two departments may each have an identically-named
+  service. `GET /api/v1/departments/{id}` never embeds that department's
+  services — callers fetch them separately via
+  `GET /api/v1/medical-services?departmentId=…` (paged) or
+  `GET /api/v1/medical-services/by-department/{departmentId}` (unpaged),
+  keeping department reads cheap regardless of catalog size.
+  `MedicalServiceResponse` additionally carries the owning department's
+  `departmentName` (resolved through `DepartmentService.namesByIds`; `null` if
+  the department has since been deleted), the same "resolve the display name,
+  don't nest the entity" shape already used by `VisitorBenefitResponse`.
+  Both catalogs are bulk-loaded from the master list: an admin uploads a
+  two-column (`service`/`department`) `.xlsx` workbook to
+  `POST /api/v1/medical-services/import` (multipart;
+  `MedicalServiceExcelParser` locates the header columns case-insensitively,
+  mirroring `Icd11ExcelParser`). For each row, `MedicalServiceServiceImpl`
+  resolves the department by exact name — creating it via
+  `DepartmentService.findOrCreateByName` if it doesn't exist yet, caching the
+  lookup within the run so a department referenced by hundreds of rows is
+  only resolved once — then upserts the service by (`name`, `departmentId`);
+  rows with a blank service or department name, or a service already present
+  in that department, are skipped. The returned `MedicalServiceImportResult`
+  reports `totalRows`/`departmentsCreated`/`servicesInserted`/`servicesSkipped`,
+  so re-uploading the same file is idempotent (a second run reports zero
+  inserted/created). Writes (create/update/delete/import) on both
+  `/api/v1/departments` and `/api/v1/medical-services` are restricted to
+  `ADMIN`; reads are open to any authenticated user.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,
@@ -426,6 +482,8 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Pre-authorization | `/api/v1/preauthorizations`   | `preauthorizations` |
 | Claim             | `/api/v1/claims`              | `claims`            |
 | ICD-11 Code       | `/api/v1/icd11-codes`         | `icd11_codes`       |
+| Department        | `/api/v1/departments`         | `departments`       |
+| Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
 
 ## Messaging (RabbitMQ)
 
