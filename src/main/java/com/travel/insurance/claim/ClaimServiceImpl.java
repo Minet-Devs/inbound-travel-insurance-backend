@@ -153,11 +153,8 @@ public class ClaimServiceImpl implements ClaimService {
 
     private UUID validateReferences(ClaimRequest request) {
         Policy policy = policyService.getEntityById(request.policyId());
-        // Benefits are a global catalog, so only existence is validated here.
         benefitService.getEntityById(request.benefitId());
-
-        // The claim's insurer is not supplied by the client; it is derived
-        // from the policy, which must cover exactly one insurer.
+        
         UUID insurerId = singleInsurer(policy);
         if (!insurerService.exists(insurerId)) {
             throw new ResourceNotFoundException("Insurer", insurerId);
