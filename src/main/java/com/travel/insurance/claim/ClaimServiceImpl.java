@@ -85,6 +85,7 @@ public class ClaimServiceImpl implements ClaimService {
         }
         invoiceService.getEntityById(request.invoiceId());
         claim.getInvoiceIds().add(request.invoiceId());
+        claim.setStatus(ClaimStatus.SUBMITTED);
         Claim saved = claimRepository.save(claim);
         return toResponse(saved);
     }
