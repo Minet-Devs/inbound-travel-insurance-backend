@@ -45,10 +45,11 @@ class InvoiceControllerTest {
 
     private final UUID invoiceId = UUID.randomUUID();
     private final UUID claimId = UUID.randomUUID();
+    private final UUID medicalServiceId = UUID.randomUUID();
 
     private InvoiceResponse sampleInvoice() {
-        return new InvoiceResponse(invoiceId, claimId, "INV-2026-001", LocalDate.of(2026, 8, 1),
-                "KES", new BigDecimal("25000.00"),
+        return new InvoiceResponse(invoiceId, claimId, medicalServiceId, "In-patient Care",
+                "INV-2026-001", LocalDate.of(2026, 8, 1), "KES", new BigDecimal("25000.00"),
                 List.of(new InvoiceItemResponse(UUID.randomUUID(), "In-patient care",
                         new BigDecimal("1"), new BigDecimal("25000.00"),
                         new BigDecimal("25000.00"), LocalDate.of(2026, 8, 1))),
@@ -56,7 +57,8 @@ class InvoiceControllerTest {
     }
 
     private InvoiceRequest sampleRequest() {
-        return new InvoiceRequest(claimId, "INV-2026-001", LocalDate.of(2026, 8, 1), "KES",
+        return new InvoiceRequest(claimId, medicalServiceId, "INV-2026-001",
+                LocalDate.of(2026, 8, 1), "KES",
                 new BigDecimal("25000.00"),
                 List.of(new InvoiceItemRequest("In-patient care", new BigDecimal("1"),
                         new BigDecimal("25000.00"), new BigDecimal("25000.00"),
@@ -75,6 +77,8 @@ class InvoiceControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.invoiceNumber").value("INV-2026-001"))
                 .andExpect(jsonPath("$.claimId").value(claimId.toString()))
+                .andExpect(jsonPath("$.medicalServiceId").value(medicalServiceId.toString()))
+                .andExpect(jsonPath("$.medicalServiceName").value("In-patient Care"))
                 .andExpect(jsonPath("$.invoiceItems[0].description").value("In-patient care"))
                 .andExpect(jsonPath("$.invoiceItems[0].amount").value(25000.00));
     }
@@ -100,7 +104,7 @@ class InvoiceControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void createRejectsBlankLineItemDescription() throws Exception {
-        InvoiceRequest invalid = new InvoiceRequest(claimId, "INV-2026-002",
+        InvoiceRequest invalid = new InvoiceRequest(claimId, null, "INV-2026-002",
                 LocalDate.of(2026, 8, 2), "KES", new BigDecimal("1000.00"),
                 List.of(new InvoiceItemRequest("", new BigDecimal("1"), new BigDecimal("1000.00"),
                         new BigDecimal("1000.00"), LocalDate.of(2026, 8, 2))));

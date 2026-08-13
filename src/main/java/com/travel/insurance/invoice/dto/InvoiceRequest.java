@@ -12,6 +12,7 @@ import java.util.UUID;
 
 public record InvoiceRequest(
         @NotNull UUID claimId,
+        UUID medicalServiceId,
         @Size(max = 100) String invoiceNumber,
         LocalDate issueDate,
         @Size(max = 10) String currency,

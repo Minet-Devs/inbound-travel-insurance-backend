@@ -122,11 +122,11 @@ class ClaimServiceImplTest {
 
     private InsurerResponse insurerResponse() {
         return new InsurerResponse(insurerId, "Jubilee Insurance", null, null, null, null,
-                null, Instant.now(), Instant.now());
+                null, null, Instant.now(), Instant.now());
     }
 
     private InvoiceResponse invoiceResponse() {
-        return new InvoiceResponse(invoiceId, null, "INV-2026-001", null, "KES",
+        return new InvoiceResponse(invoiceId, null, null, null, "INV-2026-001", null, "KES",
                 new BigDecimal("45000.00"), null, Instant.now(), Instant.now());
     }
 

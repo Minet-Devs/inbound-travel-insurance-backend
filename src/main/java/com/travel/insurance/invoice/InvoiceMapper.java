@@ -20,6 +20,7 @@ public class InvoiceMapper {
 
     public void updateEntity(Invoice invoice, InvoiceRequest request) {
         invoice.setClaimId(request.claimId());
+        invoice.setMedicalServiceId(request.medicalServiceId());
         invoice.setInvoiceNumber(request.invoiceNumber());
         invoice.setIssueDate(request.issueDate());
         invoice.setCurrency(request.currency());
@@ -31,13 +32,15 @@ public class InvoiceMapper {
         invoice.getInvoiceItems().addAll(items);
     }
 
-    public InvoiceResponse toResponse(Invoice invoice) {
+    public InvoiceResponse toResponse(Invoice invoice, String medicalServiceName) {
         List<InvoiceItemResponse> items = invoice.getInvoiceItems().stream()
                 .map(this::toItemResponse)
                 .toList();
         return new InvoiceResponse(
                 invoice.getId(),
                 invoice.getClaimId(),
+                invoice.getMedicalServiceId(),
+                medicalServiceName,
                 invoice.getInvoiceNumber(),
                 invoice.getIssueDate(),
                 invoice.getCurrency(),

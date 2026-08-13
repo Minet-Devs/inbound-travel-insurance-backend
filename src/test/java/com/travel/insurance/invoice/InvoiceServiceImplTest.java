@@ -4,6 +4,8 @@ import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.invoice.dto.InvoiceItemRequest;
 import com.travel.insurance.invoice.dto.InvoiceRequest;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
+import com.travel.insurance.medicalservice.MedicalServiceService;
+import com.travel.insurance.medicalservice.dto.MedicalServiceResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,6 +25,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -32,19 +35,25 @@ class InvoiceServiceImplTest {
     @Mock
     private InvoiceRepository invoiceRepository;
 
+    @Mock
+    private MedicalServiceService medicalServiceService;
+
     private final InvoiceMapper invoiceMapper = new InvoiceMapper();
 
     private InvoiceServiceImpl invoiceService;
 
     private UUID claimId;
+    private UUID medicalServiceId;
     private InvoiceRequest request;
 
     @BeforeEach
     void setUp() {
-        invoiceService = new InvoiceServiceImpl(invoiceRepository, invoiceMapper);
+        invoiceService = new InvoiceServiceImpl(invoiceRepository, invoiceMapper, medicalServiceService);
         claimId = UUID.randomUUID();
+        medicalServiceId = UUID.randomUUID();
         request = new InvoiceRequest(
                 claimId,
+                null,
                 "INV-2026-001",
                 LocalDate.of(2026, 8, 1),
                 "KES",
@@ -52,6 +61,11 @@ class InvoiceServiceImplTest {
                 List.of(new InvoiceItemRequest(
                         "In-patient care", new BigDecimal("1"), new BigDecimal("25000.00"),
                         new BigDecimal("25000.00"), LocalDate.of(2026, 8, 1))));
+    }
+
+    private MedicalServiceResponse medicalServiceResponse() {
+        return new MedicalServiceResponse(medicalServiceId, "In-patient Care", UUID.randomUUID(),
+                "Inpatient", java.time.Instant.now(), java.time.Instant.now());
     }
 
     @Test
@@ -73,12 +87,51 @@ class InvoiceServiceImplTest {
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         InvoiceRequest noItems = new InvoiceRequest(
-                claimId, "INV-2026-002", LocalDate.of(2026, 8, 2), "USD",
+                claimId, null, "INV-2026-002", LocalDate.of(2026, 8, 2), "USD",
                 new BigDecimal("1000.00"), List.of());
 
         InvoiceResponse response = invoiceService.create(noItems);
 
         assertThat(response.invoiceItems()).isEmpty();
+    }
+
+    @Test
+    void createSavesInvoiceWithMedicalServiceAndResolvesName() {
+        when(medicalServiceService.getById(medicalServiceId)).thenReturn(medicalServiceResponse());
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InvoiceRequest withMedicalService = new InvoiceRequest(
+                claimId, medicalServiceId, "INV-2026-003", LocalDate.of(2026, 8, 2), "KES",
+                new BigDecimal("12000.00"), List.of());
+
+        InvoiceResponse response = invoiceService.create(withMedicalService);
+
+        assertThat(response.medicalServiceId()).isEqualTo(medicalServiceId);
+        assertThat(response.medicalServiceName()).isEqualTo("In-patient Care");
+    }
+
+    @Test
+    void createWithoutMedicalServiceReturnsNullName() {
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InvoiceResponse response = invoiceService.create(request);
+
+        assertThat(response.medicalServiceId()).isNull();
+        assertThat(response.medicalServiceName()).isNull();
+    }
+
+    @Test
+    void createRejectsUnknownMedicalService() {
+        when(medicalServiceService.getById(medicalServiceId))
+                .thenThrow(new ResourceNotFoundException("MedicalService", medicalServiceId));
+
+        InvoiceRequest withMedicalService = new InvoiceRequest(
+                claimId, medicalServiceId, "INV-2026-004", LocalDate.of(2026, 8, 2), "KES",
+                new BigDecimal("5000.00"), List.of());
+
+        assertThatThrownBy(() -> invoiceService.create(withMedicalService))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(invoiceRepository, never()).save(any());
     }
 
     @Test
@@ -134,7 +187,7 @@ class InvoiceServiceImplTest {
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         InvoiceRequest updated = new InvoiceRequest(
-                claimId, "INV-2026-001-R", LocalDate.of(2026, 8, 3), "KES",
+                claimId, null, "INV-2026-001-R", LocalDate.of(2026, 8, 3), "KES",
                 new BigDecimal("30000.00"),
                 List.of(new InvoiceItemRequest(
                         "Surgery", new BigDecimal("1"), new BigDecimal("30000.00"),
