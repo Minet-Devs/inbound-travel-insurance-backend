@@ -14,8 +14,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -82,7 +83,9 @@ class VisitorQuotaValidationTest {
         Policy policy = new Policy();
         policy.setId(policyId);
         policy.setPolicyType(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS);
-        policy.setInsurerIds(Set.of(insurerIds));
+        // LinkedHashSet keeps the given order so quota validation (which throws
+        // on the first exhausted insurer) exercises both findById stubs.
+        policy.setInsurerIds(new LinkedHashSet<>(Arrays.asList(insurerIds)));
         return policy;
     }
 
