@@ -33,6 +33,7 @@ spring:
 
   flyway:
     enabled: true
+    out-of-order: true
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
