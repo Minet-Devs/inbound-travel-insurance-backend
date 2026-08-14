@@ -7,6 +7,7 @@ import com.travel.insurance.visitor.dto.VisitorResponse;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -22,6 +23,11 @@ public record ClaimResponse(
         UUID insurerId,
         InsurerResponse insurer,
         BigDecimal claimedAmount,
+        String currency,
+        BigDecimal claimedAmountBase,
+        BigDecimal exchangeRate,
+        String baseCurrency,
+        LocalDateTime fxRateDate,
         BigDecimal approvedAmount,
         String description,
         String prescription,

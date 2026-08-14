@@ -7,6 +7,7 @@ import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
+import com.travel.insurance.common.service.CurrencyConversionService;
 import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
@@ -25,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -58,6 +60,9 @@ class ClaimServiceImplTest {
     private InvoiceService invoiceService;
 
     @Mock
+    private CurrencyConversionService currencyConversionService;
+
+    @Mock
     private EventPublisher eventPublisher;
 
     private final ClaimMapper claimMapper = new ClaimMapper();
@@ -71,11 +76,14 @@ class ClaimServiceImplTest {
     private UUID invoiceId;
     private UUID documentId;
 
+    private static final BigDecimal KES_TO_USD = new BigDecimal("0.0077");
+
     @BeforeEach
     void setUp() {
         claimService = new ClaimServiceImpl(
                 claimRepository, claimMapper, policyService, benefitService,
-                visitorService, insurerService, invoiceService, eventPublisher);
+                visitorService, insurerService, invoiceService,
+                currencyConversionService, eventPublisher);
         policyId = UUID.randomUUID();
         benefitId = UUID.randomUUID();
         visitorId = UUID.randomUUID();
@@ -128,7 +136,14 @@ class ClaimServiceImplTest {
 
     private InvoiceResponse invoiceResponse() {
         return new InvoiceResponse(invoiceId, null, null, null, "INV-2026-001", null, "KES",
-                new BigDecimal("45000.00"), null, Instant.now(), Instant.now());
+                new BigDecimal("45000.00"), KES_TO_USD, "USD", new BigDecimal("346.50"),
+                LocalDateTime.now(), null, Instant.now(), Instant.now());
+    }
+
+    private Invoice invoiceWithBaseTotal(String baseTotal) {
+        Invoice invoice = new Invoice();
+        invoice.setBaseTotalAmount(new BigDecimal(baseTotal));
+        return invoice;
     }
 
     @Test
@@ -137,7 +152,8 @@ class ClaimServiceImplTest {
         when(benefitService.getEntityById(benefitId)).thenReturn(null);
         when(visitorService.getEntityById(visitorId)).thenReturn(visitorOnPolicy());
         when(insurerService.exists(insurerId)).thenReturn(true);
-        when(invoiceService.getEntityById(invoiceId)).thenReturn(new Invoice());
+        when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(visitorService.getById(visitorId)).thenReturn(visitorResponse());
         when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
@@ -152,12 +168,37 @@ class ClaimServiceImplTest {
         assertThat(response.procedureIds()).hasSize(1);
         assertThat(response.invoiceIds()).containsExactly(invoiceId);
         assertThat(response.documentIds()).containsExactly(documentId);
-        assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
+        assertThat(response.status()).isEqualTo(ClaimStatus.OPEN);
         assertThat(response.visitor().fullName()).isEqualTo("Jane Traveler");
         assertThat(response.insurer().name()).isEqualTo("Jubilee Insurance");
         assertThat(response.invoices()).extracting(InvoiceResponse::invoiceNumber)
                 .containsExactly("INV-2026-001");
+        assertThat(response.claimedAmount()).isEqualByComparingTo("50000.00");
+        assertThat(response.currency()).isEqualTo("KES");
+        assertThat(response.baseCurrency()).isEqualTo("USD");
+        assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
+        assertThat(response.exchangeRate()).isEqualByComparingTo("0.0077");
+        assertThat(response.fxRateDate()).isNotNull();
         verify(claimRepository).save(any(Claim.class));
+    }
+
+    @Test
+    void createConvertsRawClaimedAmountWhenNoInvoicesAttached() {
+        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(benefitService.getEntityById(benefitId)).thenReturn(null);
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+
+        ClaimResponse response = claimService.create(baseRequest());
+
+        assertThat(response.claimedAmount()).isEqualByComparingTo("50000.00");
+        assertThat(response.currency()).isEqualTo("KES");
+        assertThat(response.baseCurrency()).isEqualTo("USD");
+        assertThat(response.claimedAmountBase()).isEqualByComparingTo("385.00");
+        assertThat(response.exchangeRate()).isEqualByComparingTo("0.0077");
+        assertThat(response.fxRateDate()).isNotNull();
     }
 
     @Test
@@ -165,6 +206,7 @@ class ClaimServiceImplTest {
         when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
         when(benefitService.getEntityById(benefitId)).thenReturn(null);
         when(insurerService.exists(insurerId)).thenReturn(true);
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
 
@@ -319,7 +361,8 @@ class ClaimServiceImplTest {
         claim.setStatus(ClaimStatus.SUBMITTED);
 
         when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
-        when(invoiceService.getEntityById(invoiceId)).thenReturn(new Invoice());
+        when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
 
@@ -330,6 +373,54 @@ class ClaimServiceImplTest {
         assertThat(response.invoiceIds()).containsExactly(invoiceId);
         assertThat(response.invoices()).extracting(InvoiceResponse::invoiceNumber)
                 .containsExactly("INV-2026-001");
+        assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
+        verify(claimRepository).save(claim);
+    }
+
+    @Test
+    void attachInvoiceAggregatesBaseAmountsAcrossAllInvoices() {
+        UUID claimId = UUID.randomUUID();
+        UUID secondInvoiceId = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(claimId);
+        claim.setStatus(ClaimStatus.SUBMITTED);
+        claim.getInvoiceIds().add(secondInvoiceId);
+
+        when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
+        when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("100.00"));
+        when(invoiceService.getEntityById(secondInvoiceId)).thenReturn(invoiceWithBaseTotal("250.00"));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
+        when(invoiceService.getById(secondInvoiceId)).thenReturn(invoiceResponse());
+
+        ClaimResponse response = claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId));
+
+        assertThat(response.claimedAmountBase()).isEqualByComparingTo("350.00");
+    }
+
+    @Test
+    void updateRecomputesBaseAmounts() {
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setStatus(ClaimStatus.OPEN);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(benefitService.getEntityById(benefitId)).thenReturn(null);
+        when(visitorService.getEntityById(visitorId)).thenReturn(visitorOnPolicy());
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
+
+        ClaimResponse response = claimService.update(id, fullRequest());
+
+        assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
+        assertThat(response.exchangeRate()).isEqualByComparingTo("0.0077");
+        assertThat(response.invoiceIds()).containsExactly(invoiceId);
         verify(claimRepository).save(claim);
     }
 
@@ -341,7 +432,8 @@ class ClaimServiceImplTest {
         claim.setStatus(ClaimStatus.UNDER_REVIEW);
 
         when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
-        when(invoiceService.getEntityById(invoiceId)).thenReturn(new Invoice());
+        when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
 
@@ -350,6 +442,7 @@ class ClaimServiceImplTest {
         assertThat(response.id()).isEqualTo(claimId);
         assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
         assertThat(response.invoiceIds()).contains(invoiceId);
+        assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
     }
 
     @Test

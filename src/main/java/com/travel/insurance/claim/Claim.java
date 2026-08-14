@@ -16,6 +16,7 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -45,6 +46,20 @@ public class Claim extends BaseEntity {
 
     @Column(precision = 15, scale = 2)
     private BigDecimal claimedAmount;
+
+    @Column(nullable = false, length = 3)
+    private String currency = "KES";
+
+    @Column(nullable = false, length = 3)
+    private String baseCurrency = "USD";
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal claimedAmountBase;
+
+    @Column(precision = 12, scale = 6)
+    private BigDecimal exchangeRate;
+
+    private LocalDateTime fxRateDate;
 
     @Column(precision = 15, scale = 2)
     private BigDecimal approvedAmount;
