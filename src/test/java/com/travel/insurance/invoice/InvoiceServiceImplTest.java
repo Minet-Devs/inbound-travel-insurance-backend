@@ -1,6 +1,7 @@
 package com.travel.insurance.invoice;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.common.service.CurrencyConversionService;
 import com.travel.insurance.invoice.dto.InvoiceItemRequest;
 import com.travel.insurance.invoice.dto.InvoiceRequest;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
@@ -38,6 +39,9 @@ class InvoiceServiceImplTest {
     @Mock
     private MedicalServiceService medicalServiceService;
 
+    @Mock
+    private CurrencyConversionService currencyConversionService;
+
     private final InvoiceMapper invoiceMapper = new InvoiceMapper();
 
     private InvoiceServiceImpl invoiceService;
@@ -46,9 +50,12 @@ class InvoiceServiceImplTest {
     private UUID medicalServiceId;
     private InvoiceRequest request;
 
+    private static final BigDecimal KES_TO_USD = new BigDecimal("0.0077");
+
     @BeforeEach
     void setUp() {
-        invoiceService = new InvoiceServiceImpl(invoiceRepository, invoiceMapper, medicalServiceService);
+        invoiceService = new InvoiceServiceImpl(
+                invoiceRepository, invoiceMapper, medicalServiceService, currencyConversionService);
         claimId = UUID.randomUUID();
         medicalServiceId = UUID.randomUUID();
         request = new InvoiceRequest(
@@ -70,6 +77,7 @@ class InvoiceServiceImplTest {
 
     @Test
     void createSavesInvoiceWithClaimAndLineItems() {
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         InvoiceResponse response = invoiceService.create(request);
@@ -83,7 +91,23 @@ class InvoiceServiceImplTest {
     }
 
     @Test
+    void createConvertsRawAmountsToUsdBaseAtSavedRate() {
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InvoiceResponse response = invoiceService.create(request);
+
+        assertThat(response.exchangeRate()).isEqualByComparingTo("0.0077");
+        assertThat(response.baseCurrency()).isEqualTo("USD");
+        assertThat(response.baseTotalAmount()).isEqualByComparingTo("192.50");
+        assertThat(response.fxRateDate()).isNotNull();
+        assertThat(response.invoiceItems().getFirst().baseUnitPrice()).isEqualByComparingTo("192.50");
+        assertThat(response.invoiceItems().getFirst().baseAmount()).isEqualByComparingTo("192.50");
+    }
+
+    @Test
     void createAllowsInvoiceWithoutLineItems() {
+        when(currencyConversionService.getExchangeRate("USD", "USD")).thenReturn(BigDecimal.ONE);
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         InvoiceRequest noItems = new InvoiceRequest(
@@ -93,10 +117,14 @@ class InvoiceServiceImplTest {
         InvoiceResponse response = invoiceService.create(noItems);
 
         assertThat(response.invoiceItems()).isEmpty();
+        assertThat(response.exchangeRate()).isEqualByComparingTo("1");
+        assertThat(response.baseTotalAmount()).isEqualByComparingTo("1000.00");
+        assertThat(response.baseCurrency()).isEqualTo("USD");
     }
 
     @Test
     void createSavesInvoiceWithMedicalServiceAndResolvesName() {
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(medicalServiceService.getById(medicalServiceId)).thenReturn(medicalServiceResponse());
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -108,10 +136,12 @@ class InvoiceServiceImplTest {
 
         assertThat(response.medicalServiceId()).isEqualTo(medicalServiceId);
         assertThat(response.medicalServiceName()).isEqualTo("In-patient Care");
+        assertThat(response.baseTotalAmount()).isEqualByComparingTo("92.40");
     }
 
     @Test
     void createWithoutMedicalServiceReturnsNullName() {
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         InvoiceResponse response = invoiceService.create(request);
@@ -184,6 +214,7 @@ class InvoiceServiceImplTest {
         UUID id = UUID.randomUUID();
         Invoice existing = invoiceMapper.toEntity(request);
         when(invoiceRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         InvoiceRequest updated = new InvoiceRequest(
@@ -199,6 +230,9 @@ class InvoiceServiceImplTest {
         assertThat(response.totalAmount()).isEqualByComparingTo("30000.00");
         assertThat(response.invoiceItems()).hasSize(1);
         assertThat(response.invoiceItems().getFirst().description()).isEqualTo("Surgery");
+        assertThat(response.exchangeRate()).isEqualByComparingTo("0.0077");
+        assertThat(response.baseTotalAmount()).isEqualByComparingTo("231.00");
+        assertThat(response.invoiceItems().getFirst().baseAmount()).isEqualByComparingTo("231.00");
     }
 
     @Test

@@ -10,6 +10,8 @@ public record InvoiceItemResponse(
         BigDecimal quantity,
         BigDecimal unitPrice,
         BigDecimal amount,
+        BigDecimal baseUnitPrice,
+        BigDecimal baseAmount,
         LocalDate serviceDate
 ) {
 }

@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -50,9 +51,11 @@ class InvoiceControllerTest {
     private InvoiceResponse sampleInvoice() {
         return new InvoiceResponse(invoiceId, claimId, medicalServiceId, "In-patient Care",
                 "INV-2026-001", LocalDate.of(2026, 8, 1), "KES", new BigDecimal("25000.00"),
+                new BigDecimal("0.0077"), "USD", new BigDecimal("192.50"), LocalDateTime.now(),
                 List.of(new InvoiceItemResponse(UUID.randomUUID(), "In-patient care",
                         new BigDecimal("1"), new BigDecimal("25000.00"),
-                        new BigDecimal("25000.00"), LocalDate.of(2026, 8, 1))),
+                        new BigDecimal("25000.00"), new BigDecimal("192.50"),
+                        new BigDecimal("192.50"), LocalDate.of(2026, 8, 1))),
                 Instant.now(), Instant.now());
     }
 
@@ -80,7 +83,11 @@ class InvoiceControllerTest {
                 .andExpect(jsonPath("$.medicalServiceId").value(medicalServiceId.toString()))
                 .andExpect(jsonPath("$.medicalServiceName").value("In-patient Care"))
                 .andExpect(jsonPath("$.invoiceItems[0].description").value("In-patient care"))
-                .andExpect(jsonPath("$.invoiceItems[0].amount").value(25000.00));
+                .andExpect(jsonPath("$.invoiceItems[0].amount").value(25000.00))
+                .andExpect(jsonPath("$.exchangeRate").value(0.0077))
+                .andExpect(jsonPath("$.baseCurrency").value("USD"))
+                .andExpect(jsonPath("$.baseTotalAmount").value(192.50))
+                .andExpect(jsonPath("$.invoiceItems[0].baseAmount").value(192.50));
     }
 
     @Test
