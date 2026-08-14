@@ -61,9 +61,12 @@ com.travel.insurance/
 │   ├── 📁 domain/
 │   │   └── BaseEntity.java                 # @MappedSuperclass: ID, audit + soft-delete fields
 │   ├── 📁 exception/
-│   │   ├── GlobalExceptionHandler.java     # @RestControllerAdvice
+│   │   ├── GlobalExceptionHandler.java     # @RestControllerAdvice (ExchangeRateUnavailable → 503)
 │   │   ├── ResourceNotFoundException.java
 │   │   └── ApiError.java                   # Standard error response body
+│   ├── 📁 service/
+│   │   └── CurrencyConversionService.java  # KES→USD rate via ExchangeRate-API (RestClient,
+│   │                                       # @Cacheable("fxRates"), 24h TTL)
 │   ├── 📁 messaging/
 │   │   └── EventPublisher.java             # Thin wrapper over RabbitTemplate
 │   ├── 📁 email/
@@ -220,12 +223,15 @@ com.travel.insurance/
 │   ├── Claim.java                          # policyId, benefitId, serviceProviderId,
 │   │                                       # preauthorizationId, visitorId (all nullable
 │   │                                       # except policy/benefit), insurerId (derived
-│   │                                       # from the policy), claimedAmount,
-│   │                                       # approvedAmount, prescription, diagnosisIds /
-│   │                                       # procedureIds / invoiceIds / documentIds (UUID
-│   │                                       # element collections)
-│   ├── ClaimStatus.java                    # Enum: SUBMITTED, UNDER_REVIEW, APPROVED,
-│   │                                       #       PARTIALLY_APPROVED, REJECTED, PAID
+│   │                                       # from the policy), claimedAmount (raw KES),
+│   │                                       # currency/baseCurrency, claimedAmountBase
+│   │                                       # (USD), exchangeRate + fxRateDate (snapshot
+│   │                                       # at save), approvedAmount, prescription,
+│   │                                       # diagnosisIds / procedureIds / invoiceIds /
+│   │                                       # documentIds (UUID element collections)
+│   ├── ClaimStatus.java                    # Enum: OPEN, SUBMITTED, UNDER_REVIEW,
+│   │                                       #       APPROVED, PARTIALLY_APPROVED,
+│   │                                       #       REJECTED, PAID
 │   ├── ClaimMapper.java
 │   └── 📁 dto/
 │       ├── ClaimRequest.java               # insurerId NOT accepted — derived server-side
@@ -239,7 +245,10 @@ com.travel.insurance/
 │   ├── InvoiceRepository.java
 │   ├── Invoice.java                        # claimId (ID-only), medicalServiceId (ID-only),
 │   │                                       # invoiceNumber, issueDate, currency, totalAmount
-│   ├── InvoiceItem.java                    # description, quantity, unitPrice, amount,
+│   │                                       # (raw KES) + exchangeRate, baseCurrency,
+│   │                                       # baseTotalAmount (USD), fxRateDate snapshot
+│   ├── InvoiceItem.java                    # description, quantity, unitPrice, amount
+│   │                                       # (raw KES) + baseUnitPrice, baseAmount (USD),
 │   │                                       # serviceDate (owned by the invoice)
 │   ├── InvoiceMapper.java
 │   └── 📁 dto/
@@ -485,7 +494,7 @@ Policy
   validated through `InvoiceService`), and `documentIds` (a placeholder for a
   future upload service; the `claim_documents` join table persists them but no
   documents feature exists yet). Existing invoices can be attached to an open claim
-  (`SUBMITTED` or `UNDER_REVIEW`) via `PUT /api/v1/claims/{id}/invoice` (`AttachInvoiceRequest`);
+  (`OPEN`, `SUBMITTED` or `UNDER_REVIEW`) via `PUT /api/v1/claims/{id}/invoice` (`AttachInvoiceRequest`);
   attempting to attach an invoice to a closed claim returns 409 Conflict (`IllegalStateException`).
   The claim's `insurerId` is **not** accepted
   on the request: it is derived server-side from the policy, which must cover
@@ -493,6 +502,18 @@ Policy
   `visitor`, `insurer` and `invoices` objects — resolved through the
   respective feature services — alongside the raw IDs, so consumers never
   have to display a raw UUID.
+- **Currency (base-equivalent) snapshotting.** Frontend amounts arrive in KES
+  and are stored raw and unmodified. At every save the claim also persists a
+  USD base equivalent of the claimed amount (`claimedAmountBase`), the
+  `exchangeRate` used, `baseCurrency` (`USD`) and an `fxRateDate` timestamp —
+  the rate snapshot at the time of saving, fetched once per currency pair and
+  cached for 24 hours via `common/service/CurrencyConversionService` (an
+  ExchangeRate-API `RestClient`, `@Cacheable("fxRates")` Caffeine cache). If
+  the claim has invoices attached, `claimedAmountBase` aggregates the USD base
+  totals of those invoices; otherwise it is the raw KES `claimedAmount`
+  multiplied by the spot KES→USD rate (2-dp, `HALF_UP`). Rates are never
+  recomputed against the live endpoint for historical rows; a failure to reach
+  the API surfaces as `ExchangeRateUnavailableException` → 503.
 - An **Invoice** is a supporting document for a claim, referenced by ID only.
   It is created through its own feature (`POST /api/v1/invoices`) and a claim
   attaches already-existing invoices by UUID. An invoice optionally references
@@ -502,7 +523,11 @@ Policy
   entity" shape) and embeds its line items as a child aggregate
   (`invoice_items`, a bidirectional `@OneToMany`/`@ManyToOne` owned on the
   item side so the `invoice_id` FK is set on insert — the schema column is
-  `NOT NULL`).
+  `NOT NULL`). Like claims, invoices snapshot the KES→USD rate at save time:
+  the raw KES `totalAmount` and item `unitPrice`/`amount` are kept, and the
+  USD base values (`baseTotalAmount`, item `baseUnitPrice`/`baseAmount`,
+  `exchangeRate`, `baseCurrency`, `fxRateDate`) are derived from the same
+  cached `CurrencyConversionService` on every create/update.
 - Cross-feature references are **ID columns only** (the same rule as
   `User.organizationId`): the `claim` feature calls `PolicyService` and
   `BenefitService`, never their repositories, and no JPA relations cross
@@ -938,6 +963,8 @@ where Spring Boot's dependency management does not provide one.
 | `spring-boot-starter-security` | compile | Auth filter chain, role-based access |
 | `spring-boot-starter-amqp` | compile | RabbitMQ messaging |
 | `spring-boot-starter-mail` | compile | SMTP sending (`common/email/EmailService`) |
+| `spring-boot-starter-cache` | compile | `@Cacheable` for `CurrencyConversionService` (`config/CacheConfig`) |
+| `com.github.ben-manes:caffeine` | compile | In-memory cache backend (`fxRates`, 24h TTL) |
 | `spring-boot-starter-thymeleaf` | compile | Policy document HTML templating |
 | `io.github.openhtmltopdf:openhtmltopdf-pdfbox` | compile | HTML → PDF rendering for the emailed policy certificate |
 | `org.springdoc:springdoc-openapi-starter-webmvc-ui` (2.6.x) | compile | Swagger UI + OpenAPI docs |
