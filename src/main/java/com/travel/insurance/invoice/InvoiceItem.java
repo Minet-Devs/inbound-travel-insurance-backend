@@ -15,6 +15,7 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Entity
 @Table(name = "invoice_items")
@@ -29,6 +30,8 @@ public class InvoiceItem extends BaseEntity {
     @JoinColumn(name = "invoice_id", nullable = false)
     private Invoice invoice;
 
+    private UUID medicalServiceId;
+
     @Column(nullable = false)
     private String description;
 
@@ -40,6 +43,12 @@ public class InvoiceItem extends BaseEntity {
 
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
+
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal baseUnitPrice;
+
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal baseAmount;
 
     private LocalDate serviceDate;
 }

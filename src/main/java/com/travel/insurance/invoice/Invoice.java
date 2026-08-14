@@ -14,6 +14,7 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -30,8 +31,6 @@ public class Invoice extends BaseEntity {
     @Column(nullable = false)
     private UUID claimId;
 
-    private UUID medicalServiceId;
-
     private String invoiceNumber;
 
     private LocalDate issueDate;
@@ -40,6 +39,18 @@ public class Invoice extends BaseEntity {
 
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal totalAmount;
+
+    @Column(nullable = false, precision = 12, scale = 6)
+    private BigDecimal exchangeRate;
+
+    @Column(nullable = false, length = 3)
+    private String baseCurrency = "USD";
+
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal baseTotalAmount;
+
+    @Column(nullable = false)
+    private LocalDateTime fxRateDate;
 
     @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<InvoiceItem> invoiceItems = new ArrayList<>();

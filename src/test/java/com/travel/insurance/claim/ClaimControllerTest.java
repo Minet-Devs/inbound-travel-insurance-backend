@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -54,9 +55,10 @@ class ClaimControllerTest {
 
     private ClaimResponse sampleClaim() {
         return new ClaimResponse(claimId, policyId, benefitId, null, null, visitorId, null,
-                insurerId, null, new BigDecimal("50000.00"), null, "Hospital stay",
+                insurerId, null, new BigDecimal("50000.00"), "KES", new BigDecimal("385.00"),
+                new BigDecimal("0.0077"), "USD", LocalDateTime.now(), null, "Hospital stay",
                 "Paracetamol 500mg twice daily",
-                Set.of(UUID.randomUUID()), Set.of(UUID.randomUUID()), Set.of(invoiceId), List.of(),
+                List.of(), List.of(), List.of(),
                 Set.of(documentId), null, ClaimStatus.SUBMITTED, Instant.now(), Instant.now());
     }
 
@@ -79,8 +81,11 @@ class ClaimControllerTest {
                 .andExpect(jsonPath("$.visitorId").value(visitorId.toString()))
                 .andExpect(jsonPath("$.insurerId").value(insurerId.toString()))
                 .andExpect(jsonPath("$.prescription").value("Paracetamol 500mg twice daily"))
-                .andExpect(jsonPath("$.invoiceIds[0]").value(invoiceId.toString()))
+                .andExpect(jsonPath("$.invoices").isArray())
+                .andExpect(jsonPath("$.invoiceIds").doesNotExist())
                 .andExpect(jsonPath("$.documentIds[0]").value(documentId.toString()))
+                .andExpect(jsonPath("$.claimedAmountBase").value(385.00))
+                .andExpect(jsonPath("$.baseCurrency").value("USD"))
                 .andExpect(jsonPath("$.status").value("SUBMITTED"));
     }
 
@@ -130,7 +135,8 @@ class ClaimControllerTest {
                         .content("{\"invoiceId\":\"" + invoiceId + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(claimId.toString()))
-                .andExpect(jsonPath("$.invoiceIds[0]").value(invoiceId.toString()));
+                .andExpect(jsonPath("$.invoices").isArray())
+                .andExpect(jsonPath("$.invoiceIds").doesNotExist());
     }
 
     @Test
