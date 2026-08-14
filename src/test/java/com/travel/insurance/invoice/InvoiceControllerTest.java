@@ -49,10 +49,10 @@ class InvoiceControllerTest {
     private final UUID medicalServiceId = UUID.randomUUID();
 
     private InvoiceResponse sampleInvoice() {
-        return new InvoiceResponse(invoiceId, claimId, medicalServiceId, "In-patient Care",
+        return new InvoiceResponse(invoiceId, claimId,
                 "INV-2026-001", LocalDate.of(2026, 8, 1), "KES", new BigDecimal("25000.00"),
                 new BigDecimal("0.0077"), "USD", new BigDecimal("192.50"), LocalDateTime.now(),
-                List.of(new InvoiceItemResponse(UUID.randomUUID(), "In-patient care",
+                List.of(new InvoiceItemResponse(UUID.randomUUID(), medicalServiceId, "In-patient Care", "In-patient care",
                         new BigDecimal("1"), new BigDecimal("25000.00"),
                         new BigDecimal("25000.00"), new BigDecimal("192.50"),
                         new BigDecimal("192.50"), LocalDate.of(2026, 8, 1))),
@@ -60,10 +60,10 @@ class InvoiceControllerTest {
     }
 
     private InvoiceRequest sampleRequest() {
-        return new InvoiceRequest(claimId, medicalServiceId, "INV-2026-001",
+        return new InvoiceRequest(claimId, "INV-2026-001",
                 LocalDate.of(2026, 8, 1), "KES",
                 new BigDecimal("25000.00"),
-                List.of(new InvoiceItemRequest("In-patient care", new BigDecimal("1"),
+                List.of(new InvoiceItemRequest(medicalServiceId, "In-patient care", new BigDecimal("1"),
                         new BigDecimal("25000.00"), new BigDecimal("25000.00"),
                         LocalDate.of(2026, 8, 1))));
     }
@@ -80,8 +80,8 @@ class InvoiceControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.invoiceNumber").value("INV-2026-001"))
                 .andExpect(jsonPath("$.claimId").value(claimId.toString()))
-                .andExpect(jsonPath("$.medicalServiceId").value(medicalServiceId.toString()))
-                .andExpect(jsonPath("$.medicalServiceName").value("In-patient Care"))
+                .andExpect(jsonPath("$.invoiceItems[0].medicalServiceId").value(medicalServiceId.toString()))
+                .andExpect(jsonPath("$.invoiceItems[0].medicalServiceName").value("In-patient Care"))
                 .andExpect(jsonPath("$.invoiceItems[0].description").value("In-patient care"))
                 .andExpect(jsonPath("$.invoiceItems[0].amount").value(25000.00))
                 .andExpect(jsonPath("$.exchangeRate").value(0.0077))
@@ -111,9 +111,9 @@ class InvoiceControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void createRejectsBlankLineItemDescription() throws Exception {
-        InvoiceRequest invalid = new InvoiceRequest(claimId, null, "INV-2026-002",
+        InvoiceRequest invalid = new InvoiceRequest(claimId, "INV-2026-002",
                 LocalDate.of(2026, 8, 2), "KES", new BigDecimal("1000.00"),
-                List.of(new InvoiceItemRequest("", new BigDecimal("1"), new BigDecimal("1000.00"),
+                List.of(new InvoiceItemRequest(null, "", new BigDecimal("1"), new BigDecimal("1000.00"),
                         new BigDecimal("1000.00"), LocalDate.of(2026, 8, 2))));
 
         mockMvc.perform(post("/api/v1/invoices")
