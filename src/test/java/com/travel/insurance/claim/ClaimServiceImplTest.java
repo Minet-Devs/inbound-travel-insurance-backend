@@ -354,11 +354,11 @@ class ClaimServiceImplTest {
     }
 
     @Test
-    void attachInvoiceAttachesToSubmittedClaimAndReturnsPopulatedInvoices() {
+    void attachInvoiceAttachesToOpenClaimAndReturnsPopulatedInvoices() {
         UUID claimId = UUID.randomUUID();
         Claim claim = claimMapper.toEntity(baseRequest());
         claim.setId(claimId);
-        claim.setStatus(ClaimStatus.SUBMITTED);
+        claim.setStatus(ClaimStatus.OPEN);
 
         when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
         when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
@@ -383,7 +383,7 @@ class ClaimServiceImplTest {
         UUID secondInvoiceId = UUID.randomUUID();
         Claim claim = claimMapper.toEntity(baseRequest());
         claim.setId(claimId);
-        claim.setStatus(ClaimStatus.SUBMITTED);
+        claim.setStatus(ClaimStatus.OPEN);
         claim.getInvoiceIds().add(secondInvoiceId);
 
         when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
@@ -425,24 +425,18 @@ class ClaimServiceImplTest {
     }
 
     @Test
-    void attachInvoiceAttachesToUnderReviewClaim() {
+    void attachInvoiceRejectsUnderReviewClaim() {
         UUID claimId = UUID.randomUUID();
         Claim claim = claimMapper.toEntity(baseRequest());
         claim.setId(claimId);
         claim.setStatus(ClaimStatus.UNDER_REVIEW);
 
         when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
-        when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
-        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
-        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
 
-        ClaimResponse response = claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId));
-
-        assertThat(response.id()).isEqualTo(claimId);
-        assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
-        assertThat(response.invoiceIds()).contains(invoiceId);
-        assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
+        assertThatThrownBy(() -> claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Claim is not open for attaching invoices: UNDER_REVIEW");
+        verify(claimRepository, never()).save(any());
     }
 
     @Test
@@ -456,7 +450,7 @@ class ClaimServiceImplTest {
 
         assertThatThrownBy(() -> claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId)))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Claim is not open for updates: APPROVED");
+                .hasMessageContaining("Claim is not open for attaching invoices: APPROVED");
         verify(claimRepository, never()).save(any());
     }
 
@@ -475,7 +469,7 @@ class ClaimServiceImplTest {
         UUID claimId = UUID.randomUUID();
         Claim claim = claimMapper.toEntity(baseRequest());
         claim.setId(claimId);
-        claim.setStatus(ClaimStatus.SUBMITTED);
+        claim.setStatus(ClaimStatus.OPEN);
 
         when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
         when(invoiceService.getEntityById(invoiceId))

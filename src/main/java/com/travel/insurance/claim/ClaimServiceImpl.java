@@ -89,8 +89,8 @@ public class ClaimServiceImpl implements ClaimService {
     @Override
     public ClaimResponse attachInvoice(UUID id, AttachInvoiceRequest request) {
         Claim claim = getEntity(id);
-        if (!OPEN_STATUSES.contains(claim.getStatus())) {
-            throw new IllegalStateException("Claim is not open for updates: " + claim.getStatus());
+        if (claim.getStatus() != ClaimStatus.OPEN) {
+            throw new IllegalStateException("Claim is not open for attaching invoices: " + claim.getStatus());
         }
         invoiceService.getEntityById(request.invoiceId());
         claim.getInvoiceIds().add(request.invoiceId());
