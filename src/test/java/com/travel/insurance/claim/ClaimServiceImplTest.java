@@ -8,6 +8,8 @@ import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
 import com.travel.insurance.common.service.CurrencyConversionService;
+import com.travel.insurance.icd11.Icd11CodeService;
+import com.travel.insurance.icd11.dto.Icd11CodeResponse;
 import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
@@ -15,6 +17,8 @@ import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.procedure.ProcedureService;
+import com.travel.insurance.procedure.dto.ProcedureResponse;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -60,6 +64,12 @@ class ClaimServiceImplTest {
     private InvoiceService invoiceService;
 
     @Mock
+    private Icd11CodeService icd11CodeService;
+
+    @Mock
+    private ProcedureService procedureService;
+
+    @Mock
     private CurrencyConversionService currencyConversionService;
 
     @Mock
@@ -75,6 +85,9 @@ class ClaimServiceImplTest {
     private UUID insurerId;
     private UUID invoiceId;
     private UUID documentId;
+    private UUID diagnosisId1;
+    private UUID diagnosisId2;
+    private UUID procedureId1;
 
     private static final BigDecimal KES_TO_USD = new BigDecimal("0.0077");
 
@@ -83,6 +96,7 @@ class ClaimServiceImplTest {
         claimService = new ClaimServiceImpl(
                 claimRepository, claimMapper, policyService, benefitService,
                 visitorService, insurerService, invoiceService,
+                icd11CodeService, procedureService,
                 currencyConversionService, eventPublisher);
         policyId = UUID.randomUUID();
         benefitId = UUID.randomUUID();
@@ -90,6 +104,9 @@ class ClaimServiceImplTest {
         insurerId = UUID.randomUUID();
         invoiceId = UUID.randomUUID();
         documentId = UUID.randomUUID();
+        diagnosisId1 = UUID.randomUUID();
+        diagnosisId2 = UUID.randomUUID();
+        procedureId1 = UUID.randomUUID();
     }
 
     private Policy policyCoveredBy(UUID insurerId) {
@@ -110,8 +127,8 @@ class ClaimServiceImplTest {
                 policyId, benefitId, null, null, visitorId,
                 new BigDecimal("50000.00"), "Hospital stay",
                 "Paracetamol 500mg twice daily",
-                Set.of(UUID.randomUUID(), UUID.randomUUID()),
-                Set.of(UUID.randomUUID()),
+                Set.of(diagnosisId1, diagnosisId2),
+                Set.of(procedureId1),
                 Set.of(invoiceId),
                 Set.of(documentId));
     }
@@ -146,6 +163,15 @@ class ClaimServiceImplTest {
         return invoice;
     }
 
+    private Icd11CodeResponse icd11Response(UUID id) {
+        return new Icd11CodeResponse(id, "B54", "Malaria", Instant.now(), Instant.now());
+    }
+
+    private ProcedureResponse procedureResponse(UUID id) {
+        return new ProcedureResponse(id, "P-001", "Blood smear",
+                "Malaria microscopy", UUID.randomUUID(), true, null, Instant.now(), Instant.now());
+    }
+
     @Test
     void createSavesClaimWithAllReferenceFields() {
         when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
@@ -158,15 +184,16 @@ class ClaimServiceImplTest {
         when(visitorService.getById(visitorId)).thenReturn(visitorResponse());
         when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
         when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
+        when(icd11CodeService.getById(diagnosisId1)).thenReturn(icd11Response(diagnosisId1));
+        when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
 
         ClaimResponse response = claimService.create(fullRequest());
 
         assertThat(response.visitorId()).isEqualTo(visitorId);
         assertThat(response.insurerId()).isEqualTo(insurerId);
         assertThat(response.prescription()).isEqualTo("Paracetamol 500mg twice daily");
-        assertThat(response.diagnosisIds()).hasSize(2);
-        assertThat(response.procedureIds()).hasSize(1);
-        assertThat(response.invoiceIds()).containsExactly(invoiceId);
+        assertThat(response.diagnoses()).extracting(Icd11CodeResponse::code).containsExactly("B54");
+        assertThat(response.procedures()).extracting(ProcedureResponse::procedureCode).containsExactly("P-001");
         assertThat(response.documentIds()).containsExactly(documentId);
         assertThat(response.status()).isEqualTo(ClaimStatus.OPEN);
         assertThat(response.visitor().fullName()).isEqualTo("Jane Traveler");
@@ -215,9 +242,9 @@ class ClaimServiceImplTest {
         assertThat(response.visitorId()).isNull();
         assertThat(response.insurerId()).isEqualTo(insurerId);
         assertThat(response.prescription()).isNull();
-        assertThat(response.diagnosisIds()).isEmpty();
-        assertThat(response.procedureIds()).isEmpty();
-        assertThat(response.invoiceIds()).isEmpty();
+        assertThat(response.diagnoses()).isEmpty();
+        assertThat(response.procedures()).isEmpty();
+        assertThat(response.invoices()).isEmpty();
         assertThat(response.documentIds()).isEmpty();
     }
 
@@ -370,7 +397,6 @@ class ClaimServiceImplTest {
 
         assertThat(response.id()).isEqualTo(claimId);
         assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
-        assertThat(response.invoiceIds()).containsExactly(invoiceId);
         assertThat(response.invoices()).extracting(InvoiceResponse::invoiceNumber)
                 .containsExactly("INV-2026-001");
         assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
@@ -420,7 +446,8 @@ class ClaimServiceImplTest {
 
         assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
         assertThat(response.exchangeRate()).isEqualByComparingTo("0.0077");
-        assertThat(response.invoiceIds()).containsExactly(invoiceId);
+        assertThat(response.invoices()).extracting(InvoiceResponse::invoiceNumber)
+                .containsExactly("INV-2026-001");
         verify(claimRepository).save(claim);
     }
 

@@ -227,8 +227,9 @@ com.travel.insurance/
 │   │                                       # currency/baseCurrency, claimedAmountBase
 │   │                                       # (USD), exchangeRate + fxRateDate (snapshot
 │   │                                       # at save), approvedAmount, prescription,
-│   │                                       # diagnosisIds / procedureIds / invoiceIds /
-│   │                                       # documentIds (UUID element collections)
+│   │                                       # documentIds (UUID element collection); the
+│   │                                       # claim_diagnoses / claim_procedures /
+│   │                                       # claim_invoices tables persist IDs only
 │   ├── ClaimStatus.java                    # Enum: OPEN, SUBMITTED, UNDER_REVIEW,
 │   │                                       #       APPROVED, PARTIALLY_APPROVED,
 │   │                                       #       REJECTED, PAID
@@ -236,7 +237,8 @@ com.travel.insurance/
 │   └── 📁 dto/
 │       ├── ClaimRequest.java               # insurerId NOT accepted — derived server-side
 │       ├── ClaimDecisionRequest.java
-│       └── ClaimResponse.java              # embeds full visitor/insurer/invoice objects
+│       └── ClaimResponse.java              # embeds full visitor/insurer/invoices/
+│                                           # diagnoses (ICD-11)/procedures objects
 │
 ├── 📁 invoice/                             # Feature: claim supporting invoices
 │   ├── InvoiceController.java              # /api/v1/invoices
@@ -490,9 +492,9 @@ Policy
   reimbursement (no pre-authorization). Decisions are made by the insurer;
   `PAID` is the terminal status. Since the augmentation, a claim may also
   carry a `visitorId` (must belong to the claim's policy), a `prescription`,
-  and four optional UUID sets — `diagnosisIds` / `procedureIds` (free-form
-  references, no catalog), `invoiceIds` (must reference existing invoices,
-  validated through `InvoiceService`), and `documentIds` (a placeholder for a
+  and four optional UUID sets — `diagnosisIds` (ICD-11 codes), `procedureIds`
+  (procedure catalog), `invoiceIds` (must reference existing invoices, validated
+  through `InvoiceService`), and `documentIds` (a placeholder for a
   future upload service; the `claim_documents` join table persists them but no
   documents feature exists yet). Existing invoices can only be attached to a claim whose
   status is `OPEN` via `PUT /api/v1/claims/{id}/invoice` (`AttachInvoiceRequest`); attaching
@@ -500,9 +502,12 @@ Policy
   (`IllegalStateException`). The claim's `insurerId` is **not** accepted
   on the request: it is derived server-side from the policy, which must cover
   exactly one insurer (409 otherwise). `ClaimResponse` embeds the full
-  `visitor`, `insurer` and `invoices` objects — resolved through the
-  respective feature services — alongside the raw IDs, so consumers never
-  have to display a raw UUID.
+  `visitor`, `insurer`, `invoices`, `diagnoses` and `procedures` objects —
+  `diagnoses` resolved through `Icd11CodeService`, `procedures` through
+  `ProcedureService`, `invoices` through `InvoiceService` — alongside the raw
+  IDs, so consumers never have to display a raw UUID. A referenced diagnosis or
+  procedure that is no longer in its catalog is silently omitted from the
+  response (stale/free-form references never fail the claim read).
 - **Currency (base-equivalent) snapshotting.** Frontend amounts arrive in KES
   and are stored raw and unmodified. At every save the claim also persists a
   USD base equivalent of the claimed amount (`claimedAmountBase`), the

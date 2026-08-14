@@ -11,6 +11,8 @@ import com.travel.insurance.common.service.CurrencyConversionService;
 import com.travel.insurance.common.util.AuthenticatedUser;
 import com.travel.insurance.common.util.SecurityUtils;
 import com.travel.insurance.config.RabbitConfig;
+import com.travel.insurance.icd11.Icd11CodeService;
+import com.travel.insurance.icd11.dto.Icd11CodeResponse;
 import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
@@ -18,6 +20,8 @@ import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.procedure.ProcedureService;
+import com.travel.insurance.procedure.dto.ProcedureResponse;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -33,6 +37,7 @@ import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -59,6 +64,8 @@ public class ClaimServiceImpl implements ClaimService {
     private final VisitorService visitorService;
     private final InsurerService insurerService;
     private final InvoiceService invoiceService;
+    private final Icd11CodeService icd11CodeService;
+    private final ProcedureService procedureService;
     private final CurrencyConversionService currencyConversionService;
     private final EventPublisher eventPublisher;
 
@@ -258,6 +265,14 @@ public class ClaimServiceImpl implements ClaimService {
         List<InvoiceResponse> invoices = claim.getInvoiceIds().stream()
                 .map(invoiceService::getById)
                 .toList();
+        List<Icd11CodeResponse> diagnoses = claim.getDiagnosisIds().stream()
+                .map(this::resolveDiagnosis)
+                .filter(Objects::nonNull)
+                .toList();
+        List<ProcedureResponse> procedures = claim.getProcedureIds().stream()
+                .map(this::resolveProcedure)
+                .filter(Objects::nonNull)
+                .toList();
         return new ClaimResponse(
                 claim.getId(),
                 claim.getPolicyId(),
@@ -277,9 +292,8 @@ public class ClaimServiceImpl implements ClaimService {
                 claim.getApprovedAmount(),
                 claim.getDescription(),
                 claim.getPrescription(),
-                Set.copyOf(claim.getDiagnosisIds()),
-                Set.copyOf(claim.getProcedureIds()),
-                Set.copyOf(claim.getInvoiceIds()),
+                diagnoses,
+                procedures,
                 invoices,
                 Set.copyOf(claim.getDocumentIds()),
                 claim.getDecisionReason(),
@@ -287,5 +301,21 @@ public class ClaimServiceImpl implements ClaimService {
                 claim.getCreatedDate(),
                 claim.getUpdatedDate()
         );
+    }
+
+    private Icd11CodeResponse resolveDiagnosis(UUID id) {
+        try {
+            return icd11CodeService.getById(id);
+        } catch (ResourceNotFoundException e) {
+            return null;
+        }
+    }
+
+    private ProcedureResponse resolveProcedure(UUID id) {
+        try {
+            return procedureService.getById(id);
+        } catch (ResourceNotFoundException e) {
+            return null;
+        }
     }
 }
