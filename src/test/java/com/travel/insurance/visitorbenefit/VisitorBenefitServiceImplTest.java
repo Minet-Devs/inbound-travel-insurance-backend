@@ -2,6 +2,8 @@ package com.travel.insurance.visitorbenefit;
 
 import com.travel.insurance.benefit.Benefit;
 import com.travel.insurance.benefit.BenefitService;
+import com.travel.insurance.claim.ClaimService;
+import com.travel.insurance.claim.ClaimUtilizationTotal;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitorbenefit.dto.VisitorBenefitRequest;
@@ -37,6 +39,9 @@ class VisitorBenefitServiceImplTest {
     @Mock
     private BenefitService benefitService;
 
+    @Mock
+    private ClaimService claimService;
+
     private final VisitorBenefitMapper visitorBenefitMapper = new VisitorBenefitMapper();
 
     private VisitorBenefitServiceImpl visitorBenefitService;
@@ -49,7 +54,7 @@ class VisitorBenefitServiceImplTest {
     @BeforeEach
     void setUp() {
         visitorBenefitService = new VisitorBenefitServiceImpl(
-                visitorBenefitRepository, visitorBenefitMapper, visitorService, benefitService);
+                visitorBenefitRepository, visitorBenefitMapper, visitorService, benefitService, claimService);
         visitorId = UUID.randomUUID();
         benefitId = UUID.randomUUID();
         visitor = new Visitor();
@@ -87,12 +92,35 @@ class VisitorBenefitServiceImplTest {
                 .thenReturn(List.of(visitorBenefit));
         when(benefitService.namesByIds(Set.of(benefitId)))
                 .thenReturn(Map.of(benefitId, "Medical Expenses"));
+        when(claimService.sumClaimedAmountsByVisitorAndBenefit(Set.of(visitorId), Set.of(benefitId)))
+                .thenReturn(List.of(new ClaimUtilizationTotal(visitorId, benefitId, new BigDecimal("30000.00"))));
 
         List<VisitorBenefitResponse> responses = visitorBenefitService.listAllByVisitor(visitorId);
 
         assertThat(responses).hasSize(1);
         assertThat(responses.getFirst().benefitName()).isEqualTo("Medical Expenses");
         assertThat(responses.getFirst().limitAmount()).isEqualByComparingTo("100000.00");
+        assertThat(responses.getFirst().utilizedAmount()).isEqualByComparingTo("30000.00");
+        assertThat(responses.getFirst().balance()).isEqualByComparingTo("70000.00");
+    }
+
+    @Test
+    void listAllByVisitorDefaultsUtilizedAmountToZeroWhenNoClaims() {
+        VisitorBenefit visitorBenefit = new VisitorBenefit();
+        visitorBenefit.setVisitorId(visitorId);
+        visitorBenefit.setBenefitId(benefitId);
+        visitorBenefit.setLimitAmount(new BigDecimal("100000.00"));
+        when(visitorBenefitRepository.findAllByVisitorId(visitorId))
+                .thenReturn(List.of(visitorBenefit));
+        when(benefitService.namesByIds(Set.of(benefitId)))
+                .thenReturn(Map.of(benefitId, "Medical Expenses"));
+        when(claimService.sumClaimedAmountsByVisitorAndBenefit(Set.of(visitorId), Set.of(benefitId)))
+                .thenReturn(List.of());
+
+        List<VisitorBenefitResponse> responses = visitorBenefitService.listAllByVisitor(visitorId);
+
+        assertThat(responses.getFirst().utilizedAmount()).isEqualByComparingTo("0");
+        assertThat(responses.getFirst().balance()).isEqualByComparingTo("100000.00");
     }
 
     @Test

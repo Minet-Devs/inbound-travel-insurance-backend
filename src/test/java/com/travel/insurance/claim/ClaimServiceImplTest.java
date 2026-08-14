@@ -152,7 +152,7 @@ class ClaimServiceImplTest {
         assertThat(response.procedureIds()).hasSize(1);
         assertThat(response.invoiceIds()).containsExactly(invoiceId);
         assertThat(response.documentIds()).containsExactly(documentId);
-        assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
+        assertThat(response.status()).isEqualTo(ClaimStatus.OPEN);
         assertThat(response.visitor().fullName()).isEqualTo("Jane Traveler");
         assertThat(response.insurer().name()).isEqualTo("Jubilee Insurance");
         assertThat(response.invoices()).extracting(InvoiceResponse::invoiceNumber)

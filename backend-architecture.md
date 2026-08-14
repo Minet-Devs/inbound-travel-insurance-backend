@@ -426,11 +426,23 @@ Policy
   so later catalog edits do not alter benefits already assigned to a visitor.
   The referenced benefit only needs to exist (no policy-membership check). A
   visitor may hold each catalog benefit at most once (`visitorId` + `benefitId`
-  unique). Usage tracking against the limit is out of scope for now.
+  unique).
   `VisitorBenefitResponse` additionally carries the catalog benefit's
   `benefitName` (resolved through `BenefitService`; `null` if the catalog
-  benefit has since been deleted) so clients can display assignments without
-  extra lookups.
+  benefit has since been deleted), plus two **transient, computed-on-read**
+  fields — `utilizedAmount` and `balance` — so clients can display
+  assignments and remaining cover without extra lookups. `utilizedAmount` is
+  the sum of `Claim.claimedAmount` across every claim for that
+  `(visitorId, benefitId)` pair, regardless of claim status; `balance` is
+  `limitAmount − utilizedAmount` (it can go negative if claims exceed the
+  limit). Neither value is persisted — `VisitorBenefitServiceImpl` computes
+  them per request via `ClaimService.sumClaimedAmountsByVisitorAndBenefit`
+  (the usual "go through the other feature's service, not its repository"
+  rule), batched by visitor/benefit ID sets so listing several
+  `VisitorBenefit`s costs one grouped `SUM` query, not N. This computation
+  only runs where `VisitorBenefit` rows are returned; the plain paginated
+  `GET /api/v1/visitors` never embeds `visitorBenefits` at all (see above),
+  so it is unaffected regardless of claim volume.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
   service and is decided by an `INSURER_USER` (or a admin agent). Create
   requires the diagnosis (`icd11CodeId`, validated via `Icd11CodeService`),
