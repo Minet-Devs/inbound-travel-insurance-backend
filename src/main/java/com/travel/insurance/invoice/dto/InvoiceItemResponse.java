@@ -6,6 +6,8 @@ import java.util.UUID;
 
 public record InvoiceItemResponse(
         UUID id,
+        UUID medicalServiceId,
+        String medicalServiceName,
         String description,
         BigDecimal quantity,
         BigDecimal unitPrice,

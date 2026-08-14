@@ -127,7 +127,7 @@ class ClaimServiceImplTest {
     }
 
     private InvoiceResponse invoiceResponse() {
-        return new InvoiceResponse(invoiceId, null, null, null, "INV-2026-001", null, "KES",
+        return new InvoiceResponse(invoiceId, null, "INV-2026-001", null, "KES",
                 new BigDecimal("45000.00"), null, Instant.now(), Instant.now());
     }
 

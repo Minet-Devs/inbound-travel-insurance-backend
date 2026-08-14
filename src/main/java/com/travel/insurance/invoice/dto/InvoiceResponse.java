@@ -9,8 +9,6 @@ import java.util.UUID;
 public record InvoiceResponse(
         UUID id,
         UUID claimId,
-        UUID medicalServiceId,
-        String medicalServiceName,
         String invoiceNumber,
         LocalDate issueDate,
         String currency,

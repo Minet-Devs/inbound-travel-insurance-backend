@@ -1,6 +1,7 @@
 package com.travel.insurance.invoice;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.invoice.dto.InvoiceItemRequest;
 import com.travel.insurance.invoice.dto.InvoiceRequest;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.medicalservice.MedicalServiceService;
@@ -64,15 +65,16 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     private void validateReferences(InvoiceRequest request) {
-        if (request.medicalServiceId() != null) {
-            medicalServiceService.getById(request.medicalServiceId());
+        if (request.invoiceItems() != null) {
+            for (InvoiceItemRequest item : request.invoiceItems()) {
+                if (item.medicalServiceId() != null) {
+                    medicalServiceService.getById(item.medicalServiceId());
+                }
+            }
         }
     }
 
     private InvoiceResponse toResponse(Invoice invoice) {
-        String medicalServiceName = invoice.getMedicalServiceId() != null
-                ? medicalServiceService.getById(invoice.getMedicalServiceId()).name()
-                : null;
-        return invoiceMapper.toResponse(invoice, medicalServiceName);
+        return invoiceMapper.toResponse(invoice, medicalServiceId -> medicalServiceService.getById(medicalServiceId).name());
     }
 }

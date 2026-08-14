@@ -237,17 +237,17 @@ com.travel.insurance/
 │   ├── InvoiceService.java                 # Interface
 │   ├── InvoiceServiceImpl.java
 │   ├── InvoiceRepository.java
-│   ├── Invoice.java                        # claimId (ID-only), medicalServiceId (ID-only),
-│   │                                       # invoiceNumber, issueDate, currency, totalAmount
-│   ├── InvoiceItem.java                    # description, quantity, unitPrice, amount,
+│   ├── Invoice.java                        # claimId (ID-only), invoiceNumber,
+│   │                                       # issueDate, currency, totalAmount
+│   ├── InvoiceItem.java                    # medicalServiceId (ID-only), description, quantity, unitPrice, amount,
 │   │                                       # serviceDate (owned by the invoice)
 │   ├── InvoiceMapper.java
 │   └── 📁 dto/
 │       ├── InvoiceRequest.java
-│       ├── InvoiceResponse.java            # medicalServiceName resolved via
-│       │                                   # MedicalServiceService
+│       ├── InvoiceResponse.java
 │       ├── InvoiceItemRequest.java
-│       └── InvoiceItemResponse.java
+│       └── InvoiceItemResponse.java        # medicalServiceName resolved via
+│                                           # MedicalServiceService
 │
 ├── 📁 icd11/                               # Feature: ICD-11 diagnosis code catalog
 │   ├── Icd11CodeController.java
@@ -495,11 +495,11 @@ Policy
   have to display a raw UUID.
 - An **Invoice** is a supporting document for a claim, referenced by ID only.
   It is created through its own feature (`POST /api/v1/invoices`) and a claim
-  attaches already-existing invoices by UUID. An invoice optionally references
+  attaches already-existing invoices by UUID. Each line item (`InvoiceItem`) optionally references
   a `MedicalService` by ID (`medicalServiceId`, validated through
-  `MedicalServiceService` on create/update); `InvoiceResponse` resolves that
+  `MedicalServiceService` on create/update); `InvoiceItemResponse` resolves that
   ID to `medicalServiceName` (the "resolve the display name, don't nest the
-  entity" shape) and embeds its line items as a child aggregate
+  entity" shape). `Invoice` embeds its line items as a child aggregate
   (`invoice_items`, a bidirectional `@OneToMany`/`@ManyToOne` owned on the
   item side so the `invoice_id` FK is set on insert — the schema column is
   `NOT NULL`).
