@@ -53,13 +53,12 @@ class InvoiceServiceImplTest {
         medicalServiceId = UUID.randomUUID();
         request = new InvoiceRequest(
                 claimId,
-                null,
                 "INV-2026-001",
                 LocalDate.of(2026, 8, 1),
                 "KES",
                 new BigDecimal("25000.00"),
                 List.of(new InvoiceItemRequest(
-                        "In-patient care", new BigDecimal("1"), new BigDecimal("25000.00"),
+                        null, "In-patient care", new BigDecimal("1"), new BigDecimal("25000.00"),
                         new BigDecimal("25000.00"), LocalDate.of(2026, 8, 1))));
     }
 
@@ -87,7 +86,7 @@ class InvoiceServiceImplTest {
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         InvoiceRequest noItems = new InvoiceRequest(
-                claimId, null, "INV-2026-002", LocalDate.of(2026, 8, 2), "USD",
+                claimId, "INV-2026-002", LocalDate.of(2026, 8, 2), "USD",
                 new BigDecimal("1000.00"), List.of());
 
         InvoiceResponse response = invoiceService.create(noItems);
@@ -101,13 +100,16 @@ class InvoiceServiceImplTest {
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         InvoiceRequest withMedicalService = new InvoiceRequest(
-                claimId, medicalServiceId, "INV-2026-003", LocalDate.of(2026, 8, 2), "KES",
-                new BigDecimal("12000.00"), List.of());
+                claimId, "INV-2026-003", LocalDate.of(2026, 8, 2), "KES",
+                new BigDecimal("12000.00"), List.of(new InvoiceItemRequest(
+                        medicalServiceId, "In-patient care", new BigDecimal("1"), new BigDecimal("12000.00"),
+                        new BigDecimal("12000.00"), LocalDate.of(2026, 8, 2))));
 
         InvoiceResponse response = invoiceService.create(withMedicalService);
 
-        assertThat(response.medicalServiceId()).isEqualTo(medicalServiceId);
-        assertThat(response.medicalServiceName()).isEqualTo("In-patient Care");
+        assertThat(response.invoiceItems()).hasSize(1);
+        assertThat(response.invoiceItems().getFirst().medicalServiceId()).isEqualTo(medicalServiceId);
+        assertThat(response.invoiceItems().getFirst().medicalServiceName()).isEqualTo("In-patient Care");
     }
 
     @Test
@@ -116,8 +118,9 @@ class InvoiceServiceImplTest {
 
         InvoiceResponse response = invoiceService.create(request);
 
-        assertThat(response.medicalServiceId()).isNull();
-        assertThat(response.medicalServiceName()).isNull();
+        assertThat(response.invoiceItems()).hasSize(1);
+        assertThat(response.invoiceItems().getFirst().medicalServiceId()).isNull();
+        assertThat(response.invoiceItems().getFirst().medicalServiceName()).isNull();
     }
 
     @Test
@@ -126,8 +129,10 @@ class InvoiceServiceImplTest {
                 .thenThrow(new ResourceNotFoundException("MedicalService", medicalServiceId));
 
         InvoiceRequest withMedicalService = new InvoiceRequest(
-                claimId, medicalServiceId, "INV-2026-004", LocalDate.of(2026, 8, 2), "KES",
-                new BigDecimal("5000.00"), List.of());
+                claimId, "INV-2026-004", LocalDate.of(2026, 8, 2), "KES",
+                new BigDecimal("5000.00"), List.of(new InvoiceItemRequest(
+                        medicalServiceId, "Care", new BigDecimal("1"), new BigDecimal("5000.00"),
+                        new BigDecimal("5000.00"), LocalDate.of(2026, 8, 2))));
 
         assertThatThrownBy(() -> invoiceService.create(withMedicalService))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -187,10 +192,10 @@ class InvoiceServiceImplTest {
         when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         InvoiceRequest updated = new InvoiceRequest(
-                claimId, null, "INV-2026-001-R", LocalDate.of(2026, 8, 3), "KES",
+                claimId, "INV-2026-001-R", LocalDate.of(2026, 8, 3), "KES",
                 new BigDecimal("30000.00"),
                 List.of(new InvoiceItemRequest(
-                        "Surgery", new BigDecimal("1"), new BigDecimal("30000.00"),
+                        null, "Surgery", new BigDecimal("1"), new BigDecimal("30000.00"),
                         new BigDecimal("30000.00"), LocalDate.of(2026, 8, 3))));
 
         InvoiceResponse response = invoiceService.update(id, updated);

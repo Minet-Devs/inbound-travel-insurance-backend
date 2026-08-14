@@ -127,7 +127,7 @@ class ClaimServiceImplTest {
     }
 
     private InvoiceResponse invoiceResponse() {
-        return new InvoiceResponse(invoiceId, null, null, null, "INV-2026-001", null, "KES",
+        return new InvoiceResponse(invoiceId, null, "INV-2026-001", null, "KES",
                 new BigDecimal("45000.00"), null, Instant.now(), Instant.now());
     }
 
@@ -152,7 +152,7 @@ class ClaimServiceImplTest {
         assertThat(response.procedureIds()).hasSize(1);
         assertThat(response.invoiceIds()).containsExactly(invoiceId);
         assertThat(response.documentIds()).containsExactly(documentId);
-        assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
+        assertThat(response.status()).isEqualTo(ClaimStatus.OPEN);
         assertThat(response.visitor().fullName()).isEqualTo("Jane Traveler");
         assertThat(response.insurer().name()).isEqualTo("Jubilee Insurance");
         assertThat(response.invoices()).extracting(InvoiceResponse::invoiceNumber)

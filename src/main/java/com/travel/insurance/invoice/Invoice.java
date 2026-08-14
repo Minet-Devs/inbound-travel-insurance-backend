@@ -30,8 +30,6 @@ public class Invoice extends BaseEntity {
     @Column(nullable = false)
     private UUID claimId;
 
-    private UUID medicalServiceId;
-
     private String invoiceNumber;
 
     private LocalDate issueDate;
