@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.UUID;
+
 /**
  * ICD-11 diagnosis code catalog: admin bulk import from an Excel workbook, plus
  * search and single-code lookup for downstream diagnosis selection.
@@ -46,5 +48,11 @@ public class Icd11CodeController {
     @GetMapping("/{code}")
     public ResponseEntity<Icd11CodeResponse> getByCode(@PathVariable String code) {
         return ResponseEntity.ok(icd11CodeService.getByCode(code));
+    }
+
+    /** By-id lookup for resolving a claim's diagnosisIds back to code/title for display. */
+    @GetMapping("/by-id/{id}")
+    public ResponseEntity<Icd11CodeResponse> getById(@PathVariable UUID id) {
+        return ResponseEntity.ok(icd11CodeService.getById(id));
     }
 }

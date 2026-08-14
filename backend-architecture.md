@@ -27,6 +27,7 @@ summary and the full requirement-vs-codebase gap analysis.
   - [API Documentation (Swagger)](#api-documentation-swagger)
   - [Security](#security)
   - [Database Connection Pool (HikariCP)](#database-connection-pool-hikaricp)
+  - [Database Migrations (Flyway)](#database-migrations-flyway)
   - [Code Practices](#code-practices)
   - [Maven Dependencies](#maven-dependencies)
 
@@ -348,8 +349,9 @@ Policy
   skipped — and returns an `Icd11ImportResult` count summary, so re-uploading
   the same file is idempotent. Lookups use `GET /api/v1/icd11-codes?query=…`
   (matches code or title, paged), `GET /api/v1/icd11-codes/search?title=…`
-  (title-only substring match, paged — the diagnosis picker use case) and
-  `GET /api/v1/icd11-codes/{code}`. Import is restricted to `ADMIN`; the read
+  (title-only substring match, paged — the diagnosis picker use case),
+  `GET /api/v1/icd11-codes/{code}` and `GET /api/v1/icd11-codes/by-id/{id}`
+  (resolves a claim's `diagnosisIds` back to code/title for display). Import is restricted to `ADMIN`; the read
   endpoints are open to any authenticated user.
 - A **Department** is a plain name-only catalog entry (e.g. `PHARMACY`,
   `LABORATORY`) — nothing beyond the `BaseEntity` fields and a unique `name`.
@@ -642,8 +644,9 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
   serialized as `application/json` regardless of the request's negotiated content
   type (so error bodies never fail on non-JSON `Accept`/path extensions).
 - Database schema changes ship as Flyway migrations
-  (`src/main/resources/db/migration/V###__description.sql`); Hibernate
-  `ddl-auto` is never used to manage the schema.
+  (`src/main/resources/db/migration/`); Hibernate `ddl-auto` is never used to
+  manage the schema. See [Database Migrations (Flyway)](#database-migrations-flyway)
+  for the file naming convention.
 
 ## REST Resources
 
@@ -865,6 +868,48 @@ spring:
 Revisit `maximum-pool-size` only with load-test evidence, and ensure
 PostgreSQL's `max_connections` comfortably exceeds
 `pool size × application instances`.
+
+## Database Migrations (Flyway)
+
+**Naming convention (from V033 onward):**
+
+```
+V<timestamp>__<description>.sql
+```
+
+- `timestamp` — `yyyyMMddHHmm`, the moment the migration file was created.
+  No sequential number prefix.
+- `description` — snake_case summary of the change.
+
+Example: `V202608131430__add_claim_status.sql`
+
+**Problem this solves:** with plain `V<seq>__description.sql` naming, two
+developers branching off the same `HEAD` would independently pick the same
+next sequence number (e.g. both write `V033__...`). Flyway treats the part
+before `__` as the version, so two files with an identical version number are
+a hard conflict — whichever branch merges second fails to apply. A pure
+12-digit timestamp is unique per file with zero coordination between
+developers — nobody needs to know what number a teammate on another branch
+just used — and it sorts correctly against every future migration without
+ever repeating.
+
+**Config implication:** because merge order no longer guarantees version
+order (a migration created earlier can merge and reach an environment after
+one created later has already been applied there), Flyway must be allowed to
+apply migrations out of strict version order:
+
+```yaml
+spring:
+  flyway:
+    enabled: true
+    out-of-order: true   # required by the timestamp-based migration naming convention
+```
+
+**Existing migrations (`V001` … `V032`) are not renamed** — this convention
+applies only to new migrations going forward. Flyway compares version
+numbers numerically (not by string length), so plain two/three-digit
+versions like `V032` sort before any 12-digit timestamp automatically; no
+renumbering or padding is needed.
 
 ## Code Practices
 

@@ -25,6 +25,16 @@ Every code change must include, in the same piece of work:
 - Requires JDK 21: `JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn test`
 - No `./mvnw` wrapper; use system `mvn`.
 
+## Database migrations
+
+- Flyway files use pure-timestamp versioning:
+  `V<yyyyMMddHHmm>__<description>.sql` (e.g. `V202608131430__add_claim_status.sql`).
+  No sequential number prefix — see `backend-architecture.md` for why.
+- When creating a new migration, get the real current timestamp with
+  `date +%Y%m%d%H%M` rather than guessing or reusing a value from an example.
+- Never rename existing migrations (`V001` … `V032`); the convention applies
+  only to new files going forward.
+
 ## Architecture notes
 
 - Feature packages (`visitor`, `policy`, `benefit`, …); cross-feature references

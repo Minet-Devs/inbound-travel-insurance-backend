@@ -91,6 +91,19 @@ class Icd11CodeControllerTest {
     }
 
     @Test
+    @WithMockUser
+    void getByIdReturnsCode() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(icd11CodeService.getById(id)).thenReturn(new Icd11CodeResponse(
+                id, "1A00", "Cholera", Instant.now(), Instant.now()));
+
+        mockMvc.perform(get("/api/v1/icd11-codes/by-id/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("1A00"))
+                .andExpect(jsonPath("$.title").value("Cholera"));
+    }
+
+    @Test
     void importWithoutAuthenticationIsRejected() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "codes.xlsx",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{1});

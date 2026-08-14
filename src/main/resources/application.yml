@@ -34,6 +34,7 @@ spring:
   flyway:
     enabled: true
     repair-on-migrate: true
+    out-of-order: true
 
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
