@@ -7,6 +7,8 @@ import com.travel.insurance.claim.dto.ClaimResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 public interface ClaimService {
@@ -26,4 +28,7 @@ public interface ClaimService {
     ClaimResponse markPaid(UUID id);
 
     void delete(UUID id);
+
+    List<ClaimUtilizationTotal> sumClaimedAmountsByVisitorAndBenefit(
+            Collection<UUID> visitorIds, Collection<UUID> benefitIds);
 }

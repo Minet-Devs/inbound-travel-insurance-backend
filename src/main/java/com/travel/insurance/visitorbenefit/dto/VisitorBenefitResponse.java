@@ -12,6 +12,8 @@ public record VisitorBenefitResponse(
         UUID benefitId,
         String benefitName,
         BigDecimal limitAmount,
+        BigDecimal utilizedAmount,
+        BigDecimal balance,
         VisitorStatus status,
         Instant createdDate,
         Instant updatedDate

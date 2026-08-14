@@ -74,7 +74,8 @@ class VisitorControllerTest {
 
     private VisitorBenefitResponse sampleBenefit() {
         return new VisitorBenefitResponse(UUID.randomUUID(), visitorId, benefitId,
-                "Medical Expenses", new BigDecimal("100000.00"), VisitorStatus.PENDING,
+                "Medical Expenses", new BigDecimal("100000.00"), BigDecimal.ZERO,
+                new BigDecimal("100000.00"), VisitorStatus.PENDING,
                 Instant.now(), Instant.now());
     }
 
@@ -93,7 +94,9 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$.policyId").value(policyId.toString()))
                 .andExpect(jsonPath("$.visitorBenefits[0].benefitId").value(benefitId.toString()))
                 .andExpect(jsonPath("$.visitorBenefits[0].benefitName").value("Medical Expenses"))
-                .andExpect(jsonPath("$.visitorBenefits[0].limitAmount").value(100000.00));
+                .andExpect(jsonPath("$.visitorBenefits[0].limitAmount").value(100000.00))
+                .andExpect(jsonPath("$.visitorBenefits[0].utilizedAmount").value(0))
+                .andExpect(jsonPath("$.visitorBenefits[0].balance").value(100000.00));
     }
 
     @Test

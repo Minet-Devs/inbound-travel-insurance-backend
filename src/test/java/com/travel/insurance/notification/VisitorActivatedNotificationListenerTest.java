@@ -122,7 +122,8 @@ class VisitorActivatedNotificationListenerTest {
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of(
                 new VisitorBenefitResponse(UUID.randomUUID(), visitorId, UUID.randomUUID(),
-                        "Medical Expenses", new BigDecimal("20000.00"),
+                        "Medical Expenses", new BigDecimal("20000.00"), BigDecimal.ZERO,
+                        new BigDecimal("20000.00"),
                         VisitorStatus.ACTIVE, Instant.now(), Instant.now())));
         when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
                 insurerId, "Acme Insurance", "contact@acme.example", null, null,

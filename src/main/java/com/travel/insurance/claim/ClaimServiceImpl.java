@@ -34,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -149,6 +150,16 @@ public class ClaimServiceImpl implements ClaimService {
         claimRepository.delete(getEntity(id));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClaimUtilizationTotal> sumClaimedAmountsByVisitorAndBenefit(
+            Collection<UUID> visitorIds, Collection<UUID> benefitIds) {
+        if (visitorIds.isEmpty() || benefitIds.isEmpty()) {
+            return List.of();
+        }
+        return claimRepository.sumClaimedAmountsByVisitorAndBenefit(visitorIds, benefitIds);
+    }
+
     private void applyDecision(Claim claim, ClaimDecisionRequest request) {
         claim.setStatus(request.status());
         claim.setDecisionReason(request.reason());
@@ -228,7 +239,7 @@ public class ClaimServiceImpl implements ClaimService {
         }
         return amount.multiply(rate).setScale(2, RoundingMode.HALF_UP);
     }
-    
+
     private Page<Claim> findScoped(Pageable pageable) {
         AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
         if (user != null && user.roles().contains("PROVIDER_USER")) {
