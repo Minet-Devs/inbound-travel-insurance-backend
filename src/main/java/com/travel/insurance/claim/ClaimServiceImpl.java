@@ -7,15 +7,21 @@ import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
+import com.travel.insurance.common.service.CurrencyConversionService;
 import com.travel.insurance.common.util.AuthenticatedUser;
 import com.travel.insurance.common.util.SecurityUtils;
 import com.travel.insurance.config.RabbitConfig;
+import com.travel.insurance.icd11.Icd11CodeService;
+import com.travel.insurance.icd11.dto.Icd11CodeResponse;
 import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerResponse;
+import com.travel.insurance.invoice.Invoice;
 import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.procedure.ProcedureService;
+import com.travel.insurance.procedure.dto.ProcedureResponse;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -26,9 +32,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -44,6 +53,7 @@ public class ClaimServiceImpl implements ClaimService {
             ClaimStatus.REJECTED);
 
     private static final Set<ClaimStatus> OPEN_STATUSES = EnumSet.of(
+            ClaimStatus.OPEN,
             ClaimStatus.SUBMITTED,
             ClaimStatus.UNDER_REVIEW);
 
@@ -54,6 +64,9 @@ public class ClaimServiceImpl implements ClaimService {
     private final VisitorService visitorService;
     private final InsurerService insurerService;
     private final InvoiceService invoiceService;
+    private final Icd11CodeService icd11CodeService;
+    private final ProcedureService procedureService;
+    private final CurrencyConversionService currencyConversionService;
     private final EventPublisher eventPublisher;
 
     @Override
@@ -62,6 +75,7 @@ public class ClaimServiceImpl implements ClaimService {
         Claim claim = claimMapper.toEntity(request);
         claim.setStatus(ClaimStatus.OPEN);
         claim.setInsurerId(insurerId);
+        applyBaseConversion(claim);
         claim = claimRepository.save(claim);
         return toResponse(claim);
     }
@@ -75,17 +89,19 @@ public class ClaimServiceImpl implements ClaimService {
         UUID insurerId = validateReferences(request);
         claimMapper.updateEntity(claim, request);
         claim.setInsurerId(insurerId);
+        applyBaseConversion(claim);
         return toResponse(claimRepository.save(claim));
     }
 
     @Override
     public ClaimResponse attachInvoice(UUID id, AttachInvoiceRequest request) {
         Claim claim = getEntity(id);
-        if (!OPEN_STATUSES.contains(claim.getStatus())) {
-            throw new IllegalStateException("Claim is not open for updates: " + claim.getStatus());
+        if (claim.getStatus() != ClaimStatus.OPEN) {
+            throw new IllegalStateException("Claim is not open for attaching invoices: " + claim.getStatus());
         }
         invoiceService.getEntityById(request.invoiceId());
         claim.getInvoiceIds().add(request.invoiceId());
+        applyBaseConversion(claim);
         claim.setStatus(ClaimStatus.SUBMITTED);
         Claim saved = claimRepository.save(claim);
         return toResponse(saved);
@@ -183,6 +199,36 @@ public class ClaimServiceImpl implements ClaimService {
         return insurerIds.iterator().next();
     }
 
+    private void applyBaseConversion(Claim claim) {
+        BigDecimal rate = currencyConversionService.getExchangeRate(claim.getCurrency(), "USD");
+        claim.setBaseCurrency("USD");
+        claim.setExchangeRate(rate);
+        claim.setFxRateDate(LocalDateTime.now());
+        if (claim.getInvoiceIds().isEmpty()) {
+            claim.setClaimedAmountBase(toBase(claim.getClaimedAmount(), rate));
+        } else {
+            claim.setClaimedAmountBase(aggregateInvoiceBaseAmounts(claim));
+        }
+    }
+
+    private BigDecimal aggregateInvoiceBaseAmounts(Claim claim) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (UUID invoiceId : claim.getInvoiceIds()) {
+            Invoice invoice = invoiceService.getEntityById(invoiceId);
+            if (invoice.getBaseTotalAmount() != null) {
+                total = total.add(invoice.getBaseTotalAmount());
+            }
+        }
+        return total;
+    }
+
+    private static BigDecimal toBase(BigDecimal amount, BigDecimal rate) {
+        if (amount == null) {
+            return null;
+        }
+        return amount.multiply(rate).setScale(2, RoundingMode.HALF_UP);
+    }
+    
     private Page<Claim> findScoped(Pageable pageable) {
         AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
         if (user != null && user.roles().contains("PROVIDER_USER")) {
@@ -219,6 +265,14 @@ public class ClaimServiceImpl implements ClaimService {
         List<InvoiceResponse> invoices = claim.getInvoiceIds().stream()
                 .map(invoiceService::getById)
                 .toList();
+        List<Icd11CodeResponse> diagnoses = claim.getDiagnosisIds().stream()
+                .map(this::resolveDiagnosis)
+                .filter(Objects::nonNull)
+                .toList();
+        List<ProcedureResponse> procedures = claim.getProcedureIds().stream()
+                .map(this::resolveProcedure)
+                .filter(Objects::nonNull)
+                .toList();
         return new ClaimResponse(
                 claim.getId(),
                 claim.getPolicyId(),
@@ -230,12 +284,16 @@ public class ClaimServiceImpl implements ClaimService {
                 claim.getInsurerId(),
                 insurer,
                 claim.getClaimedAmount(),
+                claim.getCurrency(),
+                claim.getClaimedAmountBase(),
+                claim.getExchangeRate(),
+                claim.getBaseCurrency(),
+                claim.getFxRateDate(),
                 claim.getApprovedAmount(),
                 claim.getDescription(),
                 claim.getPrescription(),
-                Set.copyOf(claim.getDiagnosisIds()),
-                Set.copyOf(claim.getProcedureIds()),
-                Set.copyOf(claim.getInvoiceIds()),
+                diagnoses,
+                procedures,
                 invoices,
                 Set.copyOf(claim.getDocumentIds()),
                 claim.getDecisionReason(),
@@ -243,5 +301,21 @@ public class ClaimServiceImpl implements ClaimService {
                 claim.getCreatedDate(),
                 claim.getUpdatedDate()
         );
+    }
+
+    private Icd11CodeResponse resolveDiagnosis(UUID id) {
+        try {
+            return icd11CodeService.getById(id);
+        } catch (ResourceNotFoundException e) {
+            return null;
+        }
+    }
+
+    private ProcedureResponse resolveProcedure(UUID id) {
+        try {
+            return procedureService.getById(id);
+        } catch (ResourceNotFoundException e) {
+            return null;
+        }
     }
 }

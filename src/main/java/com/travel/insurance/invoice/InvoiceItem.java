@@ -44,5 +44,11 @@ public class InvoiceItem extends BaseEntity {
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
 
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal baseUnitPrice;
+
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal baseAmount;
+
     private LocalDate serviceDate;
 }

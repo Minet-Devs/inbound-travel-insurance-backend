@@ -86,7 +86,7 @@ class ProcedureUploadControllerTest {
     void downloadTemplateReturnsXlsxAttachment() throws Exception {
         when(procedureUploadService.template()).thenReturn(new byte[]{1, 2, 3});
 
-        mockMvc.perform(get("/api/v1/procedures/upload/download"))
+        mockMvc.perform(get("/api/v1/procedures/download"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", XLSX))
                 .andExpect(header().string("Content-Disposition",

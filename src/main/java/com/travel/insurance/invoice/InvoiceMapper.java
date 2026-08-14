@@ -49,6 +49,10 @@ public class InvoiceMapper {
                 invoice.getIssueDate(),
                 invoice.getCurrency(),
                 invoice.getTotalAmount(),
+                invoice.getExchangeRate(),
+                invoice.getBaseCurrency(),
+                invoice.getBaseTotalAmount(),
+                invoice.getFxRateDate(),
                 items,
                 invoice.getCreatedDate(),
                 invoice.getUpdatedDate()
@@ -76,6 +80,8 @@ public class InvoiceMapper {
                 item.getQuantity(),
                 item.getUnitPrice(),
                 item.getAmount(),
+                item.getBaseUnitPrice(),
+                item.getBaseAmount(),
                 item.getServiceDate()
         );
     }

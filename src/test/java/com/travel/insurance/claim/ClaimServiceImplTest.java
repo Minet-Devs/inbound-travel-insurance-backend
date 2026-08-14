@@ -7,6 +7,9 @@ import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
+import com.travel.insurance.common.service.CurrencyConversionService;
+import com.travel.insurance.icd11.Icd11CodeService;
+import com.travel.insurance.icd11.dto.Icd11CodeResponse;
 import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
@@ -14,6 +17,8 @@ import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.procedure.ProcedureService;
+import com.travel.insurance.procedure.dto.ProcedureResponse;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -25,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -58,6 +64,15 @@ class ClaimServiceImplTest {
     private InvoiceService invoiceService;
 
     @Mock
+    private Icd11CodeService icd11CodeService;
+
+    @Mock
+    private ProcedureService procedureService;
+
+    @Mock
+    private CurrencyConversionService currencyConversionService;
+
+    @Mock
     private EventPublisher eventPublisher;
 
     private final ClaimMapper claimMapper = new ClaimMapper();
@@ -70,18 +85,28 @@ class ClaimServiceImplTest {
     private UUID insurerId;
     private UUID invoiceId;
     private UUID documentId;
+    private UUID diagnosisId1;
+    private UUID diagnosisId2;
+    private UUID procedureId1;
+
+    private static final BigDecimal KES_TO_USD = new BigDecimal("0.0077");
 
     @BeforeEach
     void setUp() {
         claimService = new ClaimServiceImpl(
                 claimRepository, claimMapper, policyService, benefitService,
-                visitorService, insurerService, invoiceService, eventPublisher);
+                visitorService, insurerService, invoiceService,
+                icd11CodeService, procedureService,
+                currencyConversionService, eventPublisher);
         policyId = UUID.randomUUID();
         benefitId = UUID.randomUUID();
         visitorId = UUID.randomUUID();
         insurerId = UUID.randomUUID();
         invoiceId = UUID.randomUUID();
         documentId = UUID.randomUUID();
+        diagnosisId1 = UUID.randomUUID();
+        diagnosisId2 = UUID.randomUUID();
+        procedureId1 = UUID.randomUUID();
     }
 
     private Policy policyCoveredBy(UUID insurerId) {
@@ -102,8 +127,8 @@ class ClaimServiceImplTest {
                 policyId, benefitId, null, null, visitorId,
                 new BigDecimal("50000.00"), "Hospital stay",
                 "Paracetamol 500mg twice daily",
-                Set.of(UUID.randomUUID(), UUID.randomUUID()),
-                Set.of(UUID.randomUUID()),
+                Set.of(diagnosisId1, diagnosisId2),
+                Set.of(procedureId1),
                 Set.of(invoiceId),
                 Set.of(documentId));
     }
@@ -128,7 +153,23 @@ class ClaimServiceImplTest {
 
     private InvoiceResponse invoiceResponse() {
         return new InvoiceResponse(invoiceId, null, "INV-2026-001", null, "KES",
-                new BigDecimal("45000.00"), null, Instant.now(), Instant.now());
+                new BigDecimal("45000.00"), KES_TO_USD, "USD", new BigDecimal("346.50"),
+                LocalDateTime.now(), null, Instant.now(), Instant.now());
+    }
+
+    private Invoice invoiceWithBaseTotal(String baseTotal) {
+        Invoice invoice = new Invoice();
+        invoice.setBaseTotalAmount(new BigDecimal(baseTotal));
+        return invoice;
+    }
+
+    private Icd11CodeResponse icd11Response(UUID id) {
+        return new Icd11CodeResponse(id, "B54", "Malaria", Instant.now(), Instant.now());
+    }
+
+    private ProcedureResponse procedureResponse(UUID id) {
+        return new ProcedureResponse(id, "P-001", "Blood smear",
+                "Malaria microscopy", UUID.randomUUID(), true, null, Instant.now(), Instant.now());
     }
 
     @Test
@@ -137,27 +178,54 @@ class ClaimServiceImplTest {
         when(benefitService.getEntityById(benefitId)).thenReturn(null);
         when(visitorService.getEntityById(visitorId)).thenReturn(visitorOnPolicy());
         when(insurerService.exists(insurerId)).thenReturn(true);
-        when(invoiceService.getEntityById(invoiceId)).thenReturn(new Invoice());
+        when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(visitorService.getById(visitorId)).thenReturn(visitorResponse());
         when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
         when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
+        when(icd11CodeService.getById(diagnosisId1)).thenReturn(icd11Response(diagnosisId1));
+        when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
 
         ClaimResponse response = claimService.create(fullRequest());
 
         assertThat(response.visitorId()).isEqualTo(visitorId);
         assertThat(response.insurerId()).isEqualTo(insurerId);
         assertThat(response.prescription()).isEqualTo("Paracetamol 500mg twice daily");
-        assertThat(response.diagnosisIds()).hasSize(2);
-        assertThat(response.procedureIds()).hasSize(1);
-        assertThat(response.invoiceIds()).containsExactly(invoiceId);
+        assertThat(response.diagnoses()).extracting(Icd11CodeResponse::code).containsExactly("B54");
+        assertThat(response.procedures()).extracting(ProcedureResponse::procedureCode).containsExactly("P-001");
         assertThat(response.documentIds()).containsExactly(documentId);
         assertThat(response.status()).isEqualTo(ClaimStatus.OPEN);
         assertThat(response.visitor().fullName()).isEqualTo("Jane Traveler");
         assertThat(response.insurer().name()).isEqualTo("Jubilee Insurance");
         assertThat(response.invoices()).extracting(InvoiceResponse::invoiceNumber)
                 .containsExactly("INV-2026-001");
+        assertThat(response.claimedAmount()).isEqualByComparingTo("50000.00");
+        assertThat(response.currency()).isEqualTo("KES");
+        assertThat(response.baseCurrency()).isEqualTo("USD");
+        assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
+        assertThat(response.exchangeRate()).isEqualByComparingTo("0.0077");
+        assertThat(response.fxRateDate()).isNotNull();
         verify(claimRepository).save(any(Claim.class));
+    }
+
+    @Test
+    void createConvertsRawClaimedAmountWhenNoInvoicesAttached() {
+        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(benefitService.getEntityById(benefitId)).thenReturn(null);
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+
+        ClaimResponse response = claimService.create(baseRequest());
+
+        assertThat(response.claimedAmount()).isEqualByComparingTo("50000.00");
+        assertThat(response.currency()).isEqualTo("KES");
+        assertThat(response.baseCurrency()).isEqualTo("USD");
+        assertThat(response.claimedAmountBase()).isEqualByComparingTo("385.00");
+        assertThat(response.exchangeRate()).isEqualByComparingTo("0.0077");
+        assertThat(response.fxRateDate()).isNotNull();
     }
 
     @Test
@@ -165,6 +233,7 @@ class ClaimServiceImplTest {
         when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
         when(benefitService.getEntityById(benefitId)).thenReturn(null);
         when(insurerService.exists(insurerId)).thenReturn(true);
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
 
@@ -173,9 +242,9 @@ class ClaimServiceImplTest {
         assertThat(response.visitorId()).isNull();
         assertThat(response.insurerId()).isEqualTo(insurerId);
         assertThat(response.prescription()).isNull();
-        assertThat(response.diagnosisIds()).isEmpty();
-        assertThat(response.procedureIds()).isEmpty();
-        assertThat(response.invoiceIds()).isEmpty();
+        assertThat(response.diagnoses()).isEmpty();
+        assertThat(response.procedures()).isEmpty();
+        assertThat(response.invoices()).isEmpty();
         assertThat(response.documentIds()).isEmpty();
     }
 
@@ -312,14 +381,15 @@ class ClaimServiceImplTest {
     }
 
     @Test
-    void attachInvoiceAttachesToSubmittedClaimAndReturnsPopulatedInvoices() {
+    void attachInvoiceAttachesToOpenClaimAndReturnsPopulatedInvoices() {
         UUID claimId = UUID.randomUUID();
         Claim claim = claimMapper.toEntity(baseRequest());
         claim.setId(claimId);
-        claim.setStatus(ClaimStatus.SUBMITTED);
+        claim.setStatus(ClaimStatus.OPEN);
 
         when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
-        when(invoiceService.getEntityById(invoiceId)).thenReturn(new Invoice());
+        when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
 
@@ -327,29 +397,73 @@ class ClaimServiceImplTest {
 
         assertThat(response.id()).isEqualTo(claimId);
         assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
-        assertThat(response.invoiceIds()).containsExactly(invoiceId);
+        assertThat(response.invoices()).extracting(InvoiceResponse::invoiceNumber)
+                .containsExactly("INV-2026-001");
+        assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
+        verify(claimRepository).save(claim);
+    }
+
+    @Test
+    void attachInvoiceAggregatesBaseAmountsAcrossAllInvoices() {
+        UUID claimId = UUID.randomUUID();
+        UUID secondInvoiceId = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(claimId);
+        claim.setStatus(ClaimStatus.OPEN);
+        claim.getInvoiceIds().add(secondInvoiceId);
+
+        when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
+        when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("100.00"));
+        when(invoiceService.getEntityById(secondInvoiceId)).thenReturn(invoiceWithBaseTotal("250.00"));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
+        when(invoiceService.getById(secondInvoiceId)).thenReturn(invoiceResponse());
+
+        ClaimResponse response = claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId));
+
+        assertThat(response.claimedAmountBase()).isEqualByComparingTo("350.00");
+    }
+
+    @Test
+    void updateRecomputesBaseAmounts() {
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setStatus(ClaimStatus.OPEN);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(benefitService.getEntityById(benefitId)).thenReturn(null);
+        when(visitorService.getEntityById(visitorId)).thenReturn(visitorOnPolicy());
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
+
+        ClaimResponse response = claimService.update(id, fullRequest());
+
+        assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
+        assertThat(response.exchangeRate()).isEqualByComparingTo("0.0077");
         assertThat(response.invoices()).extracting(InvoiceResponse::invoiceNumber)
                 .containsExactly("INV-2026-001");
         verify(claimRepository).save(claim);
     }
 
     @Test
-    void attachInvoiceAttachesToUnderReviewClaim() {
+    void attachInvoiceRejectsUnderReviewClaim() {
         UUID claimId = UUID.randomUUID();
         Claim claim = claimMapper.toEntity(baseRequest());
         claim.setId(claimId);
         claim.setStatus(ClaimStatus.UNDER_REVIEW);
 
         when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
-        when(invoiceService.getEntityById(invoiceId)).thenReturn(new Invoice());
-        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
 
-        ClaimResponse response = claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId));
-
-        assertThat(response.id()).isEqualTo(claimId);
-        assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
-        assertThat(response.invoiceIds()).contains(invoiceId);
+        assertThatThrownBy(() -> claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Claim is not open for attaching invoices: UNDER_REVIEW");
+        verify(claimRepository, never()).save(any());
     }
 
     @Test
@@ -363,7 +477,7 @@ class ClaimServiceImplTest {
 
         assertThatThrownBy(() -> claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId)))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Claim is not open for updates: APPROVED");
+                .hasMessageContaining("Claim is not open for attaching invoices: APPROVED");
         verify(claimRepository, never()).save(any());
     }
 
@@ -382,7 +496,7 @@ class ClaimServiceImplTest {
         UUID claimId = UUID.randomUUID();
         Claim claim = claimMapper.toEntity(baseRequest());
         claim.setId(claimId);
-        claim.setStatus(ClaimStatus.SUBMITTED);
+        claim.setStatus(ClaimStatus.OPEN);
 
         when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
         when(invoiceService.getEntityById(invoiceId))
