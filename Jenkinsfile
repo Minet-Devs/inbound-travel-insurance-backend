@@ -85,6 +85,26 @@ pipeline {
             }
         }
 
+        stage('Test') {
+            agent {
+                docker {
+                    image 'maven:3.9.9-eclipse-temurin-21'
+                    args '-v $HOME/.m2:/root/.m2'
+                    reuseNode true
+                }
+            }
+            steps {
+                script {
+                    sh 'mvn test'
+                }
+            }
+            post {
+                always {
+                    junit testResults: '**/target/surefire-reports/*.xml', allowEmptyResults: true
+                }
+            }
+        }
+
         stage('Build Docker Images') {
             steps {
                 script {
