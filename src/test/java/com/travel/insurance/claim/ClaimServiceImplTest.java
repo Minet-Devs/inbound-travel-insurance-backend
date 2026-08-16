@@ -185,6 +185,7 @@ class ClaimServiceImplTest {
         when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
         when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
         when(icd11CodeService.getById(diagnosisId1)).thenReturn(icd11Response(diagnosisId1));
+        when(icd11CodeService.getById(diagnosisId2)).thenReturn(icd11Response(diagnosisId2));
         when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
 
         ClaimResponse response = claimService.create(fullRequest());
@@ -192,7 +193,7 @@ class ClaimServiceImplTest {
         assertThat(response.visitorId()).isEqualTo(visitorId);
         assertThat(response.insurerId()).isEqualTo(insurerId);
         assertThat(response.prescription()).isEqualTo("Paracetamol 500mg twice daily");
-        assertThat(response.diagnoses()).extracting(Icd11CodeResponse::code).containsExactly("B54");
+        assertThat(response.diagnoses()).extracting(Icd11CodeResponse::code).containsExactly("B54", "B54");
         assertThat(response.procedures()).extracting(ProcedureResponse::procedureCode).containsExactly("P-001");
         assertThat(response.documentIds()).containsExactly(documentId);
         assertThat(response.status()).isEqualTo(ClaimStatus.OPEN);
