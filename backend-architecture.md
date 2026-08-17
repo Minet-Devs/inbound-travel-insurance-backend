@@ -299,6 +299,19 @@ com.travel.insurance/
 │       └── MedicalServiceImportResult.java  # totalRows, departmentsCreated,
 │                                            # servicesInserted, servicesSkipped
 │
+├── 📁 report/                               # Feature: Claim receipts & provider reports
+│   ├── ReportController.java                # /api/v1/reports — claim receipt + provider report
+│   ├── ReportService.java                   # Interface
+│   ├── ReportServiceImpl.java               # PDF (Thymeleaf + openhtmltopdf), Excel (POI),
+│   │                                       # JSON paginated provider report
+│   └── 📁 dto/
+│       ├── ClaimReceiptResponse.java        # Full claim breakdown for receipt PDF
+│       ├── ClaimInvoiceGroup.java           # Invoice with nested line items
+│       ├── ClaimLineItem.java               # Service name, department, qty, price, amount
+│       ├── ProviderClaimReportRow.java      # Per-row for provider report
+│       ├── ProviderClaimReportSummary.java  # Aggregate totals + status counts
+│       └── ProviderClaimReportResponse.java # Wraps summary + paginated rows
+│
 ├── 📁 memberstatement/                     # Feature: Member Statement Report
 │   ├── MemberStatementController.java      # /api/v1/member-statements
 │   ├── MemberStatementService.java         # Interface
@@ -734,6 +747,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Procedure Upload  | `/api/v1/procedures/uploads`  | `procedure_uploads`, `procedure_upload_rows` |
 | Department        | `/api/v1/departments`         | `departments`       |
 | Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
+| Reports           | `/api/v1/reports`             | (reads from existing tables) |
 | Member Statement  | `/api/v1/member-statements`   | — (computed, see [Member Statement Report](#member-statement-report)) |
 
 ## Policy Tokenization (Quota Management)
@@ -897,6 +911,61 @@ emails them a personalized policy certificate as a PDF attachment:
   every reference insurer hardcodes it too).
 - No "document sent" tracking column exists — a resend on re-activation is
   desired behavior, not a defect.
+
+## Claims Reports
+
+The `report` feature provides claim receipts and service-provider claims
+reports in PDF, Excel, and JSON formats. It has **no new tables** — all data
+is assembled from existing claim, invoice, visitor, benefit, and provider
+entities through their respective service interfaces.
+
+### Claim Receipt (PDF)
+
+A per-claim itemized receipt available as PDF or JSON. Emphasis on submitted
+claims since they carry invoice information and line items.
+
+- **Endpoints**: `GET /api/v1/reports/claims/{claimId}` (JSON),
+  `GET /api/v1/reports/claims/{claimId}/pdf` (PDF download)
+- **Content**: claimant details (name, passport, nationality, travel dates),
+  benefit name, service provider name, diagnoses, procedures, and a
+  consolidated invoices table with service name, department, quantity, unit
+  price, and amount — all in KES. Claim ID (UUID) and FX conversion details
+  are deliberately omitted from the receipt.
+- **Rendering**: Thymeleaf template (`templates/report/claim-receipt.html`)
+  to HTML, then HTML to PDF via `openhtmltopdf` — the same pipeline as the
+  policy certificate. Table-based layout with absolute `pt` units for
+  renderer compatibility.
+- **Assembly**: `ReportServiceImpl` resolves display names through
+  cross-feature services: `BenefitService.namesByIds`,
+  `ServiceProviderService.getById`, `Icd11CodeService.getById`,
+  `ProcedureService.getById`, `MedicalServiceService.getById` (for service
+  name and department name). Missing references are silently skipped or
+  shown as "Unknown".
+
+### Service Provider Claims Report
+
+A summary report of all claims for a given service provider, available as
+paginated JSON (for UI tables), PDF, or Excel.
+
+- **Endpoints**:
+  - `GET /api/v1/reports/service-providers/{providerId}/claims` —
+    paginated JSON with optional `status`, `dateFrom`, `dateTo` query params
+  - `GET /api/v1/reports/service-providers/{providerId}/claims/pdf` —
+    full report as PDF
+  - `GET /api/v1/reports/service-providers/{providerId}/claims/excel` —
+    full report as XLSX (single Claims sheet)
+- **Summary**: total claims, total claimed amount (KES), total approved
+  amount (KES). Aggregate queries use `COALESCE(:param, column)` for
+  optional filters to avoid PostgreSQL type-inference errors with nullable
+  JPQL parameters.
+- **Claims table**: status, date, visitor name, benefit name, claimed
+  amount, approved amount. No claim ID (UUID) column.
+- **Excel**: Apache POI, single Claims sheet with styled headers and
+  currency formatting. No separate summary sheet.
+- **PDF**: A4 landscape, summary bar at top, claims table below. No
+  status/count breakdown table, no footer.
+- **Access**: all authenticated roles (USER, ADMIN, AGENT, PROVIDER_USER,
+  INSURER_USER).
 
 ## Member Statement Report
 
