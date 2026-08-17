@@ -67,4 +67,23 @@ public class FieldEncryptionService {
             throw new IllegalStateException("Failed to decrypt field value", e);
         }
     }
+
+    /**
+     * Best-effort probe for {@link EncryptionBackfillRunner}: attempts a decrypt and
+     * reports whether the value already looks like our ciphertext format, so a
+     * pre-existing plaintext column can be told apart from an already-encrypted one
+     * without a separate "migrated" marker. A random plaintext value succeeding this
+     * probe is a GCM auth-tag forgery, i.e. cryptographically negligible.
+     */
+    public boolean isEncrypted(String value) {
+        if (value == null || value.isEmpty()) {
+            return true;
+        }
+        try {
+            decrypt(value);
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
 }

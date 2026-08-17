@@ -1,8 +1,15 @@
 -- Widen visitor PII/medical columns to text to accommodate AES-256-GCM
 -- ciphertext (see common/crypto), and add a deterministic HMAC blind index
--- for passport-number lookups/uniqueness, since randomized ciphertext can
--- no longer be searched or uniquely constrained directly. No data migration
--- is needed: no environment holds real visitor data yet.
+-- column for passport-number lookups/uniqueness, since randomized
+-- ciphertext can no longer be searched or uniquely constrained directly.
+--
+-- passport_number_hash is added NULLABLE and un-indexed here on purpose:
+-- environments with pre-existing visitor rows have plaintext data that
+-- must be backfilled (encrypted + hashed) by EncryptionBackfillRunner
+-- (see common/crypto) before the NOT NULL constraint and unique index can
+-- be added safely. See backend-architecture.md "Security" for the
+-- deployment runbook. A follow-up migration adds the NOT NULL + unique
+-- index once backfill is confirmed complete.
 
 alter table visitors
     alter column full_name type text,
@@ -18,8 +25,4 @@ alter table visitors
 
 drop index if exists uq_visitors_passport_number;
 
-alter table visitors add column passport_number_hash varchar(64) not null;
-
-create unique index uq_visitors_passport_number_hash
-    on visitors (passport_number_hash)
-    where deleted = false;
+alter table visitors add column passport_number_hash varchar(64);

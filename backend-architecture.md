@@ -999,6 +999,29 @@ paginated JSON (for UI tables), PDF, or Excel.
     requires re-encrypting all existing ciphertext; rotating
     `APP_ENCRYPTION_BLIND_INDEX_KEY` requires rehashing every stored
     `passportNumberHash`. Both are out of scope for v1.
+  - **Deploying to an environment with pre-existing plaintext data:**
+    `V202608171753__visitor_encryption_columns.sql` adds
+    `passport_number_hash` as nullable and un-indexed on purpose — an
+    environment with existing visitor rows can't satisfy a `NOT NULL`
+    constraint on a brand-new column in one step, and the new code's
+    `@Convert` converters would fail decrypting old plaintext on first
+    read. Roll out in two stages:
+    1. Deploy with `APP_ENCRYPTION_BACKFILL_ENABLED=true` for exactly one
+       run. `EncryptionBackfillRunner` (`common/crypto`) reads existing
+       plaintext via raw JDBC (bypassing JPA, since the converters assume
+       ciphertext), encrypts it, and computes `passport_number_hash` for
+       rows still missing it. It's idempotent (columns that already
+       decrypt successfully are left alone), so it's safe to re-run if
+       interrupted. Set the flag back to `false` afterward.
+    2. Once backfill is confirmed complete (no `NULL`
+       `passport_number_hash` among live rows, no duplicate hashes), ship
+       a follow-up migration adding `alter table visitors alter column
+       passport_number_hash set not null` and the
+       `uq_visitors_passport_number_hash` unique index (see the dropped
+       `uq_visitors_passport_number` index it replaces).
+    A fresh environment with no pre-existing data can skip the backfill
+    step entirely — the hash is always populated at write time by
+    `VisitorServiceImpl`.
 
 ## Database Connection Pool (HikariCP)
 

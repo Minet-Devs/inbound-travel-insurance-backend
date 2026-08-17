@@ -70,4 +70,24 @@ class FieldEncryptionServiceTest {
         assertThatThrownBy(() -> fieldEncryptionService.decrypt(tampered))
                 .isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void isEncryptedRecognizesOwnCiphertext() {
+        String ciphertext = fieldEncryptionService.encrypt("P1234567");
+
+        assertThat(fieldEncryptionService.isEncrypted(ciphertext)).isTrue();
+    }
+
+    @Test
+    void isEncryptedReturnsFalseForPlaintext() {
+        assertThat(fieldEncryptionService.isEncrypted("P1234567")).isFalse();
+        assertThat(fieldEncryptionService.isEncrypted("jane.traveler@example.com")).isFalse();
+        assertThat(fieldEncryptionService.isEncrypted("not-base64-!!!")).isFalse();
+    }
+
+    @Test
+    void isEncryptedReturnsTrueForNullOrEmpty() {
+        assertThat(fieldEncryptionService.isEncrypted(null)).isTrue();
+        assertThat(fieldEncryptionService.isEncrypted("")).isTrue();
+    }
 }
