@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <style>
+        @page { size: A4 landscape; margin: 1cm; }
+        * { box-sizing: border-box; }
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 8.5pt; color: #1a1a1a; margin: 0; padding: 0; }
+        .report { border: 1.5pt solid #0b6b3a; padding: 12pt; }
+        .header { text-align: center; border-bottom: 1pt solid #0b6b3a; padding-bottom: 6pt; margin-bottom: 8pt; }
+        .header h1 { margin: 0; font-size: 14pt; color: #0b6b3a; }
+        .header h2 { margin: 2pt 0 0 0; font-size: 9pt; color: #555; font-weight: normal; }
+        .summary { width: 100%; border-collapse: collapse; margin-bottom: 8pt; font-size: 8pt; }
+        .summary td { padding: 3pt 5pt; border: 0.5pt solid #ccc; }
+        .summary .label { background: #f5f5f5; color: #555; width: 22%; font-weight: bold; }
+        .summary .value { font-weight: bold; }
+        table.claims-table { width: 100%; border-collapse: collapse; font-size: 8pt; }
+        table.claims-table th { background: #0b6b3a; color: #fff; padding: 3pt 4pt; text-align: left; font-weight: bold; }
+        table.claims-table td { padding: 3pt 4pt; border-bottom: 0.5pt solid #ddd; }
+        table.claims-table .num { text-align: right; }
+        table.claims-table tr:nth-child(even) { background: #f9f9f9; }
+    </style>
+</head>
+<body>
+<div class="report">
+    <div class="header">
+        <h1>SERVICE PROVIDER CLAIMS REPORT</h1>
+        <h2 th:text="'Generated: ' + ${generatedDate}"></h2>
+    </div>
+
+    <table class="summary">
+        <tr>
+            <td class="label">Total Claims</td>
+            <td class="value" th:text="${report.summary.totalClaims}"></td>
+            <td class="label">Total Claimed (KES)</td>
+            <td class="value" th:text="${#numbers.formatDecimal(report.summary.totalClaimedAmount, 1, 2)}"></td>
+            <td class="label">Total Approved (KES)</td>
+            <td class="value" th:text="${#numbers.formatDecimal(report.summary.totalApprovedAmount, 1, 2)}"></td>
+        </tr>
+    </table>
+
+    <table class="claims-table">
+        <thead>
+            <tr>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Visitor</th>
+                <th>Benefit</th>
+                <th class="num">Claimed (KES)</th>
+                <th class="num">Approved (KES)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr th:each="claim : ${report.claims}">
+                <td th:text="${claim.status}"></td>
+                <td th:text="${claim.createdDate != null ? #temporals.format(claim.createdDate, 'dd MMM yyyy') : 'N/A'}"></td>
+                <td th:text="${claim.visitorName}"></td>
+                <td th:text="${claim.benefitName}"></td>
+                <td class="num" th:text="${claim.claimedAmount != null ? #numbers.formatDecimal(claim.claimedAmount, 1, 2) : '-'}"></td>
+                <td class="num" th:text="${claim.approvedAmount != null ? #numbers.formatDecimal(claim.approvedAmount, 1, 2) : '-'}"></td>
+            </tr>
+            <tr th:if="${#lists.isEmpty(report.claims)}">
+                <td colspan="6" style="text-align:center; color:#999; padding: 10pt;">No claims found for the selected filters.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <style>
+        @page { size: A4; margin: 1.2cm; }
+        * { box-sizing: border-box; }
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #1a1a1a; margin: 0; padding: 0; }
+        .receipt { border: 1.5pt solid #0b6b3a; padding: 14pt; }
+        .header { text-align: center; border-bottom: 1pt solid #0b6b3a; padding-bottom: 8pt; margin-bottom: 10pt; }
+        .header h1 { margin: 0; font-size: 14pt; color: #0b6b3a; }
+        .header h2 { margin: 2pt 0 0 0; font-size: 10pt; color: #555; font-weight: normal; }
+        .meta { width: 100%; border-collapse: collapse; margin-bottom: 10pt; }
+        .meta td { padding: 3pt 6pt; font-size: 8.5pt; vertical-align: top; }
+        .meta .label { color: #666; width: 30%; }
+        .meta .value { font-weight: bold; }
+        .section-header { background: #0b6b3a; color: #fff; font-weight: bold; font-size: 9pt; padding: 4pt 6pt; margin-top: 10pt; margin-bottom: 0; }
+        .section-content { border: 0.5pt solid #ccc; border-top: none; padding: 6pt; margin-bottom: 6pt; }
+        .fields { width: 100%; border-collapse: collapse; }
+        .fields td { padding: 2pt 6pt; font-size: 8.5pt; vertical-align: top; }
+        .fields .label { color: #666; width: 32%; }
+        table.invoice-table { width: 100%; border-collapse: collapse; margin-bottom: 4pt; font-size: 8pt; }
+        table.invoice-table th { background: #0b6b3a; color: #fff; padding: 3pt 4pt; text-align: left; font-weight: bold; }
+        table.invoice-table td { padding: 3pt 4pt; border-bottom: 0.5pt solid #ddd; }
+        table.invoice-table .num { text-align: right; }
+        .invoice-header { font-weight: bold; font-size: 8.5pt; padding: 3pt 0; border-bottom: 1pt solid #0b6b3a; margin-top: 6pt; margin-bottom: 2pt; }
+        .totals-row td { font-weight: bold; border-top: 1pt solid #0b6b3a; padding-top: 4pt; }
+        .tag { display: inline-block; background: #e8f5e9; color: #0b6b3a; padding: 1pt 5pt; font-size: 7.5pt; border-radius: 2pt; margin: 1pt 2pt; }
+        .footer { text-align: center; font-size: 7pt; color: #999; border-top: 0.5pt solid #ccc; padding-top: 6pt; margin-top: 12pt; }
+    </style>
+</head>
+<body>
+<div class="receipt">
+    <div class="header">
+        <h1>CLAIM RECEIPT</h1>
+        <h2>Travel Medical Insurance</h2>
+    </div>
+
+    <table class="meta">
+        <tr>
+            <td class="label">Status</td>
+            <td class="value" th:text="${receipt.status}"></td>
+            <td class="label">Date Created</td>
+            <td class="value" th:text="${#temporals.format(receipt.createdDate, 'dd MMM yyyy HH:mm')}"></td>
+        </tr>
+        <tr>
+            <td class="label">Generated</td>
+            <td class="value" th:text="${generatedDate}"></td>
+        </tr>
+    </table>
+
+    <div class="section-header">CLAIMANT DETAILS</div>
+    <div class="section-content">
+        <table class="fields">
+            <tr>
+                <td class="label">Full Name</td>
+                <td th:text="${receipt.visitorName}"></td>
+                <td class="label">Passport Number</td>
+                <td th:text="${receipt.passportNumber}"></td>
+            </tr>
+            <tr>
+                <td class="label">Date of Birth</td>
+                <td th:text="${receipt.dateOfBirth != null ? #temporals.format(receipt.dateOfBirth, 'dd MMMM yyyy') : 'N/A'}"></td>
+                <td class="label">Nationality</td>
+                <td th:text="${receipt.nationality}"></td>
+            </tr>
+            <tr>
+                <td class="label">Date In</td>
+                <td th:text="${receipt.dateIn != null ? #temporals.format(receipt.dateIn, 'dd MMM yyyy') : 'N/A'}"></td>
+                <td class="label">Date Out</td>
+                <td th:text="${receipt.dateOut != null ? #temporals.format(receipt.dateOut, 'dd MMM yyyy') : 'N/A'}"></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section-header">BENEFIT &amp; SERVICE PROVIDER</div>
+    <div class="section-content">
+        <table class="fields">
+            <tr>
+                <td class="label">Benefit Name</td>
+                <td th:text="${receipt.benefitName}"></td>
+                <td class="label">Service Provider</td>
+                <td th:text="${receipt.providerName}"></td>
+            </tr>
+        </table>
+    </div>
+
+    <div th:if="${not #lists.isEmpty(receipt.diagnoses)}">
+        <div class="section-header">DIAGNOSES</div>
+        <div class="section-content">
+            <span th:each="diag : ${receipt.diagnoses}" class="tag" th:text="${diag}"></span>
+        </div>
+    </div>
+
+    <div th:if="${not #lists.isEmpty(receipt.procedures)}">
+        <div class="section-header">PROCEDURES</div>
+        <div class="section-content">
+            <span th:each="proc : ${receipt.procedures}" class="tag" th:text="${proc}"></span>
+        </div>
+    </div>
+
+    <div th:if="${not #lists.isEmpty(receipt.invoices)}">
+        <div class="section-header">INVOICES &amp; LINE ITEMS</div>
+        <div class="section-content" style="padding: 0;">
+            <table class="invoice-table">
+                <thead>
+                    <tr>
+                        <th style="width:16%;">Invoice #</th>
+                        <th style="width:10%;">Date</th>
+                        <th style="width:28%;">Service</th>
+                        <th style="width:16%;">Department</th>
+                        <th class="num" style="width:8%;">Qty</th>
+                        <th class="num" style="width:11%;">Unit Price</th>
+                        <th class="num" style="width:11%;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <th:block th:each="invoice : ${receipt.invoices}">
+                        <tr th:each="item, itemStat : ${invoice.items}">
+                            <td th:if="${itemStat.first}" th:rowspan="${#lists.size(invoice.items)}"
+                                th:text="${invoice.invoiceNumber}"></td>
+                            <td th:if="${itemStat.first}" th:rowspan="${#lists.size(invoice.items)}"
+                                th:text="${invoice.issueDate != null ? #temporals.format(invoice.issueDate, 'dd MMM') : ''}"></td>
+                            <td th:text="${item.serviceName}"></td>
+                            <td th:text="${item.departmentName}"></td>
+                            <td class="num" th:text="${#numbers.formatDecimal(item.quantity, 1, 2)}"></td>
+                            <td class="num" th:text="${#numbers.formatDecimal(item.unitPrice, 1, 2)}"></td>
+                            <td class="num" th:text="${#numbers.formatDecimal(item.amount, 1, 2)}"></td>
+                        </tr>
+                    </th:block>
+                    <tr class="totals-row">
+                        <td colspan="6" style="text-align:right;">TOTAL AMOUNT (KES)</td>
+                        <td class="num" th:text="${#numbers.formatDecimal(receipt.totalAmount, 1, 2)}"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div th:if="${#lists.isEmpty(receipt.invoices)}">
+        <div class="section-header">INVOICES &amp; LINE ITEMS</div>
+        <div class="section-content" style="text-align: center; color: #999;">No invoices attached.</div>
+    </div>
+
+    <div class="footer">
+        <p>System Generated &#x2014; No wet signature required</p>
+    </div>
+</div>
+</body>
+</html>
