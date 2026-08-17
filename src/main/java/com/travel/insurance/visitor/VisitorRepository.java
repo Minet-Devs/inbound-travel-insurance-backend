@@ -10,9 +10,9 @@ public interface VisitorRepository extends JpaRepository<Visitor, UUID> {
 
     List<Visitor> findAllByPolicyId(UUID policyId);
 
-    Optional<Visitor> findByPassportNumberIgnoreCase(String passportNumber);
+    Optional<Visitor> findByPassportNumberHash(String passportNumberHash);
 
-    boolean existsByPassportNumberIgnoreCase(String passportNumber);
+    boolean existsByPassportNumberHash(String passportNumberHash);
 
-    boolean existsByPassportNumberIgnoreCaseAndIdNot(String passportNumber, UUID id);
+    boolean existsByPassportNumberHashAndIdNot(String passportNumberHash, UUID id);
 }

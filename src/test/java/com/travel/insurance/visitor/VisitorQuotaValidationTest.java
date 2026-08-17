@@ -1,5 +1,6 @@
 package com.travel.insurance.visitor;
 
+import com.travel.insurance.common.crypto.BlindIndexService;
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
@@ -22,6 +23,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,6 +48,9 @@ class VisitorQuotaValidationTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private BlindIndexService blindIndexService;
+
     private final VisitorMapper visitorMapper = new VisitorMapper();
 
     private VisitorServiceImpl visitorService;
@@ -57,7 +63,8 @@ class VisitorQuotaValidationTest {
     @BeforeEach
     void setUp() {
         visitorService = new VisitorServiceImpl(
-                visitorRepository, visitorMapper, policyService, insurerRepository, eventPublisher);
+                visitorRepository, visitorMapper, policyService, insurerRepository, eventPublisher, blindIndexService);
+        lenient().when(blindIndexService.hmac(anyString())).thenAnswer(invocation -> "HASH:" + invocation.getArgument(0));
 
         visitorRequest = new VisitorRequest(
                 policyId,
@@ -105,7 +112,7 @@ class VisitorQuotaValidationTest {
 
         when(policyService.getEntityById(policyId)).thenReturn(policy);
         when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer));
-        when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(false);
+        when(visitorRepository.existsByPassportNumberHash("HASH:P1234567")).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act: Create visitor
@@ -172,7 +179,7 @@ class VisitorQuotaValidationTest {
 
         when(policyService.getEntityById(policyId)).thenReturn(policy);
         when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer));
-        when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(false);
+        when(visitorRepository.existsByPassportNumberHash("HASH:P1234567")).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act: Create visitor
@@ -215,7 +222,7 @@ class VisitorQuotaValidationTest {
         when(policyService.getEntityById(policyId)).thenReturn(policy);
         when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer1));
         when(insurerRepository.findById(insurerId2)).thenReturn(Optional.of(insurer2));
-        when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(false);
+        when(visitorRepository.existsByPassportNumberHash("HASH:P1234567")).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act: Create visitor
@@ -258,7 +265,7 @@ class VisitorQuotaValidationTest {
         assertThatThrownBy(() -> visitorService.create(visitorRequest))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("no available policies");
-        verify(visitorRepository, never()).existsByPassportNumberIgnoreCase(any());
+        verify(visitorRepository, never()).existsByPassportNumberHash(any());
     }
 
     @Test
@@ -269,7 +276,7 @@ class VisitorQuotaValidationTest {
 
         when(policyService.getEntityById(policyId)).thenReturn(policy);
         when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer));
-        when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(false);
+        when(visitorRepository.existsByPassportNumberHash("HASH:P1234567")).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act: Create visitor

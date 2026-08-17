@@ -1,7 +1,9 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.common.crypto.EncryptedStringConverter;
 import com.travel.insurance.common.domain.BaseEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -45,10 +47,12 @@ public class Preauthorization extends BaseEntity {
     @Column(precision = 15, scale = 2)
     private BigDecimal approvedAmount;
 
-    @Column(length = 1000)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(columnDefinition = "text")
     private String serviceDescription;
 
-    @Column(length = 1000)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(columnDefinition = "text")
     private String decisionReason;
 
     @Enumerated(EnumType.STRING)

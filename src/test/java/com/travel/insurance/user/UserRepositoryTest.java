@@ -1,5 +1,9 @@
 package com.travel.insurance.user;
 
+import com.travel.insurance.common.crypto.EncryptedLocalDateConverter;
+import com.travel.insurance.common.crypto.EncryptedStringConverter;
+import com.travel.insurance.common.crypto.EnvEncryptionKeyProvider;
+import com.travel.insurance.common.crypto.FieldEncryptionService;
 import com.travel.insurance.config.JpaAuditingConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +17,8 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
-@Import(JpaAuditingConfig.class)
+@Import({JpaAuditingConfig.class, EnvEncryptionKeyProvider.class, FieldEncryptionService.class,
+        EncryptedStringConverter.class, EncryptedLocalDateConverter.class})
 @ActiveProfiles("test")
 class UserRepositoryTest {
 

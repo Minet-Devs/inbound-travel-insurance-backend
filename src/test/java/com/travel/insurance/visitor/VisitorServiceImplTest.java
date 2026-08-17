@@ -1,5 +1,6 @@
 package com.travel.insurance.visitor;
 
+import com.travel.insurance.common.crypto.BlindIndexService;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
@@ -23,6 +24,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,6 +45,9 @@ class VisitorServiceImplTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private BlindIndexService blindIndexService;
+
     private final VisitorMapper visitorMapper = new VisitorMapper();
 
     private VisitorServiceImpl visitorService;
@@ -49,10 +55,16 @@ class VisitorServiceImplTest {
     private UUID policyId;
     private VisitorRequest request;
 
+    private static String hashOf(String passportNumber) {
+        return "HASH:" + passportNumber;
+    }
+
     @BeforeEach
     void setUp() {
         visitorService = new VisitorServiceImpl(
-                visitorRepository, visitorMapper, policyService, insurerRepository, eventPublisher);
+                visitorRepository, visitorMapper, policyService, insurerRepository, eventPublisher, blindIndexService);
+        lenient().when(blindIndexService.hmac(anyString()))
+                .thenAnswer(invocation -> hashOf(invocation.getArgument(0)));
         policyId = UUID.randomUUID();
         request = new VisitorRequest(
                 policyId,
@@ -83,7 +95,7 @@ class VisitorServiceImplTest {
     @Test
     void createSavesWhenPolicyFreeAndPassportUnique() {
         when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
-        when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(false);
+        when(visitorRepository.existsByPassportNumberHash(hashOf("P1234567"))).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         VisitorResponse response = visitorService.create(request);
@@ -98,7 +110,7 @@ class VisitorServiceImplTest {
     @Test
     void createAllowsSecondVisitorOnSamePolicy() {
         when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
-        when(visitorRepository.existsByPassportNumberIgnoreCase("P7654321")).thenReturn(false);
+        when(visitorRepository.existsByPassportNumberHash(hashOf("P7654321"))).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         VisitorRequest secondVisitor = new VisitorRequest(
@@ -129,7 +141,7 @@ class VisitorServiceImplTest {
     @Test
     void createRejectsDuplicatePassportNumber() {
         when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
-        when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(true);
+        when(visitorRepository.existsByPassportNumberHash(hashOf("P1234567"))).thenReturn(true);
 
         assertThatThrownBy(() -> visitorService.create(request))
                 .isInstanceOf(IllegalStateException.class)
@@ -159,7 +171,7 @@ class VisitorServiceImplTest {
     @Test
     void createAcceptsShortestBoundaryForSingleEntryUpTo30Days() {
         when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS));
-        when(visitorRepository.existsByPassportNumberIgnoreCase("P1234567")).thenReturn(false);
+        when(visitorRepository.existsByPassportNumberHash(hashOf("P1234567"))).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         VisitorRequest thirtyDays = requestWithTravelPeriod(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 30));
@@ -209,7 +221,7 @@ class VisitorServiceImplTest {
     @Test
     void getByPassportNumberReturnsVisitorKyc() {
         Visitor existing = visitorMapper.toEntity(request);
-        when(visitorRepository.findByPassportNumberIgnoreCase("P1234567"))
+        when(visitorRepository.findByPassportNumberHash(hashOf("P1234567")))
                 .thenReturn(Optional.of(existing));
 
         VisitorResponse response = visitorService.getByPassportNumber("P1234567");
@@ -221,7 +233,7 @@ class VisitorServiceImplTest {
 
     @Test
     void getByPassportNumberThrowsWhenUnknown() {
-        when(visitorRepository.findByPassportNumberIgnoreCase("UNKNOWN"))
+        when(visitorRepository.findByPassportNumberHash(hashOf("UNKNOWN")))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> visitorService.getByPassportNumber("UNKNOWN"))
@@ -235,7 +247,7 @@ class VisitorServiceImplTest {
         Visitor existing = visitorMapper.toEntity(request);
         when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
         when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
-        when(visitorRepository.existsByPassportNumberIgnoreCaseAndIdNot("P1234567", id)).thenReturn(true);
+        when(visitorRepository.existsByPassportNumberHashAndIdNot(hashOf("P1234567"), id)).thenReturn(true);
 
         assertThatThrownBy(() -> visitorService.update(id, request))
                 .isInstanceOf(IllegalStateException.class)
@@ -249,7 +261,7 @@ class VisitorServiceImplTest {
         Visitor existing = visitorMapper.toEntity(request);
         when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
         when(policyService.getEntityById(policyId)).thenReturn(policyOfType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS));
-        when(visitorRepository.existsByPassportNumberIgnoreCaseAndIdNot("P1234567", id)).thenReturn(false);
+        when(visitorRepository.existsByPassportNumberHashAndIdNot(hashOf("P1234567"), id)).thenReturn(false);
 
         VisitorResponse response = visitorService.update(id, request);
 
@@ -304,7 +316,7 @@ class VisitorServiceImplTest {
     void updateVisitorStatusByPassportNumberAppliesAllowedTransitionAndPublishesEvent() {
         Visitor existing = visitorMapper.toEntity(request);
         existing.setVisitorStatus(VisitorStatus.PENDING);
-        when(visitorRepository.findByPassportNumberIgnoreCase("P1234567"))
+        when(visitorRepository.findByPassportNumberHash(hashOf("P1234567")))
                 .thenReturn(Optional.of(existing));
 
         visitorService.updateVisitorStatusByPassportNumber(
@@ -321,7 +333,7 @@ class VisitorServiceImplTest {
     void updateVisitorStatusByPassportNumberRejectsInvalidTransition() {
         Visitor existing = visitorMapper.toEntity(request);
         existing.setVisitorStatus(VisitorStatus.DEACTIVATED);
-        when(visitorRepository.findByPassportNumberIgnoreCase("P1234567"))
+        when(visitorRepository.findByPassportNumberHash(hashOf("P1234567")))
                 .thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> visitorService.updateVisitorStatusByPassportNumber(
@@ -335,7 +347,7 @@ class VisitorServiceImplTest {
 
     @Test
     void updateVisitorStatusByPassportNumberThrowsWhenVisitorUnknown() {
-        when(visitorRepository.findByPassportNumberIgnoreCase("UNKNOWN"))
+        when(visitorRepository.findByPassportNumberHash(hashOf("UNKNOWN")))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> visitorService.updateVisitorStatusByPassportNumber(

@@ -35,6 +35,9 @@ app:
     secret: test-secret-test-secret-test-secret-test-secret
     access-token-ttl-seconds: 900
     refresh-token-ttl-seconds: 604800
+  encryption:
+    data-key: 43N8Uxj6fDOAi6aFWVuSY7QGzY3d/Xq5VYlU6ZvFLD0=
+    blind-index-key: XmBRf7kn4UWbmynelKg1VNzEjvFnqny+FldhsJMkhfU=
   mail:
     from: no-reply@travelinsurance.example
     emergency-assistance:

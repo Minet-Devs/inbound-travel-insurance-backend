@@ -1,7 +1,10 @@
 package com.travel.insurance.visitor;
 
+import com.travel.insurance.common.crypto.EncryptedLocalDateConverter;
+import com.travel.insurance.common.crypto.EncryptedStringConverter;
 import com.travel.insurance.common.domain.BaseEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -27,29 +30,39 @@ public class Visitor extends BaseEntity {
     @Column(nullable = false)
     private UUID policyId;
 
-    @Column(nullable = false)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(nullable = false, columnDefinition = "text")
     private String fullName;
 
-    @Column(nullable = false)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(nullable = false, columnDefinition = "text")
     private String passportNumber;
 
-    @Column(nullable = false)
+    @Column(name = "passport_number_hash", nullable = false, length = 64, unique = true)
+    private String passportNumberHash;
+
+    @Convert(converter = EncryptedLocalDateConverter.class)
+    @Column(nullable = false, columnDefinition = "text")
     private LocalDate dateOfBirth;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Gender gender;
 
-    @Column(nullable = false)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(nullable = false, columnDefinition = "text")
     private String nationality;
 
-    @Column(nullable = false)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(nullable = false, columnDefinition = "text")
     private String address;
 
-    @Column(nullable = false)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(nullable = false, columnDefinition = "text")
     private String email;
 
-    @Column(nullable = false)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(nullable = false, columnDefinition = "text")
     private String phoneNumber;
 
     @Column(nullable = false)
@@ -68,13 +81,19 @@ public class Visitor extends BaseEntity {
     @Column(nullable = false)
     private String facePhotoUrl;
 
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(columnDefinition = "text")
     private String underlyingConditions;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private VisitorStatus visitorStatus = VisitorStatus.ACTIVE;
 
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(columnDefinition = "text")
     private String nextOfKinName;
 
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(columnDefinition = "text")
     private String nextOfKinPhone;
 }

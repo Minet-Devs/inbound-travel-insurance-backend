@@ -1,7 +1,9 @@
 package com.travel.insurance.biometric;
 
+import com.travel.insurance.common.crypto.EncryptedStringConverter;
 import com.travel.insurance.common.domain.BaseEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -21,7 +23,8 @@ import org.hibernate.annotations.SQLRestriction;
 @NoArgsConstructor
 public class BiometricVerification extends BaseEntity {
 
-    @Column(nullable = false, length = 100)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(nullable = false, columnDefinition = "text")
     private String subjectIdNumber;
 
     @Column(nullable = false, length = 50)
@@ -36,7 +39,8 @@ public class BiometricVerification extends BaseEntity {
     @Column(length = 100)
     private String ekycRequestId;
 
-    @Column(length = 4000)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(columnDefinition = "text")
     private String embededToken;
 
     @Column(length = 100)

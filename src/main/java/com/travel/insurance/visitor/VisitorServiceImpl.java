@@ -1,5 +1,6 @@
 package com.travel.insurance.visitor;
 
+import com.travel.insurance.common.crypto.BlindIndexService;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
@@ -30,17 +31,21 @@ public class VisitorServiceImpl implements VisitorService {
     private final PolicyService policyService;
     private final InsurerRepository insurerRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final BlindIndexService blindIndexService;
 
     @Override
     public VisitorResponse create(VisitorRequest request) {
         Policy policy = policyService.getEntityById(request.policyId());
         validateCoverPeriod(policy, request);
         validatePolicyQuota(policy);
-        if (visitorRepository.existsByPassportNumberIgnoreCase(request.passportNumber())) {
+        String passportNumberHash = blindIndexService.hmac(request.passportNumber());
+        if (visitorRepository.existsByPassportNumberHash(passportNumberHash)) {
             throw new IllegalStateException(
                     "Visitor already exists with passport number: " + request.passportNumber());
         }
-        Visitor visitor = visitorRepository.save(visitorMapper.toEntity(request));
+        Visitor visitor = visitorMapper.toEntity(request);
+        visitor.setPassportNumberHash(passportNumberHash);
+        visitor = visitorRepository.save(visitor);
         eventPublisher.publishEvent(new VisitorCreatedEvent(visitor.getId(), visitor.getPolicyId()));
         return visitorMapper.toResponse(visitor);
     }
@@ -62,7 +67,7 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     @Transactional(readOnly = true)
     public VisitorResponse getByPassportNumber(String passportNumber) {
-        return visitorRepository.findByPassportNumberIgnoreCase(passportNumber)
+        return visitorRepository.findByPassportNumberHash(blindIndexService.hmac(passportNumber))
                 .map(visitorMapper::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Visitor not found: " + passportNumber));
@@ -79,11 +84,13 @@ public class VisitorServiceImpl implements VisitorService {
         Visitor visitor = getEntityById(id);
         Policy policy = policyService.getEntityById(request.policyId());
         validateCoverPeriod(policy, request);
-        if (visitorRepository.existsByPassportNumberIgnoreCaseAndIdNot(request.passportNumber(), id)) {
+        String passportNumberHash = blindIndexService.hmac(request.passportNumber());
+        if (visitorRepository.existsByPassportNumberHashAndIdNot(passportNumberHash, id)) {
             throw new IllegalStateException(
                     "Visitor already exists with passport number: " + request.passportNumber());
         }
         visitorMapper.updateEntity(visitor, request);
+        visitor.setPassportNumberHash(passportNumberHash);
         return visitorMapper.toResponse(visitor);
     }
 
@@ -104,7 +111,7 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     @Transactional(readOnly = true)
     public Visitor getEntityByPassportNumber(String passportNumber) {
-        return visitorRepository.findByPassportNumberIgnoreCase(passportNumber)
+        return visitorRepository.findByPassportNumberHash(blindIndexService.hmac(passportNumber))
                 .orElseThrow(() -> new ResourceNotFoundException("Visitor", passportNumber));
     }
 

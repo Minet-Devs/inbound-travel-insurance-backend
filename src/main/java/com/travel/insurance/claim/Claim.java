@@ -1,8 +1,10 @@
 package com.travel.insurance.claim;
 
+import com.travel.insurance.common.crypto.EncryptedStringConverter;
 import com.travel.insurance.common.domain.BaseEntity;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -64,10 +66,12 @@ public class Claim extends BaseEntity {
     @Column(precision = 15, scale = 2)
     private BigDecimal approvedAmount;
 
-    @Column(length = 1000)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(columnDefinition = "text")
     private String description;
 
-    @Column(length = 2000)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(columnDefinition = "text")
     private String prescription;
 
     @ElementCollection
@@ -90,7 +94,8 @@ public class Claim extends BaseEntity {
     @Column(name = "document_id")
     private Set<UUID> documentIds = new HashSet<>();
 
-    @Column(length = 1000)
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(columnDefinition = "text")
     private String decisionReason;
 
     @Enumerated(EnumType.STRING)

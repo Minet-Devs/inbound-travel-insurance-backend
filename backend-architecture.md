@@ -960,6 +960,45 @@ paginated JSON (for UI tables), PDF, or Excel.
   `auth` feature).
 - Passwords are hashed with BCrypt (`PasswordEncoder` bean in
   `SecurityConfig`).
+- **Field-level encryption at rest (`common/crypto`):** sensitive PII and
+  medical columns are encrypted with AES-256-GCM via JPA
+  `AttributeConverter`s (`EncryptedStringConverter`,
+  `EncryptedLocalDateConverter`), applied with `@Convert` on the entity
+  fields listed below. Encryption is transparent below the service layer —
+  entities expose plaintext getters/setters; only the stored column holds
+  ciphertext (base64 of IV || ciphertext || GCM tag, fresh random IV per
+  write).
+  - `visitor.Visitor`: `fullName`, `passportNumber`, `dateOfBirth`,
+    `nationality`, `address`, `email`, `phoneNumber`,
+    `underlyingConditions`, `nextOfKinName`, `nextOfKinPhone`.
+  - `biometric.BiometricVerification`: `subjectIdNumber`, `embededToken`.
+  - `claim.Claim`: `description`, `prescription`, `decisionReason`.
+  - `preauthorization.Preauthorization`: `serviceDescription`,
+    `decisionReason`.
+  - Excluded: `Visitor.facePhotoUrl` (a pointer to externally-stored image,
+    not sensitive payload) and `User.email`/`phoneNumber` (auth principal,
+    queried on every login — encrypting it would need its own blind index
+    and touches the security-critical login path).
+  - **Passport-number lookups:** randomized AES-GCM ciphertext can't be
+    searched or uniquely constrained by SQL, but `Visitor.passportNumber`
+    is looked up (`VisitorRepository.findByPassportNumberHash` /
+    `existsByPassportNumberHash*`) and DB-unique among live rows. A second,
+    deterministic column — `passportNumberHash`, an HMAC-SHA256 "blind
+    index" computed by `BlindIndexService` over the trimmed/uppercased
+    passport number — is stored alongside the encrypted value and used for
+    all lookup/uniqueness checks instead. `VisitorServiceImpl` computes and
+    sets it on every create/update.
+  - **Keys:** `APP_ENCRYPTION_KEY` (AES data key) and
+    `APP_ENCRYPTION_BLIND_INDEX_KEY` (HMAC key) are separate base64-encoded
+    256-bit secrets supplied via env vars (`app.encryption.*` in
+    `application.yml`), never committed. Key retrieval goes through
+    `EncryptionKeyProvider`, an interface `EnvEncryptionKeyProvider`
+    implements today — swap in a KMS/Vault-backed implementation later
+    without touching entities or converters.
+  - **Rotation (not yet implemented):** rotating `APP_ENCRYPTION_KEY`
+    requires re-encrypting all existing ciphertext; rotating
+    `APP_ENCRYPTION_BLIND_INDEX_KEY` requires rehashing every stored
+    `passportNumberHash`. Both are out of scope for v1.
 
 ## Database Connection Pool (HikariCP)
 
