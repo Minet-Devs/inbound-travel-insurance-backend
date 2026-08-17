@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -44,6 +46,15 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Transactional(readOnly = true)
     public InvoiceResponse getById(UUID id) {
         return toResponse(getEntityById(id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InvoiceResponse> getByIds(Collection<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return invoiceRepository.findAllById(ids).stream().map(this::toResponse).toList();
     }
 
     @Override
