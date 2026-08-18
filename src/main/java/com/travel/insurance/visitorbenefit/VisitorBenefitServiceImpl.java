@@ -82,8 +82,7 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
                     "Benefit already assigned to this visitor: " + request.benefitId());
         }
         applyRequest(visitorBenefit, request, benefit, visitor);
-        return visitorBenefitMapper.toResponse(
-                visitorBenefit, benefit.getBenefitName(), utilizedAmountFor(visitorBenefit));
+        return visitorBenefitMapper.toResponse(visitorBenefit, benefit.getBenefitName(), utilizedAmountFor(visitorBenefit));
     }
 
     @Override
