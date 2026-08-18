@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -47,9 +49,10 @@ class InsurerControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     private final UUID insurerId = UUID.randomUUID();
+    private final UUID policyId = UUID.randomUUID();
 
     private InsurerResponse sampleResponse() {
-        return new InsurerResponse(insurerId, "Acme Insurance", "contact@acme.example",
+        return new InsurerResponse(insurerId, policyId, "Acme Insurance", "contact@acme.example",
                 null, null, "https://cdn.example/acme.png", 42L, 42L, Instant.now(), Instant.now());
     }
 
@@ -96,6 +99,17 @@ class InsurerControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation failed"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listReturnsInsurersWithPolicyId() throws Exception {
+        when(insurerService.list(any(Pageable.class))).thenReturn(new PageImpl<>(List.of(sampleResponse())));
+
+        mockMvc.perform(get("/api/v1/insurers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(insurerId.toString()))
+                .andExpect(jsonPath("$.content[0].policyId").value(policyId.toString()));
     }
 
     @Test

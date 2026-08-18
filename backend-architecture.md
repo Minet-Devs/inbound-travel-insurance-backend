@@ -375,21 +375,26 @@ Policy
   every policy carries the whole catalog. `PolicyController` fetches it once
   via `BenefitService.listAll()` and attaches it to each policy. Create/update
   return plain `PolicyResponse` rows without benefits.
+- Since a policy backs exactly one insurer (`Policy.insurerId`), `InsurerResponse`
+  (returned by `POST/GET/PUT /api/v1/insurers` and the paged `GET
+  /api/v1/insurers`) carries a `policyId` field alongside the insurer's own
+  fields — resolved via `PolicyService.findPolicyIdByInsurerId`
+  (`PolicyRepository.findFirstByInsurerId`). `InsurerServiceImpl` depends on
+  `PolicyService` for this, injected with `@Lazy` to avoid a circular bean
+  dependency with `PolicyServiceImpl`'s existing dependency on `InsurerService`
+  (`InsurerService.exists()` during policy validation).
 - `GET /api/v1/insurers/detailed` returns every insurer as
-  `InsurerDetailResponse` (`InsurerResponse` + `policies`), each embedding
-  the policies backed by that insurer — `Policy.insurerIds` is a many-valued
-  element collection, so an insurer's policies are found via
-  `PolicyService.listByInsurerId` (`PolicyRepository.findAllByInsurerIdsContains`,
-  unpaged), not a direct FK lookup. This is deliberately an **additional**
-  endpoint, not a change to the existing `GET /api/v1/insurers`/`GET
-  /api/v1/insurers/{id}` — unlike `PolicyDetailResponse` and
-  `VisitorDetailResponse`, which replaced their plain counterparts on the
-  existing routes, insurer callers that only need the flat shape are
-  unaffected. `InsurerController` composes the response itself from
-  `InsurerService` + `PolicyService` (controller-level fan-in, same as
-  `VisitorController.toDetail()`) — `InsurerServiceImpl` does not depend on
-  `PolicyService`, avoiding a cycle with `PolicyServiceImpl`'s existing
-  dependency on `InsurerService`.
+  `InsurerDetailResponse` (`InsurerResponse` + `policies`), additionally
+  embedding the full list of policies backed by that insurer via
+  `PolicyService.listByInsurerId` (`PolicyRepository.findAllByInsurerId`,
+  unpaged) — in practice at most one, since the relationship is one-to-one,
+  but the method stays list-shaped for forward compatibility. This is
+  deliberately an **additional** endpoint, not a change to the existing `GET
+  /api/v1/insurers`/`GET /api/v1/insurers/{id}` shape — unlike
+  `PolicyDetailResponse` and `VisitorDetailResponse`, which replaced their
+  plain counterparts on the existing routes. `InsurerController` composes the
+  detailed response itself from `InsurerService` + `PolicyService`
+  (controller-level fan-in, same as `VisitorController.toDetail()`).
 - **Benefit** is a standalone **global catalog** entry: a `benefitName` (free
   text) and a `limitAmount` (limit of cover). It is no longer scoped to a
   policy — there is no `policyId` or fixed `BenefitType` enum. The catalog is
