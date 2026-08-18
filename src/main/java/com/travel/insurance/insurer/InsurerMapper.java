@@ -5,6 +5,8 @@ import com.travel.insurance.insurer.dto.InsurerRequest;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 public class InsurerMapper {
 
@@ -23,9 +25,10 @@ public class InsurerMapper {
         insurer.setPolicyToken(request.policyToken());
     }
 
-    public InsurerResponse toResponse(Insurer insurer) {
+    public InsurerResponse toResponse(Insurer insurer, UUID policyId) {
         return new InsurerResponse(
                 insurer.getId(),
+                policyId,
                 insurer.getName(),
                 insurer.getContactEmail(),
                 insurer.getContactPhone(),

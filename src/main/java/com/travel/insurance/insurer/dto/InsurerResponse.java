@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record InsurerResponse(
         UUID id,
+        UUID policyId,
         String name,
         String contactEmail,
         String contactPhone,

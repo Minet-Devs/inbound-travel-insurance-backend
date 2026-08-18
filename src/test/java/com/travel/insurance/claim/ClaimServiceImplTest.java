@@ -148,7 +148,7 @@ class ClaimServiceImplTest {
     }
 
     private InsurerResponse insurerResponse() {
-        return new InsurerResponse(insurerId, "Jubilee Insurance", null, null, null, null,
+        return new InsurerResponse(insurerId, policyId, "Jubilee Insurance", null, null, null, null,
                 null, null, Instant.now(), Instant.now());
     }
 

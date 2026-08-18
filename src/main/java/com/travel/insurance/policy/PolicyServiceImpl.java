@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -60,6 +61,12 @@ public class PolicyServiceImpl implements PolicyService {
         return policyRepository.findAllByInsurerId(insurerId).stream()
                 .map(policyMapper::toResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findPolicyIdByInsurerId(UUID insurerId) {
+        return policyRepository.findFirstByInsurerId(insurerId).map(Policy::getId);
     }
 
     @Override

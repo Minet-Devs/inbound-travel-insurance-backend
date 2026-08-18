@@ -3,7 +3,8 @@ package com.travel.insurance.insurer;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.insurer.dto.InsurerRequest;
 import com.travel.insurance.insurer.dto.InsurerResponse;
-import lombok.RequiredArgsConstructor;
+import com.travel.insurance.policy.PolicyService;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -13,44 +14,56 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class InsurerServiceImpl implements InsurerService {
 
     private final InsurerRepository insurerRepository;
     private final InsurerMapper insurerMapper;
+    private final PolicyService policyService;
+
+    public InsurerServiceImpl(InsurerRepository insurerRepository, InsurerMapper insurerMapper,
+                               @Lazy PolicyService policyService) {
+        this.insurerRepository = insurerRepository;
+        this.insurerMapper = insurerMapper;
+        this.policyService = policyService;
+    }
 
     @Override
     public InsurerResponse create(InsurerRequest request) {
         if (insurerRepository.existsByName(request.name())) {
             throw new IllegalStateException("Insurer already exists: " + request.name());
         }
-        return insurerMapper.toResponse(insurerRepository.save(insurerMapper.toEntity(request)));
+        return toResponse(insurerRepository.save(insurerMapper.toEntity(request)));
     }
 
     @Override
     @Transactional(readOnly = true)
     public InsurerResponse getById(UUID id) {
-        return insurerMapper.toResponse(getEntity(id));
+        return toResponse(getEntity(id));
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<InsurerResponse> list(Pageable pageable) {
-        return insurerRepository.findAll(pageable).map(insurerMapper::toResponse);
+        return insurerRepository.findAll(pageable).map(this::toResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<InsurerResponse> listAll() {
-        return insurerRepository.findAll().stream().map(insurerMapper::toResponse).toList();
+        return insurerRepository.findAll().stream().map(this::toResponse).toList();
     }
 
     @Override
     public InsurerResponse update(UUID id, InsurerRequest request) {
         Insurer insurer = getEntity(id);
         insurerMapper.updateEntity(insurer, request);
-        return insurerMapper.toResponse(insurerRepository.save(insurer));
+        return toResponse(insurerRepository.save(insurer));
+    }
+
+    private InsurerResponse toResponse(Insurer insurer) {
+        UUID policyId = policyService.findPolicyIdByInsurerId(insurer.getId()).orElse(null);
+        return insurerMapper.toResponse(insurer, policyId);
     }
 
     @Override
