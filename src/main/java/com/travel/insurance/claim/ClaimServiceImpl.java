@@ -121,6 +121,14 @@ public class ClaimServiceImpl implements ClaimService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<ClaimResponse> listByVisitor(UUID visitorId) {
+        return claimRepository.findAllByVisitorId(visitorId).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Override
     public ClaimResponse decide(UUID id, ClaimDecisionRequest request) {
         Claim claim = getEntity(id);
         if (!OPEN_STATUSES.contains(claim.getStatus())) {

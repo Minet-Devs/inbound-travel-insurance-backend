@@ -1,10 +1,14 @@
 package com.travel.insurance.common.exception;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,6 +34,25 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().message()).isEqualTo("An unexpected error occurred");
         assertThat(response.getBody().path()).isEqualTo("/widget.js");
+    }
+
+    @Test
+    void typeMismatchIsReportedAsBadRequestNotServerError() throws NoSuchMethodException {
+        MethodParameter parameter = new MethodParameter(
+                GlobalExceptionHandlerTest.class.getDeclaredMethod("dummyEndpoint", LocalDate.class), 0);
+        MethodArgumentTypeMismatchException ex = new MethodArgumentTypeMismatchException(
+                "01-08-2026", LocalDate.class, "fromDate", parameter, new IllegalArgumentException("bad date"));
+
+        ResponseEntity<ApiError> response = handler.handleTypeMismatch(ex, request("/api/v1/member-statements/export"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("Invalid value for parameter 'fromDate': expected LocalDate");
+    }
+
+    @SuppressWarnings("unused")
+    private void dummyEndpoint(LocalDate fromDate) {
     }
 
     @Test

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Member Statement</title>
+    <style>
+        @page { size: A4; margin: 1.4cm; }
+        * { box-sizing: border-box; }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 9.5pt;
+            color: #1a1a1a;
+            margin: 0;
+        }
+        .masthead { font-size: 12pt; font-weight: bold; letter-spacing: 0.5pt; margin-bottom: 10pt; }
+        .meta table { border-collapse: collapse; margin-bottom: 12pt; }
+        .meta td { padding: 1pt 6pt 1pt 0; }
+        .meta td.k { font-weight: bold; }
+        .section-title { font-size: 10.5pt; font-weight: bold; margin: 12pt 0 4pt; }
+        table.data { width: 100%; border-collapse: collapse; margin-bottom: 10pt; }
+        table.data th, table.data td {
+            border: 0.75pt solid #cfcfcf;
+            padding: 4pt 6pt;
+            text-align: left;
+        }
+        table.data th { background: #f2f2f2; font-size: 8.5pt; }
+        table.data td.amount, table.data th.amount { text-align: right; }
+        .empty-row td { text-align: center; color: #666; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="masthead">MINET KENYA INSURANCE BROKERS</div>
+
+    <div class="meta">
+        <table>
+            <tr><td class="k">MEMBER NAME :</td><td th:text="${statement.memberName}">Jane Traveler</td></tr>
+            <tr><td class="k">MEMBER NUMBER :</td><td th:text="${statement.passportNumber}">P1234567</td></tr>
+        </table>
+    </div>
+
+    <div class="section-title">MEMBER STATEMENT</div>
+    <table class="data">
+        <thead>
+        <tr>
+            <th>MEMBERSHIP NUMBER</th>
+            <th>MEMBER NAME</th>
+            <th>TRANSACTION DATE</th>
+            <th>BENEFIT</th>
+            <th class="amount">AMOUNT</th>
+            <th>INVOICE NUMBER</th>
+            <th>SERVICE PROVIDER</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:if="${#lists.isEmpty(statement.transactions)}" class="empty-row">
+            <td colspan="7">No member statement transaction data found</td>
+        </tr>
+        <tr th:each="transaction : ${statement.transactions}">
+            <td th:text="${statement.passportNumber}">P1234567</td>
+            <td th:text="${statement.memberName}">Jane Traveler</td>
+            <td th:text="${transaction.transactionDate}">2026-08-12</td>
+            <td th:text="${transaction.benefitName}">Medical Expenses</td>
+            <td class="amount" th:text="${#numbers.formatDecimal(transaction.amount, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+            <td th:text="${transaction.invoiceNumber}">INV-0001</td>
+            <td th:text="${transaction.serviceProviderName}">Nairobi Hospital</td>
+        </tr>
+        </tbody>
+    </table>
+
+    <div class="section-title" th:text="${statement.memberName} + ' SUMMARY UTILIZATION'">SUMMARY UTILIZATION</div>
+    <table class="data">
+        <thead>
+        <tr>
+            <th>BENEFIT</th>
+            <th class="amount">ALLOCATION</th>
+            <th class="amount">EXPENDITURE</th>
+            <th class="amount">BALANCE</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="benefit : ${statement.benefits}">
+            <td th:text="${benefit.benefitName}">Optical</td>
+            <td class="amount" th:text="${#numbers.formatDecimal(benefit.limitAmount, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+            <td class="amount" th:text="${#numbers.formatDecimal(benefit.utilizedAmount, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+            <td class="amount" th:text="${#numbers.formatDecimal(benefit.balance, 1, 'COMMA', 2, 'POINT')}">0.00</td>
+        </tr>
+        </tbody>
+    </table>
+</body>
+</html>

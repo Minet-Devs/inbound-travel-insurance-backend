@@ -9,7 +9,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -56,6 +59,16 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
     @Transactional(readOnly = true)
     public boolean exists(UUID id) {
         return serviceProviderRepository.existsById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, String> namesByIds(Collection<UUID> serviceProviderIds) {
+        if (serviceProviderIds.isEmpty()) {
+            return Map.of();
+        }
+        return serviceProviderRepository.findAllById(serviceProviderIds).stream()
+                .collect(Collectors.toMap(ServiceProvider::getId, ServiceProvider::getName));
     }
 
     private ServiceProvider getEntity(UUID id) {

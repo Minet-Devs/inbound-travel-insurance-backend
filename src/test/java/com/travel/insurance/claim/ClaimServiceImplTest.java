@@ -31,6 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -325,6 +326,20 @@ class ClaimServiceImplTest {
 
         assertThat(response.id()).isEqualTo(id);
         assertThat(response.status()).isEqualTo(ClaimStatus.SUBMITTED);
+    }
+
+    @Test
+    void listByVisitorReturnsClaimsForThatVisitor() {
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(UUID.randomUUID());
+        claim.setVisitorId(visitorId);
+        when(claimRepository.findAllByVisitorId(visitorId)).thenReturn(List.of(claim));
+        when(visitorService.getById(visitorId)).thenReturn(visitorResponse());
+
+        List<ClaimResponse> responses = claimService.listByVisitor(visitorId);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().visitorId()).isEqualTo(visitorId);
     }
 
     @Test

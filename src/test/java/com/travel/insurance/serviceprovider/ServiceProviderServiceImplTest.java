@@ -9,7 +9,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -117,5 +120,25 @@ class ServiceProviderServiceImplTest {
         when(serviceProviderRepository.existsById(id)).thenReturn(true);
 
         assertThat(serviceProviderService.exists(id)).isTrue();
+    }
+
+    @Test
+    void namesByIdsResolvesNamesInBulk() {
+        UUID id = UUID.randomUUID();
+        ServiceProvider provider = serviceProviderMapper.toEntity(request);
+        provider.setId(id);
+        when(serviceProviderRepository.findAllById(Set.of(id))).thenReturn(List.of(provider));
+
+        Map<UUID, String> names = serviceProviderService.namesByIds(Set.of(id));
+
+        assertThat(names).containsEntry(id, "Nairobi Hospital");
+    }
+
+    @Test
+    void namesByIdsReturnsEmptyMapForEmptyInput() {
+        Map<UUID, String> names = serviceProviderService.namesByIds(Set.of());
+
+        assertThat(names).isEmpty();
+        verify(serviceProviderRepository, never()).findAllById(any());
     }
 }

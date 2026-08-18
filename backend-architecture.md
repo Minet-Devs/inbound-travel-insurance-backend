@@ -24,6 +24,7 @@ summary and the full requirement-vs-codebase gap analysis.
   - [REST Resources](#rest-resources)
   - [Messaging (RabbitMQ)](#messaging-rabbitmq)
   - [Notifications (Policy Document Email)](#notifications-policy-document-email)
+  - [Member Statement Report](#member-statement-report)
   - [API Documentation (Swagger)](#api-documentation-swagger)
   - [Security](#security)
   - [Database Connection Pool (HikariCP)](#database-connection-pool-hikaricp)
@@ -310,6 +311,23 @@ com.travel.insurance/
 │       ├── ProviderClaimReportRow.java      # Per-row for provider report
 │       ├── ProviderClaimReportSummary.java  # Aggregate totals + status counts
 │       └── ProviderClaimReportResponse.java # Wraps summary + paginated rows
+│
+├── 📁 memberstatement/                     # Feature: Member Statement Report
+│   ├── MemberStatementController.java      # /api/v1/member-statements
+│   ├── MemberStatementService.java         # Interface
+│   ├── MemberStatementServiceImpl.java     # Fan-in: VisitorService, VisitorBenefitService,
+│   │                                       # PolicyService, ClaimService, BenefitService,
+│   │                                       # ServiceProviderService
+│   ├── MemberStatementExportType.java      # Enum: PDF, EXCEL
+│   ├── MemberStatementExcelWriter.java     # POI XLSX builder (same plain-cells convention
+│   │                                       # as ProcedureUploadWorkbooks)
+│   ├── MemberStatementPdfRenderer.java     # Thymeleaf → openhtmltopdf, same pipeline as
+│   │                                       # PolicyDocumentRenderer (templates/member-statement.html)
+│   └── 📁 dto/
+│       ├── MemberStatementResponse.java    # memberName/passportNumber/policyNumber +
+│       │                                   # benefits (List<VisitorBenefitResponse>,
+│       │                                   # reused as-is) + transactions
+│       └── MemberStatementTransaction.java # one row per Invoice, not per Claim
 │
 └── TravelInsuranceApplication.java         # @SpringBootApplication entry point
 ```
@@ -699,6 +717,12 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 - All errors are normalized to `ApiError` by `GlobalExceptionHandler`, always
   serialized as `application/json` regardless of the request's negotiated content
   type (so error bodies never fail on non-JSON `Accept`/path extensions).
+  `IllegalStateException` → 409, `ResourceNotFoundException` → 404,
+  `IllegalArgumentException` → 400, `MethodArgumentTypeMismatchException`
+  (a `@RequestParam`/`@PathVariable` that fails to convert — e.g. a
+  non-ISO date, an unparsable UUID, an unknown enum constant) → 400. Without
+  the last of these, a malformed query param falls through to the catch-all
+  `Exception` handler and reports a misleading 500 instead of a 400.
 - Database schema changes ship as Flyway migrations
   (`src/main/resources/db/migration/`); Hibernate `ddl-auto` is never used to
   manage the schema. See [Database Migrations (Flyway)](#database-migrations-flyway)
@@ -724,6 +748,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Department        | `/api/v1/departments`         | `departments`       |
 | Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
 | Reports           | `/api/v1/reports`             | (reads from existing tables) |
+| Member Statement  | `/api/v1/member-statements`   | — (computed, see [Member Statement Report](#member-statement-report)) |
 
 ## Policy Tokenization (Quota Management)
 
@@ -941,6 +966,66 @@ paginated JSON (for UI tables), PDF, or Excel.
   status/count breakdown table, no footer.
 - **Access**: all authenticated roles (USER, ADMIN, AGENT, PROVIDER_USER,
   INSURER_USER).
+
+## Member Statement Report
+
+A per-member report — benefit allocation/utilization/balance plus a
+transaction listing of the member's claims — with two endpoints, both
+resolving the member by `passportNumber` (mirrors the visitor lookup
+convention):
+
+- `GET /api/v1/member-statements?passportNumber=…` → `MemberStatementResponse`
+  (JSON). Returns the member's full, all-time transaction history — no date
+  filtering.
+- `GET /api/v1/member-statements/export?passportNumber=…&fromDate=…&toDate=…&exportType=PDF|EXCEL`
+  → the same statement rendered as a file download (`Content-Disposition:
+  attachment`). `fromDate`/`toDate` are required and scope which
+  **transaction rows** are included; `fromDate` after `toDate` is rejected
+  with `400`.
+
+Composed entirely from existing feature services (`VisitorService`,
+`VisitorBenefitService`, `PolicyService`, `ClaimService`, `BenefitService`,
+`ServiceProviderService`) — the feature has no entity or table of its own.
+
+- **Benefit summary** (`MemberStatementResponse.benefits`) is exactly
+  `VisitorBenefitService.listAllByVisitor(visitorId)` — the same
+  `limitAmount`/`utilizedAmount`/`balance` fields described under
+  [VisitorBenefit](#core-insurance-flow) — reused as-is. It always reflects
+  the member's **all-time** standing: the export's `fromDate`/`toDate` never
+  affects it, only the transaction list below it.
+- **Transactions** (`MemberStatementResponse.transactions`) are built **one
+  row per `Invoice`**, not per `Claim` — a claim can carry several invoices
+  (or none yet, e.g. still `OPEN`), and each invoice already carries its own
+  `issueDate`/`totalAmount`/`invoiceNumber`, which is what the row needs.
+  `transactionDate` = `invoice.issueDate`, `amount` = `invoice.totalAmount`;
+  `benefitName`/`serviceProviderName` are resolved from the invoice's parent
+  claim. A claim with no invoices yet contributes nothing to the transaction
+  list, even though its `claimedAmount` already counts toward the benefit
+  summary's utilization (see [VisitorBenefit](#core-insurance-flow)) — the
+  summary and the transaction list can therefore legitimately disagree on
+  "how much has been spent" until every open claim is invoiced. On export,
+  rows are filtered to `invoice.issueDate` within `[fromDate, toDate]`
+  inclusive; a row with no `issueDate` is excluded whenever a range is
+  applied.
+- `ServiceProviderService.namesByIds(Collection<UUID>)` was added (mirroring
+  `BenefitService.namesByIds`) so provider names resolve in one batched call
+  across a member's claims rather than per-row; `ClaimService.listByVisitor(UUID)`
+  was added the same way, backed by a new `ClaimRepository.findAllByVisitorId`.
+- **Excel export** (`MemberStatementExcelWriter`) builds the workbook with
+  Apache POI using the same plain-cells convention as
+  `ProcedureUploadWorkbooks` (no styling/formulas/auto-sizing) — a header
+  block (member name/number), the transaction table (or a
+  "No member statement transaction data found" row when empty, matching the
+  legacy export this replaces), then the benefit summary table.
+- **PDF export** (`MemberStatementPdfRenderer`) uses the same
+  Thymeleaf-to-openhtmltopdf pipeline as `PolicyDocumentRenderer`
+  (`templates/member-statement.html`), decoupled the same way — the renderer
+  only lays out data it's handed, all fan-in happens in
+  `MemberStatementServiceImpl`.
+- The masthead text "MINET KENYA INSURANCE BROKERS" is a fixed constant in
+  both renderers, not resolved per-insurer — Minet is the broker operating
+  this system for every member regardless of which insurer underwrites their
+  policy, so this is a masthead, not a per-member field.
 
 ## API Documentation (Swagger)
 

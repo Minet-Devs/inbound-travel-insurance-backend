@@ -5,6 +5,8 @@ import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
 public interface ServiceProviderService {
@@ -20,4 +22,6 @@ public interface ServiceProviderService {
     void delete(UUID id);
 
     boolean exists(UUID id);
+
+    Map<UUID, String> namesByIds(Collection<UUID> serviceProviderIds);
 }
