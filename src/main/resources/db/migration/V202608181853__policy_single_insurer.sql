@@ -6,11 +6,13 @@
 alter table policies add column insurer_id uuid;
 
 update policies p
-set insurer_id = (
-    select min(pi.insurer_id)
-    from policy_insurers pi
-    where pi.policy_id = p.id
-);
+set insurer_id = sub.insurer_id
+from (
+    select distinct on (policy_id) policy_id, insurer_id
+    from policy_insurers
+    order by policy_id, insurer_id
+) sub
+where sub.policy_id = p.id;
 
 alter table policies alter column insurer_id set not null;
 
