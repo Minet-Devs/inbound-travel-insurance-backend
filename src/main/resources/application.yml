@@ -98,7 +98,7 @@ springdoc:
     path: /swagger-ui.html
 
 sentry:
-  dsn: https://fac30be7329429f4f51e48ba611dba05@o4511930579943424.ingest.us.sentry.io/4511930644758528
+  dsn: https://c1d61d368f3a90b4370194cf37e13972@o4511931493777408.ingest.us.sentry.io/4511931496726528
   # Add data like request headers and IP for users,
   # see https://docs.sentry.io/platforms/java/guides/spring-boot/data-management/data-collected/ for more info
   send-default-pii: true
