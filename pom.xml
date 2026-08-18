@@ -40,6 +40,11 @@
             <version>7.16.0</version>
         </dependency>
         <dependency>
+            <groupId>io.sentry</groupId>
+            <artifactId>sentry-async-profiler</artifactId>
+            <version>7.16.0</version>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
@@ -190,7 +195,7 @@
                     <!-- for showing output of sentry-cli -->
                     <debugSentryCli>true</debugSentryCli>
 
-                    <org>motiondevs</org>
+                    <org>minet-kenya</org>
 
                     <project>java-spring-boot</project>
 
