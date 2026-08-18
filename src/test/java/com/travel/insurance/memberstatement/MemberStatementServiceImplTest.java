@@ -4,7 +4,6 @@ import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.claim.ClaimService;
 import com.travel.insurance.claim.ClaimStatus;
 import com.travel.insurance.claim.dto.ClaimResponse;
-import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.memberstatement.dto.MemberStatementResponse;
 import com.travel.insurance.memberstatement.dto.MemberStatementTransaction;
 import com.travel.insurance.policy.Policy;
@@ -25,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -96,8 +96,8 @@ class MemberStatementServiceImplTest {
         when(visitorService.getEntityByPassportNumber("P1234567")).thenReturn(visitor);
         when(policyService.getEntityById(policyId)).thenReturn(policy);
         when(visitorBenefitService.listAllByVisitor(any())).thenReturn(List.of());
-        InvoiceResponse invoice = invoice("INV-001", LocalDate.of(2020, 1, 1), new BigDecimal("500.00"));
-        ClaimResponse claim = claim(benefitId, serviceProviderId, List.of(invoice));
+        Instant createdDate = LocalDate.of(2020, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        ClaimResponse claim = claim(benefitId, serviceProviderId, new BigDecimal("500.00"), createdDate);
         when(claimService.listByVisitor(any())).thenReturn(List.of(claim));
         when(benefitService.namesByIds(Set.of(benefitId))).thenReturn(Map.of(benefitId, "Medical Expenses"));
         when(serviceProviderService.namesByIds(Set.of(serviceProviderId)))
@@ -113,7 +113,6 @@ class MemberStatementServiceImplTest {
         assertThat(transaction.transactionDate()).isEqualTo(LocalDate.of(2020, 1, 1));
         assertThat(transaction.benefitName()).isEqualTo("Medical Expenses");
         assertThat(transaction.amount()).isEqualByComparingTo("500.00");
-        assertThat(transaction.invoiceNumber()).isEqualTo("INV-001");
         assertThat(transaction.serviceProviderName()).isEqualTo("Nairobi Hospital");
     }
 
@@ -122,10 +121,11 @@ class MemberStatementServiceImplTest {
         when(visitorService.getEntityByPassportNumber("P1234567")).thenReturn(visitor);
         when(policyService.getEntityById(policyId)).thenReturn(policy);
         when(visitorBenefitService.listAllByVisitor(any())).thenReturn(List.of());
-        InvoiceResponse inRange = invoice("INV-001", LocalDate.of(2026, 6, 15), new BigDecimal("500.00"));
-        InvoiceResponse outOfRange = invoice("INV-002", LocalDate.of(2025, 1, 1), new BigDecimal("100.00"));
-        ClaimResponse claim = claim(benefitId, serviceProviderId, List.of(inRange, outOfRange));
-        when(claimService.listByVisitor(any())).thenReturn(List.of(claim));
+        Instant inRangeDate = LocalDate.of(2026, 6, 15).atStartOfDay(ZoneOffset.UTC).toInstant();
+        Instant outOfRangeDate = LocalDate.of(2025, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant();
+        ClaimResponse inRangeClaim = claim(benefitId, serviceProviderId, new BigDecimal("500.00"), inRangeDate);
+        ClaimResponse outOfRangeClaim = claim(benefitId, serviceProviderId, new BigDecimal("100.00"), outOfRangeDate);
+        when(claimService.listByVisitor(any())).thenReturn(List.of(inRangeClaim, outOfRangeClaim));
         when(benefitService.namesByIds(Set.of(benefitId))).thenReturn(Map.of(benefitId, "Medical Expenses"));
         when(serviceProviderService.namesByIds(Set.of(serviceProviderId)))
                 .thenReturn(Map.of(serviceProviderId, "Nairobi Hospital"));
@@ -138,7 +138,7 @@ class MemberStatementServiceImplTest {
                 org.mockito.ArgumentCaptor.forClass(MemberStatementResponse.class);
         verify(excelWriter).write(captor.capture());
         assertThat(captor.getValue().transactions()).hasSize(1);
-        assertThat(captor.getValue().transactions().getFirst().invoiceNumber()).isEqualTo("INV-001");
+        assertThat(captor.getValue().transactions().getFirst().amount()).isEqualByComparingTo("500.00");
     }
 
     @Test
@@ -170,22 +170,15 @@ class MemberStatementServiceImplTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
-    private ClaimResponse claim(UUID benefitId, UUID serviceProviderId, List<InvoiceResponse> invoices) {
+    private ClaimResponse claim(UUID benefitId, UUID serviceProviderId, BigDecimal claimedAmount, Instant createdDate) {
         return new ClaimResponse(
                 UUID.randomUUID(), policyId, benefitId, serviceProviderId, null,
                 visitorId, null, null, null,
-                new BigDecimal("500.00"), "KES", new BigDecimal("500.00"), BigDecimal.ONE,
+                claimedAmount, "KES", claimedAmount, BigDecimal.ONE,
                 "USD", LocalDateTime.now(), null,
                 "desc", null,
-                List.of(), List.of(), invoices,
+                List.of(), List.of(), List.of(),
                 Set.of(), null, ClaimStatus.SUBMITTED,
-                Instant.now(), Instant.now());
-    }
-
-    private InvoiceResponse invoice(String invoiceNumber, LocalDate issueDate, BigDecimal totalAmount) {
-        return new InvoiceResponse(
-                UUID.randomUUID(), UUID.randomUUID(), invoiceNumber, issueDate,
-                "KES", totalAmount, BigDecimal.ONE, "USD", totalAmount, LocalDateTime.now(),
-                List.of(), Instant.now(), Instant.now());
+                createdDate, createdDate);
     }
 }

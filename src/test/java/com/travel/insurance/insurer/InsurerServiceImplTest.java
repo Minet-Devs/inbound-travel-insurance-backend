@@ -9,6 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -82,6 +83,18 @@ class InsurerServiceImplTest {
 
         assertThatThrownBy(() -> insurerService.getById(id))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void listAllReturnsEveryInsurer() {
+        Insurer insurer = insurerMapper.toEntity(request);
+        insurer.setId(UUID.randomUUID());
+        when(insurerRepository.findAll()).thenReturn(List.of(insurer));
+
+        List<InsurerResponse> responses = insurerService.listAll();
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().name()).isEqualTo("Acme Insurance");
     }
 
     @Test

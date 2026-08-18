@@ -15,6 +15,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -51,6 +52,14 @@ public class PolicyServiceImpl implements PolicyService {
     @Transactional(readOnly = true)
     public Page<PolicyResponse> list(Pageable pageable) {
         return findScoped(pageable).map(policyMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PolicyResponse> listByInsurerId(UUID insurerId) {
+        return policyRepository.findAllByInsurerIdsContains(insurerId).stream()
+                .map(policyMapper::toResponse)
+                .toList();
     }
 
     @Override

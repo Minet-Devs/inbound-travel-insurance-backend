@@ -18,8 +18,7 @@ import java.util.List;
 public class MemberStatementExcelWriter {
 
     private static final String[] TRANSACTION_HEADERS =
-            {"MEMBERSHIP NUMBER", "MEMBER NAME", "TRANSACTION DATE", "BENEFIT", "AMOUNT",
-                    "INVOICE NUMBER", "SERVICE PROVIDER"};
+            {"MEMBERSHIP NUMBER", "MEMBER NAME", "TRANSACTION DATE", "BENEFIT", "AMOUNT", "SERVICE PROVIDER"};
     private static final String[] SUMMARY_HEADERS = {"BENEFIT", "ALLOCATION", "EXPENDITURE", "BALANCE"};
 
     public byte[] write(MemberStatementResponse statement) {
@@ -62,8 +61,7 @@ public class MemberStatementExcelWriter {
                 cell(row, 2, nullSafe(transaction.transactionDate()));
                 cell(row, 3, nullSafe(transaction.benefitName()));
                 row.createCell(4).setCellValue(transaction.amount().doubleValue());
-                cell(row, 5, nullSafe(transaction.invoiceNumber()));
-                cell(row, 6, nullSafe(transaction.serviceProviderName()));
+                cell(row, 5, nullSafe(transaction.serviceProviderName()));
             }
         }
         rowIndex++;
