@@ -32,8 +32,8 @@ public class BiometricVerificationServiceImpl implements BiometricVerificationSe
     private static final String EKYC_REQUEST_MODE = "embeded";
     private static final int EKYC_POOR_QUALITY_RESULT_ATTEMPTS = 3;
     private static final String EKYC_LOCATION_NAME = "13110-Nairobi Hospital";
-    private static final String EKYC_DEVICE_ID = "Test";
-    private static final String EKYC_DEVICE_NAME = "TestDevice";
+    private static final String EKYC_DEVICE_ID = "";
+    private static final String EKYC_DEVICE_NAME = "";
 
     private final BiometricVerificationRepository repository;
     private final BiometricVerificationMapper mapper;
