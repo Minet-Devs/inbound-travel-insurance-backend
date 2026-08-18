@@ -112,7 +112,9 @@ com.travel.insurance/
 │   ├── InsurerMapper.java
 │   └── 📁 dto/
 │       ├── InsurerRequest.java
-│       └── InsurerResponse.java
+│       ├── InsurerResponse.java
+│       └── InsurerDetailResponse.java       # InsurerResponse + embedded policies
+│                                             # (GET /api/v1/insurers/detailed only)
 │
 ├── 📁 serviceprovider/                     # Feature: Service Provider Management
 │   ├── ServiceProviderController.java
@@ -327,7 +329,7 @@ com.travel.insurance/
 │       ├── MemberStatementResponse.java    # memberName/passportNumber/policyNumber +
 │       │                                   # benefits (List<VisitorBenefitResponse>,
 │       │                                   # reused as-is) + transactions
-│       └── MemberStatementTransaction.java # one row per Invoice, not per Claim
+│       └── MemberStatementTransaction.java # one row per Claim (not per Invoice)
 │
 └── TravelInsuranceApplication.java         # @SpringBootApplication entry point
 ```
@@ -373,6 +375,21 @@ Policy
   every policy carries the whole catalog. `PolicyController` fetches it once
   via `BenefitService.listAll()` and attaches it to each policy. Create/update
   return plain `PolicyResponse` rows without benefits.
+- `GET /api/v1/insurers/detailed` returns every insurer as
+  `InsurerDetailResponse` (`InsurerResponse` + `policies`), each embedding
+  the policies backed by that insurer — `Policy.insurerIds` is a many-valued
+  element collection, so an insurer's policies are found via
+  `PolicyService.listByInsurerId` (`PolicyRepository.findAllByInsurerIdsContains`,
+  unpaged), not a direct FK lookup. This is deliberately an **additional**
+  endpoint, not a change to the existing `GET /api/v1/insurers`/`GET
+  /api/v1/insurers/{id}` — unlike `PolicyDetailResponse` and
+  `VisitorDetailResponse`, which replaced their plain counterparts on the
+  existing routes, insurer callers that only need the flat shape are
+  unaffected. `InsurerController` composes the response itself from
+  `InsurerService` + `PolicyService` (controller-level fan-in, same as
+  `VisitorController.toDetail()`) — `InsurerServiceImpl` does not depend on
+  `PolicyService`, avoiding a cycle with `PolicyServiceImpl`'s existing
+  dependency on `InsurerService`.
 - **Benefit** is a standalone **global catalog** entry: a `benefitName` (free
   text) and a `limitAmount` (limit of cover). It is no longer scoped to a
   policy — there is no `policyId` or fixed `BenefitType` enum. The catalog is
@@ -994,19 +1011,20 @@ Composed entirely from existing feature services (`VisitorService`,
   the member's **all-time** standing: the export's `fromDate`/`toDate` never
   affects it, only the transaction list below it.
 - **Transactions** (`MemberStatementResponse.transactions`) are built **one
-  row per `Invoice`**, not per `Claim` — a claim can carry several invoices
-  (or none yet, e.g. still `OPEN`), and each invoice already carries its own
-  `issueDate`/`totalAmount`/`invoiceNumber`, which is what the row needs.
-  `transactionDate` = `invoice.issueDate`, `amount` = `invoice.totalAmount`;
-  `benefitName`/`serviceProviderName` are resolved from the invoice's parent
-  claim. A claim with no invoices yet contributes nothing to the transaction
-  list, even though its `claimedAmount` already counts toward the benefit
-  summary's utilization (see [VisitorBenefit](#core-insurance-flow)) — the
-  summary and the transaction list can therefore legitimately disagree on
-  "how much has been spent" until every open claim is invoiced. On export,
-  rows are filtered to `invoice.issueDate` within `[fromDate, toDate]`
-  inclusive; a row with no `issueDate` is excluded whenever a range is
-  applied.
+  row per `Claim`**, sourced entirely from the claim itself — deliberately
+  not from `Invoice`. `transactionDate` = `claim.createdDate` (converted to
+  `LocalDate` via UTC), `amount` = `claim.claimedAmount`; `benefitName`/
+  `serviceProviderName` are resolved from the claim's `benefitId`/
+  `serviceProviderId`. This means the transaction total always agrees with
+  the benefit summary's `utilizedAmount` — both are sums of
+  `claim.claimedAmount` over the same claims (see
+  [VisitorBenefit](#core-insurance-flow)). Invoices were deliberately left
+  out: `Invoice.claimId` and `Claim.invoiceIds` are two independent links
+  (the latter populated only via `PUT /api/v1/claims/{id}/invoice`, which
+  also flips the claim to `SUBMITTED`) that aren't kept in sync, so an
+  invoice-sourced transaction list could silently miss claims whose invoice
+  was created but never explicitly attached. On export, rows are filtered to
+  `transactionDate` within `[fromDate, toDate]` inclusive.
 - `ServiceProviderService.namesByIds(Collection<UUID>)` was added (mirroring
   `BenefitService.namesByIds`) so provider names resolve in one batched call
   across a member's claims rather than per-row; `ClaimService.listByVisitor(UUID)`
@@ -1016,7 +1034,9 @@ Composed entirely from existing feature services (`VisitorService`,
   `ProcedureUploadWorkbooks` (no styling/formulas/auto-sizing) — a header
   block (member name/number), the transaction table (or a
   "No member statement transaction data found" row when empty, matching the
-  legacy export this replaces), then the benefit summary table.
+  legacy export this replaces), then the benefit summary table. The legacy
+  export's "INVOICE NUMBER" column is dropped — there's no invoice backing a
+  row anymore (see above).
 - **PDF export** (`MemberStatementPdfRenderer`) uses the same
   Thymeleaf-to-openhtmltopdf pipeline as `PolicyDocumentRenderer`
   (`templates/member-statement.html`), decoupled the same way — the renderer

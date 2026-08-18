@@ -104,7 +104,7 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
         Map<UUID, String> namesByIds = benefitService.namesByIds(benefitIds);
         Map<VisitorBenefitKey, BigDecimal> utilizedByKey = utilizedAmountsFor(visitorBenefits);
         return visitorBenefits.stream()
-                .map(visitorBenefit -> visitorBenefitMapper.toResponse(
+                .map(visitorBenefit ->  visitorBenefitMapper.toResponse(
                         visitorBenefit,
                         namesByIds.get(visitorBenefit.getBenefitId()),
                         utilizedByKey.getOrDefault(VisitorBenefitKey.of(visitorBenefit), BigDecimal.ZERO)))

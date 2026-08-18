@@ -47,13 +47,12 @@
             <th>TRANSACTION DATE</th>
             <th>BENEFIT</th>
             <th class="amount">AMOUNT</th>
-            <th>INVOICE NUMBER</th>
             <th>SERVICE PROVIDER</th>
         </tr>
         </thead>
         <tbody>
         <tr th:if="${#lists.isEmpty(statement.transactions)}" class="empty-row">
-            <td colspan="7">No member statement transaction data found</td>
+            <td colspan="6">No member statement transaction data found</td>
         </tr>
         <tr th:each="transaction : ${statement.transactions}">
             <td th:text="${statement.passportNumber}">P1234567</td>
@@ -61,7 +60,6 @@
             <td th:text="${transaction.transactionDate}">2026-08-12</td>
             <td th:text="${transaction.benefitName}">Medical Expenses</td>
             <td class="amount" th:text="${#numbers.formatDecimal(transaction.amount, 1, 'COMMA', 2, 'POINT')}">0.00</td>
-            <td th:text="${transaction.invoiceNumber}">INV-0001</td>
             <td th:text="${transaction.serviceProviderName}">Nairobi Hospital</td>
         </tr>
         </tbody>

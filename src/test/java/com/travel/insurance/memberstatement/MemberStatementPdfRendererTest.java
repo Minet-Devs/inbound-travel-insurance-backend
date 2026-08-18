@@ -46,7 +46,7 @@ class MemberStatementPdfRendererTest {
                 new BigDecimal("19500.00"), VisitorStatus.ACTIVE, Instant.now(), Instant.now());
         MemberStatementTransaction transaction = new MemberStatementTransaction(
                 UUID.randomUUID(), LocalDate.of(2026, 6, 1), UUID.randomUUID(), "Medical Expenses",
-                new BigDecimal("500.00"), "INV-001", UUID.randomUUID(), "Nairobi Hospital");
+                new BigDecimal("500.00"), UUID.randomUUID(), "Nairobi Hospital");
         MemberStatementResponse statement = statementWith(List.of(benefit), List.of(transaction));
 
         String html = renderer.renderHtml(statement);
@@ -54,7 +54,6 @@ class MemberStatementPdfRendererTest {
         assertThat(html).contains("Jane Traveler");
         assertThat(html).contains("P1234567");
         assertThat(html).contains("MINET KENYA INSURANCE BROKERS");
-        assertThat(html).contains("INV-001");
         assertThat(html).contains("Nairobi Hospital");
         assertThat(html).contains("20,000.00");
         assertThat(html).contains("19,500.00");

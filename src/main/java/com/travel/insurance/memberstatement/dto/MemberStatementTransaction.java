@@ -10,7 +10,6 @@ public record MemberStatementTransaction(
         UUID benefitId,
         String benefitName,
         BigDecimal amount,
-        String invoiceNumber,
         UUID serviceProviderId,
         String serviceProviderName
 ) {

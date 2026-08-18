@@ -38,7 +38,7 @@ class MemberStatementExcelWriterTest {
                 new BigDecimal("19500.00"), VisitorStatus.ACTIVE, Instant.now(), Instant.now());
         MemberStatementTransaction transaction = new MemberStatementTransaction(
                 UUID.randomUUID(), LocalDate.of(2026, 6, 1), UUID.randomUUID(), "Medical Expenses",
-                new BigDecimal("500.00"), "INV-001", UUID.randomUUID(), "Nairobi Hospital");
+                new BigDecimal("500.00"), UUID.randomUUID(), "Nairobi Hospital");
         MemberStatementResponse statement = statementWith(List.of(benefit), List.of(transaction));
 
         byte[] bytes = writer.write(statement);
@@ -53,8 +53,7 @@ class MemberStatementExcelWriterTest {
             assertThat(headerRow).isNotNull();
             Row dataRow = sheet.getRow(headerRow.getRowNum() + 1);
             assertThat(cellText(dataRow, 0)).isEqualTo("P1234567");
-            assertThat(cellText(dataRow, 5)).isEqualTo("INV-001");
-            assertThat(cellText(dataRow, 6)).isEqualTo("Nairobi Hospital");
+            assertThat(cellText(dataRow, 5)).isEqualTo("Nairobi Hospital");
             assertThat(dataRow.getCell(4).getNumericCellValue()).isEqualTo(500.00);
 
             Row summaryHeaderRow = findRow(sheet, "BENEFIT");

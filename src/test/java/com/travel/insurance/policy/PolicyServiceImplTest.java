@@ -10,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -90,6 +91,18 @@ class PolicyServiceImplTest {
         policyService.create(request);
 
         verify(eventPublisher).publish(eq("policy.activated"), any());
+    }
+
+    @Test
+    void listByInsurerIdReturnsPoliciesBackedByThatInsurer() {
+        Policy policy = policyMapper.toEntity(requestWithType(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS, null));
+        policy.setId(UUID.randomUUID());
+        when(policyRepository.findAllByInsurerIdsContains(insurerId)).thenReturn(List.of(policy));
+
+        List<PolicyResponse> responses = policyService.listByInsurerId(insurerId);
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.getFirst().insurerIds()).contains(insurerId);
     }
 
     @Test

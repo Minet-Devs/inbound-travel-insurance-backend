@@ -3,7 +3,6 @@ package com.travel.insurance.memberstatement;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.claim.ClaimService;
 import com.travel.insurance.claim.dto.ClaimResponse;
-import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.memberstatement.dto.MemberStatementResponse;
 import com.travel.insurance.memberstatement.dto.MemberStatementTransaction;
 import com.travel.insurance.policy.Policy;
@@ -17,7 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.ArrayList;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -80,30 +79,20 @@ public class MemberStatementServiceImpl implements MemberStatementService {
         Map<UUID, String> benefitNames = benefitService.namesByIds(benefitIds);
         Map<UUID, String> providerNames = serviceProviderService.namesByIds(providerIds);
 
-        List<MemberStatementTransaction> transactions = new ArrayList<>();
-        for (ClaimResponse claim : claims) {
-            for (InvoiceResponse invoice : claim.invoices()) {
-                if (!isWithinRange(invoice.issueDate(), fromDate, toDate)) {
-                    continue;
-                }
-                transactions.add(new MemberStatementTransaction(
-                        claim.id(),
-                        invoice.issueDate(),
-                        claim.benefitId(),
-                        benefitNames.get(claim.benefitId()),
-                        invoice.totalAmount(),
-                        invoice.invoiceNumber(),
-                        claim.serviceProviderId(),
-                        claim.serviceProviderId() != null ? providerNames.get(claim.serviceProviderId()) : null));
-            }
-        }
-        return transactions.stream()
-                .sorted((a, b) -> {
-                    if (a.transactionDate() == null || b.transactionDate() == null) {
-                        return 0;
-                    }
-                    return a.transactionDate().compareTo(b.transactionDate());
+        return claims.stream()
+                .map(claim -> {
+                    LocalDate transactionDate = LocalDate.ofInstant(claim.createdDate(), ZoneOffset.UTC);
+                    return new MemberStatementTransaction(
+                            claim.id(),
+                            transactionDate,
+                            claim.benefitId(),
+                            benefitNames.get(claim.benefitId()),
+                            claim.claimedAmount(),
+                            claim.serviceProviderId(),
+                            claim.serviceProviderId() != null ? providerNames.get(claim.serviceProviderId()) : null);
                 })
+                .filter(transaction -> isWithinRange(transaction.transactionDate(), fromDate, toDate))
+                .sorted((a, b) -> a.transactionDate().compareTo(b.transactionDate()))
                 .toList();
     }
 

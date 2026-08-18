@@ -44,7 +44,7 @@ class MemberStatementControllerTest {
                 List.of(),
                 List.of(new MemberStatementTransaction(
                         UUID.randomUUID(), LocalDate.of(2026, 6, 1), UUID.randomUUID(), "Medical Expenses",
-                        new BigDecimal("500.00"), "INV-001", UUID.randomUUID(), "Nairobi Hospital")));
+                        new BigDecimal("500.00"), UUID.randomUUID(), "Nairobi Hospital")));
     }
 
     @Test
@@ -56,7 +56,7 @@ class MemberStatementControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.memberName").value("Jane Traveler"))
                 .andExpect(jsonPath("$.passportNumber").value("P1234567"))
-                .andExpect(jsonPath("$.transactions[0].invoiceNumber").value("INV-001"));
+                .andExpect(jsonPath("$.transactions[0].serviceProviderName").value("Nairobi Hospital"));
     }
 
     @Test

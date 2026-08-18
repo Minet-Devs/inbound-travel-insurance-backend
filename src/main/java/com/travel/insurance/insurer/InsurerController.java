@@ -1,7 +1,9 @@
 package com.travel.insurance.insurer;
 
+import com.travel.insurance.insurer.dto.InsurerDetailResponse;
 import com.travel.insurance.insurer.dto.InsurerRequest;
 import com.travel.insurance.insurer.dto.InsurerResponse;
+import com.travel.insurance.policy.PolicyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -25,6 +28,7 @@ import java.util.UUID;
 public class InsurerController {
 
     private final InsurerService insurerService;
+    private final PolicyService policyService;
 
     @PostMapping
     public ResponseEntity<InsurerResponse> create(@Valid @RequestBody InsurerRequest request) {
@@ -39,6 +43,14 @@ public class InsurerController {
     @GetMapping
     public ResponseEntity<Page<InsurerResponse>> list(Pageable pageable) {
         return ResponseEntity.ok(insurerService.list(pageable));
+    }
+
+    @GetMapping("/detailed")
+    public ResponseEntity<List<InsurerDetailResponse>> listDetailed() {
+        List<InsurerDetailResponse> insurers = insurerService.listAll().stream()
+                .map(insurer -> InsurerDetailResponse.of(insurer, policyService.listByInsurerId(insurer.id())))
+                .toList();
+        return ResponseEntity.ok(insurers);
     }
 
     @PutMapping("/{id}")

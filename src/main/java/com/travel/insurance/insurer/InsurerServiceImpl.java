@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -37,6 +38,12 @@ public class InsurerServiceImpl implements InsurerService {
     @Transactional(readOnly = true)
     public Page<InsurerResponse> list(Pageable pageable) {
         return insurerRepository.findAll(pageable).map(insurerMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InsurerResponse> listAll() {
+        return insurerRepository.findAll().stream().map(insurerMapper::toResponse).toList();
     }
 
     @Override
