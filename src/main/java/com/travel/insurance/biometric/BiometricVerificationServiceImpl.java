@@ -24,7 +24,7 @@ import java.util.UUID;
 public class BiometricVerificationServiceImpl implements BiometricVerificationService {
 
     private static final String EKYC_REASON = "Medical Care";
-    private static final String EKYC_AGENT_ID_NUMBER = "2792719";
+    private static final String EKYC_AGENT_ID_NUMBER = "27927159";
     private static final String EKYC_AGENT_ID_TYPE = "citizen";
     private static final int EKYC_EXPIRES_IN_SECONDS = 3600;
     private static final String EKYC_SERVICE_ID = "default";

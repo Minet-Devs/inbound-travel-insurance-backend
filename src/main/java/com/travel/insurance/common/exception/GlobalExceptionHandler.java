@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import org.springframework.dao.DataIntegrityViolationException;
+
 import java.util.List;
 
 @RestControllerAdvice
@@ -55,6 +57,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<ApiError> handleConflict(IllegalStateException ex, HttpServletRequest request) {
         return build(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(com.travel.insurance.biometric.client.EkYcClientException.class)
+    public ResponseEntity<ApiError> handleEkYcClient(
+            com.travel.insurance.biometric.client.EkYcClientException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_GATEWAY, "eKYC service error: " + ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleDataIntegrity(
+            DataIntegrityViolationException ex, HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, "A database constraint was violated", request);
     }
 
     @ExceptionHandler(ExchangeRateUnavailableException.class)
