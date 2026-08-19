@@ -17,6 +17,7 @@ import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.preauthorization.PreauthorizationService;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
 import com.travel.insurance.visitor.Visitor;
@@ -76,6 +77,9 @@ class ClaimServiceImplTest {
     @Mock
     private EventPublisher eventPublisher;
 
+    @Mock
+    private PreauthorizationService preauthorizationService;
+
     private final ClaimMapper claimMapper = new ClaimMapper();
 
     private ClaimServiceImpl claimService;
@@ -98,7 +102,7 @@ class ClaimServiceImplTest {
                 claimRepository, claimMapper, policyService, benefitService,
                 visitorService, insurerService, invoiceService,
                 icd11CodeService, procedureService,
-                currencyConversionService, eventPublisher);
+                currencyConversionService, eventPublisher, preauthorizationService);
         policyId = UUID.randomUUID();
         benefitId = UUID.randomUUID();
         visitorId = UUID.randomUUID();
