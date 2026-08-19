@@ -45,7 +45,7 @@ public class SecurityConfig {
                 .exceptionHandling(handling ->
                         handling.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> {
-                    auth.requestMatchers("/api/v1/auth/**", "/error", "/ussd/**").permitAll();
+                    auth.requestMatchers("/api/v1/auth/**", "/error", "/api/v1/ussd/**", "/ussd/**").permitAll();
                     auth.requestMatchers("/api/v1/webhooks/biometric-verification").permitAll();
                     if (!environment.acceptsProfiles(Profiles.of("prod"))) {
                         auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
