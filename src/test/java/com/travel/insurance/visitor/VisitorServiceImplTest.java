@@ -379,18 +379,48 @@ class VisitorServiceImplTest {
     }
 
     @Test
-    void updateEntryExitByPassportNumberSetsTimestamps() {
+    void updateEntryExitByPassportNumberSetsEntryTimestampOnly() {
         Visitor existing = visitorMapper.toEntity(request);
         when(visitorRepository.findByPassportNumberHash(hashOf("P1234567")))
                 .thenReturn(Optional.of(existing));
         Instant entry = Instant.parse("2026-08-01T10:00:00Z");
+
+        VisitorResponse response = visitorService.updateEntryExitByPassportNumber(
+                "P1234567", new VisitorEntryExitUpdate(entry, null));
+
+        assertThat(response.entryTimestamp()).isEqualTo(entry);
+        assertThat(response.exitTimestamp()).isNull();
+    }
+
+    @Test
+    void updateEntryExitByPassportNumberSetsExitTimestampOnly() {
+        Visitor existing = visitorMapper.toEntity(request);
+        existing.setEntryTimestamp(Instant.parse("2026-08-01T10:00:00Z"));
+        when(visitorRepository.findByPassportNumberHash(hashOf("P1234567")))
+                .thenReturn(Optional.of(existing));
         Instant exit = Instant.parse("2026-08-10T10:00:00Z");
 
         VisitorResponse response = visitorService.updateEntryExitByPassportNumber(
-                "P1234567", new VisitorEntryExitUpdate(entry, exit));
+                "P1234567", new VisitorEntryExitUpdate(null, exit));
 
-        assertThat(response.entryTimestamp()).isEqualTo(entry);
+        assertThat(response.entryTimestamp()).isEqualTo(Instant.parse("2026-08-01T10:00:00Z"));
         assertThat(response.exitTimestamp()).isEqualTo(exit);
+    }
+
+    @Test
+    void updateEntryExitByPassportNumberRejectsBothTimestampsProvided() {
+        assertThatThrownBy(() -> visitorService.updateEntryExitByPassportNumber(
+                "P1234567", new VisitorEntryExitUpdate(Instant.now(), Instant.now())))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(visitorRepository, never()).findByPassportNumberHash(anyString());
+    }
+
+    @Test
+    void updateEntryExitByPassportNumberRejectsNeitherTimestampProvided() {
+        assertThatThrownBy(() -> visitorService.updateEntryExitByPassportNumber(
+                "P1234567", new VisitorEntryExitUpdate(null, null)))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(visitorRepository, never()).findByPassportNumberHash(anyString());
     }
 
     @Test
@@ -399,7 +429,7 @@ class VisitorServiceImplTest {
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> visitorService.updateEntryExitByPassportNumber(
-                "UNKNOWN", new VisitorEntryExitUpdate(Instant.now(), Instant.now())))
+                "UNKNOWN", new VisitorEntryExitUpdate(Instant.now(), null)))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
