@@ -5,11 +5,14 @@ import com.travel.insurance.serviceprovider.dto.ServiceProviderRequest;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -69,6 +72,18 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
         }
         return serviceProviderRepository.findAllById(serviceProviderIds).stream()
                 .collect(Collectors.toMap(ServiceProvider::getId, ServiceProvider::getName));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ServiceProviderResponse> searchByName(String name, int limit) {
+        if (name == null || name.isBlank()) {
+            return List.of();
+        }
+        Pageable pageable = PageRequest.of(0, Math.max(1, limit), Sort.by("name").ascending());
+        return serviceProviderRepository.findByNameContainingIgnoreCase(name.trim(), pageable)
+                .map(serviceProviderMapper::toResponse)
+                .getContent();
     }
 
     private ServiceProvider getEntity(UUID id) {
