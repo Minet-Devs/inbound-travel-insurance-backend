@@ -20,6 +20,7 @@ import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.preauthorization.PreauthorizationService;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
 import com.travel.insurance.visitor.Visitor;
@@ -69,6 +70,7 @@ public class ClaimServiceImpl implements ClaimService {
     private final ProcedureService procedureService;
     private final CurrencyConversionService currencyConversionService;
     private final EventPublisher eventPublisher;
+    private final PreauthorizationService preauthorizationService;
 
     @Override
     public ClaimResponse create(ClaimRequest request) {
@@ -78,6 +80,11 @@ public class ClaimServiceImpl implements ClaimService {
         claim.setInsurerId(insurerId);
         applyBaseConversion(claim);
         claim = claimRepository.save(claim);
+
+        if (request.preauthorizationId() != null){
+            attachClaimToPreAuthorization(claim.getId());
+        }
+
         return toResponse(claim);
     }
 
@@ -207,6 +214,17 @@ public class ClaimServiceImpl implements ClaimService {
             request.invoiceIds().forEach(invoiceService::getEntityById);
         }
         return insurerId;
+    }
+
+    private void attachClaimToPreAuthorization(UUID claimId) {
+        if (claimRepository.existsById(claimId)) {
+            Claim  claim = getEntity(claimId);
+
+            if (claim.getPreauthorizationId() != null) {
+                preauthorizationService.markPreAuthorizationConvertedToClaim(claim.getPreauthorizationId());
+            }
+
+        }
     }
 
     private void applyBaseConversion(Claim claim) {

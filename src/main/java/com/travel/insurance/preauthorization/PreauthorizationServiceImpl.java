@@ -119,6 +119,16 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         preauthorizationItemRepository.saveAll(items);
     }
 
+    public void markPreAuthorizationConvertedToClaim(UUID id) {
+        Preauthorization preauthorization = getEntityById(id);
+
+        if (preauthorization != null && preauthorization.getConvertedToClaim().equals(false) && preauthorization.getStatus() == PreauthorizationStatus.APPROVED) {
+            preauthorization.setConvertedToClaim(true);
+
+            preauthorizationRepository.save(preauthorization);
+        }
+    }
+
     private PreauthorizationResponse enrich(Preauthorization preauthorization) {
         Policy policy = policyService.getEntityById(preauthorization.getPolicyId());
         Visitor visitor = preauthorization.getVisitorId() != null

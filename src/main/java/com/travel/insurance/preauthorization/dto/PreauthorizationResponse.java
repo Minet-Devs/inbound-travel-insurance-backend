@@ -31,6 +31,8 @@ public record PreauthorizationResponse(
         Instant updatedDate,
         UUID decidedBy,
         Instant decidedAt,
-        List<PreauthorizationItemResponse> preauthorizationItems
+        List<PreauthorizationItemResponse> preauthorizationItems,
+        Boolean convertedToClaim
+
 ) {
 }
