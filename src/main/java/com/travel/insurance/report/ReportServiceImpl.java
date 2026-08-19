@@ -43,8 +43,6 @@ public class ReportServiceImpl implements ReportService {
 
     private static final DateTimeFormatter LONG_DATE =
             DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale.ENGLISH);
-    private static final DateTimeFormatter SHORT_DATE =
-            DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
 
     private final ClaimRepository claimRepository;
     private final VisitorService visitorService;
