@@ -155,10 +155,26 @@ class VisitorControllerTest {
                         .with(csrf())
                         .param("passportNumber", "P1234567")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"entryTimestamp\":\"2026-08-01T10:00:00Z\","
-                                + "\"exitTimestamp\":\"2026-08-10T10:00:00Z\"}"))
+                        .content("{\"entryTimestamp\":\"2026-08-01T10:00:00Z\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.passportNumber").value("P1234567"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void updateEntryExitByPassportNumberRejectsBothTimestampsProvided() throws Exception {
+        when(visitorService.updateEntryExitByPassportNumber(
+                eq("P1234567"), any(VisitorEntryExitUpdate.class)))
+                .thenThrow(new IllegalArgumentException(
+                        "Exactly one of entryTimestamp or exitTimestamp must be provided"));
+
+        mockMvc.perform(patch("/api/v1/visitors/by-passport/entry-exit")
+                        .with(csrf())
+                        .param("passportNumber", "P1234567")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"entryTimestamp\":\"2026-08-01T10:00:00Z\","
+                                + "\"exitTimestamp\":\"2026-08-10T10:00:00Z\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

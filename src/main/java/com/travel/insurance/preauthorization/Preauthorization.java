@@ -58,4 +58,7 @@ public class Preauthorization extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PreauthorizationStatus status = PreauthorizationStatus.PENDING;
+
+    @Column()
+    private Boolean convertedToClaim = false;
 }

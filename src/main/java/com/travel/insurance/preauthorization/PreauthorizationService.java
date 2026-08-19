@@ -21,4 +21,6 @@ public interface PreauthorizationService {
     void delete(UUID id);
 
     Preauthorization getEntityById(UUID id);
+
+    void markPreAuthorizationConvertedToClaim(UUID id);
 }

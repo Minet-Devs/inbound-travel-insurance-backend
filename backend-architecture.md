@@ -173,8 +173,9 @@ com.travel.insurance/
 │       ├── VisitorRequest.java
 │       ├── VisitorResponse.java
 │       ├── VisitorDetailResponse.java      # KYC + assigned visitor benefits
-│       └── VisitorEntryExitUpdate.java     # entryTimestamp + exitTimestamp,
-│                                           # used by the by-passport entry-exit PATCH
+│       └── VisitorEntryExitUpdate.java     # exactly one of entryTimestamp /
+│                                           # exitTimestamp, used by the
+│                                           # by-passport entry-exit PATCH
 │
 ├── 📁 visitorbenefit/                      # Feature: Benefits assigned to a visitor
 │   ├── VisitorBenefitController.java
@@ -487,9 +488,12 @@ Policy
   onboarding: `paymentReference`, `etaReference` (eTA/authorization
   reference), `portOfEntry`, and `entryTimestamp`/`exitTimestamp` (actual
   border-crossing times, distinct from the declared `dateIn`/`dateOut`
-  cover dates). `entryTimestamp`/`exitTimestamp` are set together via
+  cover dates). `entryTimestamp`/`exitTimestamp` are set independently via
   `PATCH /api/v1/visitors/by-passport/entry-exit?passportNumber=…`, taking
-  a `VisitorEntryExitUpdate` body — this is separate from the general
+  a `VisitorEntryExitUpdate` body with exactly one of `entryTimestamp` or
+  `exitTimestamp` populated — passing both, or neither, is rejected with
+  `IllegalArgumentException` (→ 400), since entry and exit are recorded as
+  separate border events. This endpoint is separate from the general
   `update`/`create` flow since these values are typically recorded later,
   by a border-control integration rather than at KYC onboarding.
   `GET /api/v1/visitors/{id}` and

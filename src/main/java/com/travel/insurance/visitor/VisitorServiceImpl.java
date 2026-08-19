@@ -130,9 +130,18 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     public VisitorResponse updateEntryExitByPassportNumber(String passportNumber,
                                                             VisitorEntryExitUpdate entryExitUpdate) {
+        boolean hasEntry = entryExitUpdate.entryTimestamp() != null;
+        boolean hasExit = entryExitUpdate.exitTimestamp() != null;
+        if (hasEntry == hasExit) {
+            throw new IllegalArgumentException(
+                    "Exactly one of entryTimestamp or exitTimestamp must be provided");
+        }
         Visitor visitor = getEntityByPassportNumber(passportNumber);
-        visitor.setEntryTimestamp(entryExitUpdate.entryTimestamp());
-        visitor.setExitTimestamp(entryExitUpdate.exitTimestamp());
+        if (hasEntry) {
+            visitor.setEntryTimestamp(entryExitUpdate.entryTimestamp());
+        } else {
+            visitor.setExitTimestamp(entryExitUpdate.exitTimestamp());
+        }
         return visitorMapper.toResponse(visitor);
     }
 

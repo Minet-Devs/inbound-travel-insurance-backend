@@ -53,6 +53,7 @@ public class PreauthorizationMapper {
                                                ServiceProviderResponse serviceProvider, UUID medicalServiceId,
                                                String medicalServiceName, List<PreauthorizationItem> items) {
         boolean decided = preauthorization.getStatus() != PreauthorizationStatus.PENDING;
+
         return new PreauthorizationResponse(
                 preauthorization.getId(),
                 preauthorization.getPolicyId(),
@@ -77,7 +78,8 @@ public class PreauthorizationMapper {
                 preauthorization.getUpdatedDate(),
                 decided ? preauthorization.getUpdatedBy() : null,
                 decided ? preauthorization.getUpdatedDate() : null,
-                items.stream().map(this::toItemResponse).toList()
+                items.stream().map(this::toItemResponse).toList(),
+                preauthorization.getConvertedToClaim()
         );
     }
 
