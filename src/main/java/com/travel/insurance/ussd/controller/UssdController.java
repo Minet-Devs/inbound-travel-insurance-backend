@@ -13,7 +13,7 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/ussd")
+@RequestMapping("/api/v1/ussd")
 public class UssdController {
 
     private final UssdSessionManager sessionManager;
