@@ -72,7 +72,7 @@ class UssdControllerTest {
 
         String json = "{\"sessionId\":\"sess-1\",\"msisdn\":\"254700000000\",\"text\":\"1\",\"serviceCode\":\"*384#\"}";
 
-        mockMvc.perform(post("/ussd/handle")
+        mockMvc.perform(post("/api/v1/ussd/handle")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
