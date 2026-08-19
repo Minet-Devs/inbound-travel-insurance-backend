@@ -150,7 +150,7 @@ public class UssdServiceImpl implements UssdService {
         String msisdn = session.getMsisdn();
 
         try {
-            String subject = "Traveller Insurance Feedback";
+            String subject = "Inbound Travel Medical Insurance - Feedback";
             String body = "<p>Feedback received via USSD:</p>"
                     + "<ul>"
                     + "<li><strong>MSISDN:</strong> " + (msisdn != null ? msisdn : "N/A") + "</li>"

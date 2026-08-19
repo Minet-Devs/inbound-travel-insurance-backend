@@ -102,7 +102,7 @@ ussd:
   feedback:
     default-scheme-name: ${USSD_SCHEME_NAME:Inbound Travel Medical Insurance}
     email:
-      to: ${USSD_FEEDBACK_EMAIL_TO:feedback-recipient@travelinsurance.example}
+      to: ${USSD_FEEDBACK_EMAIL_TO:inbound.travel@minet.co.ke}
 
 springdoc:
   swagger-ui:
