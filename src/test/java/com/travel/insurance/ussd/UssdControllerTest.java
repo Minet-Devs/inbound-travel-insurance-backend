@@ -48,7 +48,7 @@ class UssdControllerTest {
                 .thenReturn(new UssdResponse("Welcome to Inbound Travel Medical Insurance.\n1. Find Hospital\n2. Feedback", "CON"));
         when(sessionManager.formatWireText(any())).thenReturn("CON Welcome to Inbound Travel Medical Insurance.\n1. Find Hospital\n2. Feedback");
 
-        mockMvc.perform(post("/ussd/handle")
+        mockMvc.perform(post("/api/v1/ussd/handle")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                         .param("sessionId", "sess-1")
@@ -72,7 +72,7 @@ class UssdControllerTest {
 
         String json = "{\"sessionId\":\"sess-1\",\"msisdn\":\"254700000000\",\"text\":\"1\",\"serviceCode\":\"*384#\"}";
 
-        mockMvc.perform(post("/ussd/handle")
+        mockMvc.perform(post("/api/v1/ussd/handle")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json))
