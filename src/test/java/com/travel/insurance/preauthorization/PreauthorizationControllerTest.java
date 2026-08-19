@@ -56,7 +56,7 @@ class PreauthorizationControllerTest {
                 icd11CodeId, "1A00", "Cholera", benefitId, "Medical Expenses",
                 serviceProviderId, "Aga Khan Hospital", null, null,
                 new BigDecimal("500.00"), null, "X-ray", null, status,
-                Instant.now(), Instant.now(), null, null, List.of());
+                Instant.now(), Instant.now(), null, null, List.of(), false);
     }
 
     @Test
