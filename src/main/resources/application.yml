@@ -55,6 +55,11 @@ spring:
             enable: true
             required: true
 
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
@@ -70,7 +75,7 @@ app:
       # plaintext data, then set back to false. See backend-architecture.md.
       enabled: ${APP_ENCRYPTION_BACKFILL_ENABLED:false}
   mail:
-    from: ${MAIL_FROM:no-reply@travelinsurance.example}
+    from: ${SMTP_USERNAME}
     emergency-assistance:
       phone: ${EMERGENCY_ASSISTANCE_PHONE:}
       email: ${EMERGENCY_ASSISTANCE_EMAIL:}
@@ -92,6 +97,12 @@ procedure:
     max-rows: ${PROCEDURE_UPLOAD_MAX_ROWS:5000}
     batch-size: ${PROCEDURE_UPLOAD_BATCH_SIZE:100}
     max-name-length: ${PROCEDURE_UPLOAD_MAX_NAME_LENGTH:255}
+
+ussd:
+  feedback:
+    default-scheme-name: ${USSD_SCHEME_NAME:Inbound Travel Medical Insurance}
+    email:
+      to: ${USSD_FEEDBACK_EMAIL_TO:inbound.travel@minet.co.ke}
 
 springdoc:
   swagger-ui:

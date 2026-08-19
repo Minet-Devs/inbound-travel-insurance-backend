@@ -141,4 +141,27 @@ class ServiceProviderServiceImplTest {
         assertThat(names).isEmpty();
         verify(serviceProviderRepository, never()).findAllById(any());
     }
+
+    @Test
+    void searchByNameReturnsMatchingProviders() {
+        ServiceProvider provider = serviceProviderMapper.toEntity(request);
+        provider.setId(UUID.randomUUID());
+        org.springframework.data.domain.Page<ServiceProvider> page =
+                new org.springframework.data.domain.PageImpl<>(List.of(provider));
+        when(serviceProviderRepository.findByNameContainingIgnoreCase(org.mockito.ArgumentMatchers.eq("Nairobi"), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(page);
+
+        List<ServiceProviderResponse> results = serviceProviderService.searchByName("Nairobi", 5);
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).name()).isEqualTo("Nairobi Hospital");
+    }
+
+    @Test
+    void searchByNameReturnsEmptyForBlankQuery() {
+        List<ServiceProviderResponse> results = serviceProviderService.searchByName("   ", 5);
+
+        assertThat(results).isEmpty();
+        verify(serviceProviderRepository, never()).findByNameContainingIgnoreCase(any(), any());
+    }
 }
