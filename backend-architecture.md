@@ -335,6 +335,22 @@ com.travel.insurance/
 │       │                                   # reused as-is) + transactions
 │       └── MemberStatementTransaction.java # one row per Claim (not per Invoice)
 │
+├── 📁 ussd/                                # Feature: USSD Gateway & Self-Service
+│   ├── 📁 config/
+│   │   └── RedisConfig.java                # RedisTemplate<String, UssdSession>
+│   ├── 📁 controller/
+│   │   └── UssdController.java             # POST /ussd/handle (form-encoded & JSON)
+│   ├── 📁 domain/
+│   │   └── UssdSession.java                # Redis-backed session state model
+│   ├── 📁 dto/
+│   │   ├── UssdRequest.java                # Gateway request payload
+│   │   └── UssdResponse.java               # CON / END response text
+│   ├── 📁 service/
+│   │   ├── UssdService.java                # Interface
+│   │   └── UssdServiceImpl.java            # State machine (Find Hospital, Feedback)
+│   └── 📁 utils/
+│       └── UssdSessionManager.java         # Redis session TTL (180s) & input tracker
+│
 └── TravelInsuranceApplication.java         # @SpringBootApplication entry point
 ```
 
