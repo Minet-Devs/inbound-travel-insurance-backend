@@ -56,7 +56,8 @@ com.travel.insurance/
 │   ├── JpaAuditingConfig.java              # @EnableJpaAuditing + AuditorAware
 │   ├── OpenApiConfig.java                  # Swagger/OpenAPI metadata
 │   ├── RabbitConfig.java                   # Exchanges, queues, bindings
-│   └── MailProperties.java                 # app.mail.* (from address, emergency-assistance contact)
+│   ├── MailProperties.java                 # app.mail.* (from address, emergency-assistance contact)
+│   └── UssdProperties.java                 # ussd.feedback.* (default-scheme-name, email.to)
 │
 ├── 📁 common/                              # Shared, feature-agnostic code
 │   ├── 📁 domain/

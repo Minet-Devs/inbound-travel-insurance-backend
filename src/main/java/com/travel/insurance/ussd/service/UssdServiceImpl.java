@@ -2,12 +2,12 @@ package com.travel.insurance.ussd.service;
 
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.config.MailProperties;
+import com.travel.insurance.config.UssdProperties;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import com.travel.insurance.ussd.domain.UssdSession;
 import com.travel.insurance.ussd.dto.UssdResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -38,19 +38,16 @@ public class UssdServiceImpl implements UssdService {
     private final EmailService emailService;
     private final MailProperties mailProperties;
     private final ServiceProviderService serviceProviderService;
-    private final String defaultSchemeName;
-    private final String feedbackRecipient;
+    private final UssdProperties ussdProperties;
 
     public UssdServiceImpl(EmailService emailService,
                            MailProperties mailProperties,
                            ServiceProviderService serviceProviderService,
-                           @Value("${ussd.feedback.default-scheme-name:Inbound Travel Medical Insurance}") String defaultSchemeName,
-                           @Value("${ussd.feedback.email.to:inbound.travel@minet.co.ke}") String feedbackRecipient) {
+                           UssdProperties ussdProperties) {
         this.emailService = emailService;
         this.mailProperties = mailProperties;
         this.serviceProviderService = serviceProviderService;
-        this.defaultSchemeName = defaultSchemeName;
-        this.feedbackRecipient = feedbackRecipient;
+        this.ussdProperties = ussdProperties;
     }
 
     @Override
@@ -90,7 +87,7 @@ public class UssdServiceImpl implements UssdService {
 
     private UssdResponse handleInit(UssdSession session, String rawInput) {
         String msisdn = session.getMsisdn();
-        String schemeName = defaultSchemeName;
+        String schemeName = getDefaultSchemeName();
 
         if (msisdn == null || msisdn.isBlank()) {
             log.warn("MSISDN is null/blank in session {} -- showing default menu", session.getSessionId());
@@ -281,7 +278,7 @@ public class UssdServiceImpl implements UssdService {
     }
 
     private String buildMenuText() {
-        return String.format("Welcome to %s.\n1. Find Hospital\n2. Feedback", defaultSchemeName);
+        return String.format("Welcome to %s.\n1. Find Hospital\n2. Feedback", getDefaultSchemeName());
     }
 
     private UssdResponse handleFeedbackMessage(UssdSession session, String rawInput) {
@@ -302,7 +299,7 @@ public class UssdServiceImpl implements UssdService {
                     + "<li><strong>Timestamp:</strong> " + LocalDateTime.now().format(TIMESTAMP_FORMAT) + "</li>"
                     + "</ul>";
 
-            emailService.send(mailProperties.getFrom(), feedbackRecipient, subject, body);
+            emailService.send(mailProperties.getFrom(), getFeedbackRecipient(), subject, body);
         } catch (Exception e) {
             log.error("Failed to send feedback email for session {}: {}", session.getSessionId(), e.getMessage(), e);
         }
@@ -311,6 +308,23 @@ public class UssdServiceImpl implements UssdService {
         Map<String, String> menuMap = buildMenuMap();
         session.setMenuMap(menuMap);
         return new UssdResponse("Feedback submitted. Thank you!", "END");
+    }
+
+    private String getDefaultSchemeName() {
+        if (ussdProperties != null && ussdProperties.getFeedback() != null
+                && ussdProperties.getFeedback().getDefaultSchemeName() != null) {
+            return ussdProperties.getFeedback().getDefaultSchemeName();
+        }
+        return "Inbound Travel Medical Insurance";
+    }
+
+    private String getFeedbackRecipient() {
+        if (ussdProperties != null && ussdProperties.getFeedback() != null
+                && ussdProperties.getFeedback().getEmail() != null
+                && ussdProperties.getFeedback().getEmail().getTo() != null) {
+            return ussdProperties.getFeedback().getEmail().getTo();
+        }
+        return "inbound.travel@minet.co.ke";
     }
 
 }

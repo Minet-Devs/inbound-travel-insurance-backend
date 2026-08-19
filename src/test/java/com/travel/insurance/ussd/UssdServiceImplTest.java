@@ -2,6 +2,7 @@ package com.travel.insurance.ussd;
 
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.config.MailProperties;
+import com.travel.insurance.config.UssdProperties;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import com.travel.insurance.ussd.domain.UssdSession;
@@ -45,12 +46,12 @@ class UssdServiceImplTest {
         ea.setPhone("+254700000000");
         mailProperties.setEmergencyAssistance(ea);
 
+        UssdProperties ussdProperties = new UssdProperties();
         ussdService = new UssdServiceImpl(
                 emailService,
                 mailProperties,
                 serviceProviderService,
-                "Inbound Travel Medical Insurance",
-                "inbound.travel@minet.co.ke"
+                ussdProperties
         );
     }
 
