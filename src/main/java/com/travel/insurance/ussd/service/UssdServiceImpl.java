@@ -1,11 +1,15 @@
 package com.travel.insurance.ussd.service;
 
+import com.travel.insurance.common.email.EmailService;
+import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.ussd.domain.UssdSession;
 import com.travel.insurance.ussd.dto.UssdResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -19,13 +23,22 @@ public class UssdServiceImpl implements UssdService {
     private static final String PROMPT_FEEDBACK_MESSAGE =
             "Provide your feedback:";
 
-    private final FeedbackEmailService feedbackEmailService;
-    private final String defaultSchemeName;
+    private static final DateTimeFormatter TIMESTAMP_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    public UssdServiceImpl(FeedbackEmailService feedbackEmailService,
-                           @Value("${ussd.feedback.default-scheme-name:Minet Healthcare}") String defaultSchemeName) {
-        this.feedbackEmailService = feedbackEmailService;
+    private final EmailService emailService;
+    private final MailProperties mailProperties;
+    private final String defaultSchemeName;
+    private final String feedbackRecipient;
+
+    public UssdServiceImpl(EmailService emailService,
+                           MailProperties mailProperties,
+                           @Value("${ussd.feedback.default-scheme-name:Minet Healthcare}") String defaultSchemeName,
+                           @Value("${ussd.feedback.email.to:feedback-recipient@travelinsurance.example}") String feedbackRecipient) {
+        this.emailService = emailService;
+        this.mailProperties = mailProperties;
         this.defaultSchemeName = defaultSchemeName;
+        this.feedbackRecipient = feedbackRecipient;
     }
 
     @Override
@@ -137,7 +150,15 @@ public class UssdServiceImpl implements UssdService {
         String msisdn = session.getMsisdn();
 
         try {
-            feedbackEmailService.sendFeedbackEmail(msisdn, message);
+            String subject = "Traveller Insurance Feedback";
+            String body = "<p>Feedback received via USSD:</p>"
+                    + "<ul>"
+                    + "<li><strong>MSISDN:</strong> " + (msisdn != null ? msisdn : "N/A") + "</li>"
+                    + "<li><strong>Message:</strong> " + message + "</li>"
+                    + "<li><strong>Timestamp:</strong> " + LocalDateTime.now().format(TIMESTAMP_FORMAT) + "</li>"
+                    + "</ul>";
+
+            emailService.send(mailProperties.getFrom(), feedbackRecipient, subject, body);
         } catch (Exception e) {
             log.error("Failed to send feedback email for session {}: {}", session.getSessionId(), e.getMessage(), e);
         }

@@ -75,7 +75,7 @@ app:
       # plaintext data, then set back to false. See backend-architecture.md.
       enabled: ${APP_ENCRYPTION_BACKFILL_ENABLED:false}
   mail:
-    from: ${MAIL_FROM:no-reply@travelinsurance.example}
+    from: ${SMTP_USERNAME}
     emergency-assistance:
       phone: ${EMERGENCY_ASSISTANCE_PHONE:}
       email: ${EMERGENCY_ASSISTANCE_EMAIL:}
@@ -100,9 +100,8 @@ procedure:
 
 ussd:
   feedback:
-    default-scheme-name: ${USSD_SCHEME_NAME:Minet Healthcare}
+    default-scheme-name: ${USSD_SCHEME_NAME:Inbound Travel Medical Insurance}
     email:
-      from: ${USSD_FEEDBACK_EMAIL_FROM:ussd-feedback@travelinsurance.example}
       to: ${USSD_FEEDBACK_EMAIL_TO:feedback-recipient@travelinsurance.example}
 
 springdoc:

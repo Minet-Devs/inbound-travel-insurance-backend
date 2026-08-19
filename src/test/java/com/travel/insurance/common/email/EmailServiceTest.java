@@ -76,4 +76,26 @@ class EmailServiceTest {
                 "<p>Body</p>", "certificate.pdf", "%PDF-1.4".getBytes()))
                 .doesNotThrowAnyException();
     }
+
+    @Test
+    void sendsPlainTextEmail() {
+        emailService = new EmailService(mailSender);
+        MimeMessage message = newMimeMessage();
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        emailService.send("from@example.com", "to@example.com", "Subject", "<p>Plain text body</p>");
+
+        verify(mailSender).send(message);
+    }
+
+    @Test
+    void doesNotPropagateWhenPlainTextSendFails() {
+        emailService = new EmailService(mailSender);
+        MimeMessage message = newMimeMessage();
+        when(mailSender.createMimeMessage()).thenReturn(message);
+        doThrow(new MailSendException("SMTP unavailable")).when(mailSender).send(any(MimeMessage.class));
+
+        assertThatCode(() -> emailService.send("from@example.com", "to@example.com", "Subject", "<p>Body</p>"))
+                .doesNotThrowAnyException();
+    }
 }

@@ -52,4 +52,8 @@ public class EmailService {
                     from, to, subject, ex.getMessage(), ex);
         }
     }
+
+    public void send(String from, String to, String subject, String htmlBody) {
+        send(from, to, subject, htmlBody, List.of());
+    }
 }
