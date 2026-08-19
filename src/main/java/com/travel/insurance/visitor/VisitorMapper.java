@@ -31,6 +31,11 @@ public class VisitorMapper {
         visitor.setUnderlyingConditions(request.underlyingConditions());
         visitor.setNextOfKinName(request.nextOfKinName());
         visitor.setNextOfKinPhone(request.nextOfKinPhone());
+        visitor.setPaymentReference(request.paymentReference());
+        visitor.setEtaReference(request.etaReference());
+        visitor.setEntryTimestamp(request.entryTimestamp());
+        visitor.setExitTimestamp(request.exitTimestamp());
+        visitor.setPortOfEntry(request.portOfEntry());
     }
 
     public VisitorResponse toResponse(Visitor visitor) {
@@ -54,6 +59,11 @@ public class VisitorMapper {
                 visitor.getVisitorStatus(),
                 visitor.getNextOfKinName(),
                 visitor.getNextOfKinPhone(),
+                visitor.getPaymentReference(),
+                visitor.getEtaReference(),
+                visitor.getEntryTimestamp(),
+                visitor.getExitTimestamp(),
+                visitor.getPortOfEntry(),
                 visitor.getCreatedDate(),
                 visitor.getUpdatedDate()
         );

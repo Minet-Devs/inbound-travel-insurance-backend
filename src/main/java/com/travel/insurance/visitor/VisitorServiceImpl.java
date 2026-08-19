@@ -7,6 +7,7 @@ import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyType;
+import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
@@ -124,6 +125,15 @@ public class VisitorServiceImpl implements VisitorService {
     public VisitorResponse updateVisitorStatusByPassportNumber(String passportNumber,
                                                                VisitorStatusUpdate visitorStatusUpdate) {
         return applyStatusUpdate(getEntityByPassportNumber(passportNumber), visitorStatusUpdate);
+    }
+
+    @Override
+    public VisitorResponse updateEntryExitByPassportNumber(String passportNumber,
+                                                            VisitorEntryExitUpdate entryExitUpdate) {
+        Visitor visitor = getEntityByPassportNumber(passportNumber);
+        visitor.setEntryTimestamp(entryExitUpdate.entryTimestamp());
+        visitor.setExitTimestamp(entryExitUpdate.exitTimestamp());
+        return visitorMapper.toResponse(visitor);
     }
 
     private void validateCoverPeriod(Policy policy, VisitorRequest request) {

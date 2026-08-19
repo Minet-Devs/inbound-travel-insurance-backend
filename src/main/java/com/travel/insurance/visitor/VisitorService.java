@@ -1,5 +1,6 @@
 package com.travel.insurance.visitor;
 
+import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
@@ -33,4 +34,7 @@ public interface VisitorService {
 
     VisitorResponse updateVisitorStatusByPassportNumber(String passportNumber,
                                                         VisitorStatusUpdate visitorStatusUpdate);
+
+    VisitorResponse updateEntryExitByPassportNumber(String passportNumber,
+                                                     VisitorEntryExitUpdate entryExitUpdate);
 }

@@ -161,7 +161,9 @@ com.travel.insurance/
 │   ├── VisitorRepository.java
 │   ├── Visitor.java                        # policyId + passport-based KYC attributes,
 │   │                                       # incl. address, facePhotoUrl, reasonForTravel,
-│   │                                       # underlyingConditions
+│   │                                       # underlyingConditions; plus nullable
+│   │                                       # paymentReference, etaReference, portOfEntry,
+│   │                                       # entryTimestamp, exitTimestamp
 │   ├── VisitorCreatedEvent.java            # In-process event on visitor creation;
 │   │                                       # consumed by visitorbenefit to seed benefits
 │   ├── Gender.java                         # Enum: MALE, FEMALE, OTHER
@@ -170,7 +172,9 @@ com.travel.insurance/
 │   └── 📁 dto/
 │       ├── VisitorRequest.java
 │       ├── VisitorResponse.java
-│       └── VisitorDetailResponse.java      # KYC + assigned visitor benefits
+│       ├── VisitorDetailResponse.java      # KYC + assigned visitor benefits
+│       └── VisitorEntryExitUpdate.java     # entryTimestamp + exitTimestamp,
+│                                           # used by the by-passport entry-exit PATCH
 │
 ├── 📁 visitorbenefit/                      # Feature: Benefits assigned to a visitor
 │   ├── VisitorBenefitController.java
@@ -462,7 +466,16 @@ Policy
   period actually gets enforced: `VisitorServiceImpl` fetches the visitor's
   policy and rejects a create/update where `dateOut` is before `dateIn`, or
   where the day span between them falls outside the policy's `PolicyType`
-  range — `IllegalArgumentException` (→ 400) either way.
+  range — `IllegalArgumentException` (→ 400) either way. It also carries a
+  set of nullable border/payment-tracking attributes populated after
+  onboarding: `paymentReference`, `etaReference` (eTA/authorization
+  reference), `portOfEntry`, and `entryTimestamp`/`exitTimestamp` (actual
+  border-crossing times, distinct from the declared `dateIn`/`dateOut`
+  cover dates). `entryTimestamp`/`exitTimestamp` are set together via
+  `PATCH /api/v1/visitors/by-passport/entry-exit?passportNumber=…`, taking
+  a `VisitorEntryExitUpdate` body — this is separate from the general
+  `update`/`create` flow since these values are typically recorded later,
+  by a border-control integration rather than at KYC onboarding.
   `GET /api/v1/visitors/{id}` and
   `GET /api/v1/visitors/by-passport?passportNumber=…` return a
   `VisitorDetailResponse` that embeds the visitor's assigned benefits

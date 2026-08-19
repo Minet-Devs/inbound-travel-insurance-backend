@@ -28,6 +28,11 @@ public record VisitorResponse(
         VisitorStatus visitorStatus,
         String nextOfKinName,
         String nextOfKinPhone,
+        String paymentReference,
+        String etaReference,
+        Instant entryTimestamp,
+        Instant exitTimestamp,
+        String portOfEntry,
         Instant createdDate,
         Instant updatedDate
 ) {

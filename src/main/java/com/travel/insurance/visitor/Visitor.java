@@ -15,6 +15,7 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -96,4 +97,14 @@ public class Visitor extends BaseEntity {
     @Convert(converter = EncryptedStringConverter.class)
     @Column(columnDefinition = "text")
     private String nextOfKinPhone;
+
+    private String paymentReference;
+
+    private String etaReference;
+
+    private Instant entryTimestamp;
+
+    private Instant exitTimestamp;
+
+    private String portOfEntry;
 }

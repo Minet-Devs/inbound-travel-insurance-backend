@@ -7,6 +7,7 @@ import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyType;
+import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
@@ -18,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
@@ -91,7 +93,12 @@ class VisitorServiceImplTest {
                 "https://storage.example.com/photos/jane.jpg",
                 null,
                 "John Traveler",
-                "+254711111111");
+                "+254711111111",
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     private Policy policyOfType(PolicyType policyType) {
@@ -139,7 +146,12 @@ class VisitorServiceImplTest {
                 "https://storage.example.com/photos/john.jpg",
                 "Diabetes, requires insulin",
                 "Jane Traveler",
-                "+254700000000");
+                "+254700000000",
+                null,
+                null,
+                null,
+                null,
+                null);
 
         VisitorResponse response = visitorService.create(secondVisitor);
 
@@ -163,7 +175,8 @@ class VisitorServiceImplTest {
                 policyId, "Jane Traveler", "P1234567", LocalDate.of(1990, 5, 12), Gender.FEMALE,
                 "Germany", "12 Example Street, Berlin", "jane.traveler@example.com", "+254700000000",
                 dateIn, dateOut, MaritalStatus.SINGLE, "Tourism",
-                "https://storage.example.com/photos/jane.jpg", null, "John Traveler", "+254711111111");
+                "https://storage.example.com/photos/jane.jpg", null, "John Traveler", "+254711111111",
+                null, null, null, null, null);
     }
 
     @Test
@@ -363,6 +376,31 @@ class VisitorServiceImplTest {
                 "UNKNOWN", new VisitorStatusUpdate(VisitorStatus.ACTIVE)))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void updateEntryExitByPassportNumberSetsTimestamps() {
+        Visitor existing = visitorMapper.toEntity(request);
+        when(visitorRepository.findByPassportNumberHash(hashOf("P1234567")))
+                .thenReturn(Optional.of(existing));
+        Instant entry = Instant.parse("2026-08-01T10:00:00Z");
+        Instant exit = Instant.parse("2026-08-10T10:00:00Z");
+
+        VisitorResponse response = visitorService.updateEntryExitByPassportNumber(
+                "P1234567", new VisitorEntryExitUpdate(entry, exit));
+
+        assertThat(response.entryTimestamp()).isEqualTo(entry);
+        assertThat(response.exitTimestamp()).isEqualTo(exit);
+    }
+
+    @Test
+    void updateEntryExitByPassportNumberThrowsWhenVisitorUnknown() {
+        when(visitorRepository.findByPassportNumberHash(hashOf("UNKNOWN")))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> visitorService.updateEntryExitByPassportNumber(
+                "UNKNOWN", new VisitorEntryExitUpdate(Instant.now(), Instant.now())))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test

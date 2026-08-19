@@ -2,6 +2,7 @@ package com.travel.insurance.visitor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
+import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
@@ -60,6 +61,7 @@ class VisitorControllerTest {
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
                 MaritalStatus.SINGLE, "Tourism", "https://storage.example.com/photos/jane.jpg", null,
                 VisitorStatus.PENDING, "John Traveler", "+254711111111",
+                null, null, null, null, null,
                 Instant.now(), Instant.now());
     }
 
@@ -69,7 +71,8 @@ class VisitorControllerTest {
                 "jane.traveler@example.com", "+254700000000",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
                 MaritalStatus.SINGLE, "Tourism", "https://storage.example.com/photos/jane.jpg", null,
-                "John Traveler", "+254711111111");
+                "John Traveler", "+254711111111",
+                null, null, null, null, null);
     }
 
     private VisitorBenefitResponse sampleBenefit() {
@@ -142,6 +145,23 @@ class VisitorControllerTest {
     }
 
     @Test
+    @WithMockUser(roles = "ADMIN")
+    void updateEntryExitByPassportNumberReturnsUpdatedVisitor() throws Exception {
+        when(visitorService.updateEntryExitByPassportNumber(
+                eq("P1234567"), any(VisitorEntryExitUpdate.class)))
+                .thenReturn(sampleVisitor());
+
+        mockMvc.perform(patch("/api/v1/visitors/by-passport/entry-exit")
+                        .with(csrf())
+                        .param("passportNumber", "P1234567")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"entryTimestamp\":\"2026-08-01T10:00:00Z\","
+                                + "\"exitTimestamp\":\"2026-08-10T10:00:00Z\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.passportNumber").value("P1234567"));
+    }
+
+    @Test
     void getWithoutAuthenticationIsRejected() throws Exception {
         mockMvc.perform(get("/api/v1/visitors/{id}", visitorId))
                 .andExpect(status().isUnauthorized());
@@ -170,7 +190,8 @@ class VisitorControllerTest {
                 "jane.traveler@example.com", "+254700000000",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
                 MaritalStatus.SINGLE, "", "", null,
-                "John Traveler", "+254711111111");
+                "John Traveler", "+254711111111",
+                null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/visitors")
                         .with(csrf())

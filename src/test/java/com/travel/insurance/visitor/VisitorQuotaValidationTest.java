@@ -80,7 +80,12 @@ class VisitorQuotaValidationTest {
                 "https://storage.example.com/photo.jpg",
                 null,
                 "Next of Kin",
-                "+254711111111");
+                "+254711111111",
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     private Policy createPolicyWithInsurer(UUID insurerId) {

@@ -1,6 +1,7 @@
 package com.travel.insurance.visitor;
 
 import com.travel.insurance.visitor.dto.VisitorDetailResponse;
+import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
@@ -79,6 +80,14 @@ public class VisitorController {
             @Valid @RequestBody VisitorStatusUpdate visitorStatusUpdate) {
         return ResponseEntity.ok(
                 visitorService.updateVisitorStatusByPassportNumber(passportNumber, visitorStatusUpdate));
+    }
+
+    @PatchMapping("/by-passport/entry-exit")
+    public ResponseEntity<VisitorResponse> updateEntryExitByPassportNumber(
+            @RequestParam String passportNumber,
+            @Valid @RequestBody VisitorEntryExitUpdate entryExitUpdate) {
+        return ResponseEntity.ok(
+                visitorService.updateEntryExitByPassportNumber(passportNumber, entryExitUpdate));
     }
 
     @DeleteMapping("/{id}")

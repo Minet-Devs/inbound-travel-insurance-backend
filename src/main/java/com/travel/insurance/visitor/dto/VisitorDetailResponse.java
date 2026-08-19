@@ -30,6 +30,11 @@ public record VisitorDetailResponse(
         VisitorStatus visitorStatus,
         String nextOfKinName,
         String nextOfKinPhone,
+        String paymentReference,
+        String etaReference,
+        Instant entryTimestamp,
+        Instant exitTimestamp,
+        String portOfEntry,
         List<VisitorBenefitResponse> visitorBenefits,
         Instant createdDate,
         Instant updatedDate
@@ -57,6 +62,11 @@ public record VisitorDetailResponse(
                 visitor.visitorStatus(),
                 visitor.nextOfKinName(),
                 visitor.nextOfKinPhone(),
+                visitor.paymentReference(),
+                visitor.etaReference(),
+                visitor.entryTimestamp(),
+                visitor.exitTimestamp(),
+                visitor.portOfEntry(),
                 visitorBenefits,
                 visitor.createdDate(),
                 visitor.updatedDate());
