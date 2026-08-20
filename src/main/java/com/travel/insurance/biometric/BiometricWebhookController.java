@@ -25,9 +25,9 @@ public class BiometricWebhookController {
     @PostMapping
     public ResponseEntity<Void> receive(@RequestBody(required = false) BiometricCallbackPayload payload,
                                         HttpServletRequest request) {
-        if (!isAllowedIp(request)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+//        if (!isAllowedIp(request)) {
+//            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+//        }
         if (payload == null || !secureHashVerifier.isValid(payload)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
