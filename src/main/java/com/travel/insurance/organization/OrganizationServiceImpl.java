@@ -4,6 +4,7 @@ import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.organization.dto.OrganizationRequest;
 import com.travel.insurance.organization.dto.OrganizationResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -18,14 +19,16 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     private final OrganizationRepository organizationRepository;
     private final OrganizationMapper organizationMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public OrganizationResponse create(OrganizationRequest request) {
         if (organizationRepository.existsByName(request.name())) {
             throw new IllegalStateException("Organization already exists: " + request.name());
         }
-        Organization organization = organizationMapper.toEntity(request);
-        return organizationMapper.toResponse(organizationRepository.save(organization));
+        Organization organization = organizationRepository.save(organizationMapper.toEntity(request));
+        eventPublisher.publishEvent(new OrganizationCreatedEvent(organization.getId()));
+        return organizationMapper.toResponse(organization);
     }
 
     @Override
