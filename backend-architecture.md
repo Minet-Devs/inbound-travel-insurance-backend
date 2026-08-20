@@ -526,6 +526,8 @@ Policy
   [Users, Roles & Organizations](#users-roles--organizations), which points at
   an `Insurer` or `ServiceProvider` row rather than this entity. Writes are
   restricted to `ADMIN`; reads are open to any authenticated user.
+  `GET /api/v1/organizations?organizationType=…` (paged) filters the list by
+  type; the parameter is optional and omitting it returns all organizations.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,

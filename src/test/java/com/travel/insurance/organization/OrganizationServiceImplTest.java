@@ -8,7 +8,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -63,6 +68,32 @@ class OrganizationServiceImplTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Acme Ltd");
         verify(organizationRepository, never()).save(any());
+    }
+
+    @Test
+    void listWithoutFilterReturnsAllOrganizations() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Organization existing = organizationMapper.toEntity(request);
+        when(organizationRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(existing)));
+
+        Page<OrganizationResponse> result = organizationService.list(null, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(organizationRepository, never()).findByOrganizationType(any(), any());
+    }
+
+    @Test
+    void listFiltersByOrganizationType() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Organization existing = organizationMapper.toEntity(request);
+        when(organizationRepository.findByOrganizationType(OrganizationType.INSURER, pageable))
+                .thenReturn(new PageImpl<>(List.of(existing)));
+
+        Page<OrganizationResponse> result = organizationService.list(OrganizationType.INSURER, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).organizationType()).isEqualTo(OrganizationType.INSURER);
+        verify(organizationRepository, never()).findAll(any(Pageable.class));
     }
 
     @Test

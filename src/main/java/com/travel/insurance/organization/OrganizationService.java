@@ -13,7 +13,7 @@ public interface OrganizationService {
 
     OrganizationResponse getById(UUID id);
 
-    Page<OrganizationResponse> list(Pageable pageable);
+    Page<OrganizationResponse> list(OrganizationType organizationType, Pageable pageable);
 
     OrganizationResponse update(UUID id, OrganizationRequest request);
 
