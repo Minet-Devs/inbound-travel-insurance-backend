@@ -111,8 +111,6 @@ com.travel.insurance/
 │   ├── InsurerRepository.java
 │   ├── Insurer.java                        # ...organizationId (nullable, → Organization)
 │   ├── InsurerMapper.java
-│   ├── InsurerCreatedEvent.java             # published on create; consumed by
-│   │                                        # organization.OrganizationProvisioningListener
 │   └── 📁 dto/
 │       ├── InsurerRequest.java
 │       ├── InsurerResponse.java
@@ -127,8 +125,6 @@ com.travel.insurance/
 │   ├── ServiceProvider.java                # name (unique), contactEmail, contactPhone, address,
 │   │                                        # organizationId (nullable, → Organization)
 │   ├── ServiceProviderMapper.java
-│   ├── ServiceProviderCreatedEvent.java     # published on create; consumed by
-│   │                                        # organization.OrganizationProvisioningListener
 │   └── 📁 dto/
 │       ├── ServiceProviderRequest.java
 │       └── ServiceProviderResponse.java
@@ -306,9 +302,10 @@ com.travel.insurance/
 │   ├── Organization.java                   # name (unique), organizationType, email, phoneNumber, address, city
 │   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER
 │   ├── OrganizationMapper.java
-│   ├── OrganizationProvisioningListener.java # @EventListener for InsurerCreatedEvent /
-│   │                                         # ServiceProviderCreatedEvent — provisions an
-│   │                                         # Organization and links it back
+│   ├── OrganizationCreatedEvent.java         # published on create; consumed below
+│   ├── OrganizationCreatedListener.java      # @EventListener — provisions the matching
+│   │                                         # Insurer/ServiceProvider for organizationType
+│   │                                         # INSURER/SERVICE_PROVIDER (ADMIN is a no-op)
 │   └── 📁 dto/
 │       ├── OrganizationRequest.java
 │       └── OrganizationResponse.java
@@ -793,22 +790,25 @@ entities:
   resolve). This is unrelated to `User.organizationId` above: that column
   points *at* an `Insurer`/`ServiceProvider` row, while this one points *from*
   one to its `Organization` directory entry.
-- That `organizationId` link is normally populated automatically, not by the
-  caller: `InsurerServiceImpl.create`/`ServiceProviderServiceImpl.create`
-  publish an in-process `InsurerCreatedEvent`/`ServiceProviderCreatedEvent`
-  (via `ApplicationEventPublisher`, synchronously within the same
-  transaction) after saving. `organization.OrganizationProvisioningListener`
-  handles both: it reads the new row back through
-  `InsurerService.getEntityById`/`ServiceProviderService.getEntityById`,
-  creates a matching `Organization` (`organizationType` = `INSURER` or
-  `SERVICE_PROVIDER`, `name`/`email`/`phoneNumber`/`address` copied across,
-  `city` left `null` since neither entity has one), then writes the new
-  `Organization.id` back via `InsurerService.assignOrganizationId`/
-  `ServiceProviderService.assignOrganizationId` — a plain setter-and-save,
-  bypassing the create/update request validation. Because the listener runs
-  in the same transaction as the create, a failure here (e.g. the derived
-  name collides with an existing `Organization`) rolls back the
-  insurer/service-provider creation too.
+- The direction of provisioning runs from `Organization` outward, not the
+  other way round: `OrganizationServiceImpl.create` publishes an in-process
+  `OrganizationCreatedEvent` (via `ApplicationEventPublisher`, synchronously
+  within the same transaction) after saving.
+  `organization.OrganizationCreatedListener` reads the new row back through
+  `OrganizationService.getEntityById` and switches on `organizationType`:
+  `INSURER` creates a matching `Insurer` via `InsurerService.create`,
+  `SERVICE_PROVIDER` creates a matching `ServiceProvider` via
+  `ServiceProviderService.create` (`name`/`email`/`phoneNumber`/`address`
+  copied across; insurer-only fields like `policyToken`/`host`/`esignature`
+  are left `null`), and `ADMIN` is a no-op — there's no entity to create.
+  Either create call is passed the originating `Organization.id` as
+  `organizationId`, so the new `Insurer`/`ServiceProvider` is linked back in
+  the same step (no separate "assign" call). Because the listener runs in
+  the same transaction as the `Organization` create, a failure here (e.g. an
+  `Insurer`/`ServiceProvider` name collision) rolls back the organization
+  creation too. Creating an `Insurer`/`ServiceProvider` directly (with or
+  without an `organizationId`) does **not** create an `Organization` — only
+  `Organization` creation provisions downstream.
 - The `auth` feature owns login and JWT concerns and depends on `user`
   (service → service); `config/SecurityConfig` wires the JWT filter and
   role-based route rules.

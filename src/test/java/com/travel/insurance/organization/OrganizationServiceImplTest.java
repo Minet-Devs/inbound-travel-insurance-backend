@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -30,6 +31,9 @@ class OrganizationServiceImplTest {
     @Mock
     private OrganizationRepository organizationRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private final OrganizationMapper organizationMapper = new OrganizationMapper();
 
     private OrganizationServiceImpl organizationService;
@@ -38,7 +42,7 @@ class OrganizationServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        organizationService = new OrganizationServiceImpl(organizationRepository, organizationMapper);
+        organizationService = new OrganizationServiceImpl(organizationRepository, organizationMapper, eventPublisher);
         request = new OrganizationRequest("Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
                 "0700000000", "123 Main St", "Nairobi");
     }
@@ -58,6 +62,7 @@ class OrganizationServiceImplTest {
         assertThat(response.address()).isEqualTo("123 Main St");
         assertThat(response.city()).isEqualTo("Nairobi");
         verify(organizationRepository).save(any(Organization.class));
+        verify(eventPublisher).publishEvent(any(OrganizationCreatedEvent.class));
     }
 
     @Test
