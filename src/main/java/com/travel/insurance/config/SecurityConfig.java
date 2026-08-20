@@ -51,7 +51,10 @@ public class SecurityConfig {
                         auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
                     }
                     auth.requestMatchers("/api/v1/users/**").hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/insurers").denyAll();
                     auth.requestMatchers("/api/v1/insurers/**").hasAnyRole("ADMIN", "INSURER_USER");
+                    // Disable POST create endpoint specifically — must come BEFORE the broader service-providers rule
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/service-providers").denyAll();
                     auth.requestMatchers("/api/v1/service-providers/**")
                             .hasAnyRole("ADMIN", "PROVIDER_USER");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/icd11-codes/**").hasRole("ADMIN");
