@@ -538,8 +538,10 @@ Policy
   It also carries the same optional outbound-email/e-signature settings as
   `Insurer` — `notificationEmail`, `notificationEmailPassword` (encrypted at
   rest via `EncryptedStringConverter`, never returned in `OrganizationResponse`),
-  `host`, `port`, `esignature` — added for parity, but not yet wired into the
-  `OrganizationCreatedListener` provisioning flow below.
+  `host`, `port`, `esignature`. For an `INSURER`-type organization, these are
+  carried across to the provisioned `Insurer` by `OrganizationCreatedListener`
+  below (`ServiceProvider` has no equivalent fields, so `SERVICE_PROVIDER`
+  organizations don't carry them).
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,
