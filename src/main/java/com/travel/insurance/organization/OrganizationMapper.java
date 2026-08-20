@@ -15,6 +15,7 @@ public class OrganizationMapper {
 
     public void updateEntity(Organization organization, OrganizationRequest request) {
         organization.setName(request.name());
+        organization.setOrganizationType(request.organizationType());
         organization.setEmail(request.email());
         organization.setPhoneNumber(request.phoneNumber());
         organization.setAddress(request.address());
@@ -25,6 +26,7 @@ public class OrganizationMapper {
         return new OrganizationResponse(
                 organization.getId(),
                 organization.getName(),
+                organization.getOrganizationType(),
                 organization.getEmail(),
                 organization.getPhoneNumber(),
                 organization.getAddress(),

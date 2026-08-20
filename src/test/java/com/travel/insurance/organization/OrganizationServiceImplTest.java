@@ -34,7 +34,8 @@ class OrganizationServiceImplTest {
     @BeforeEach
     void setUp() {
         organizationService = new OrganizationServiceImpl(organizationRepository, organizationMapper);
-        request = new OrganizationRequest("Acme Ltd", "contact@acme.com", "0700000000", "123 Main St", "Nairobi");
+        request = new OrganizationRequest("Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
+                "0700000000", "123 Main St", "Nairobi");
     }
 
     @Test
@@ -46,6 +47,7 @@ class OrganizationServiceImplTest {
         OrganizationResponse response = organizationService.create(request);
 
         assertThat(response.name()).isEqualTo("Acme Ltd");
+        assertThat(response.organizationType()).isEqualTo(OrganizationType.INSURER);
         assertThat(response.email()).isEqualTo("contact@acme.com");
         assertThat(response.phoneNumber()).isEqualTo("0700000000");
         assertThat(response.address()).isEqualTo("123 Main St");
@@ -78,7 +80,8 @@ class OrganizationServiceImplTest {
         Organization existing = organizationMapper.toEntity(request);
         when(organizationRepository.findById(id)).thenReturn(Optional.of(existing));
         OrganizationRequest updateRequest =
-                new OrganizationRequest("Beta Ltd", "info@beta.com", "0711111111", "456 Side St", "Mombasa");
+                new OrganizationRequest("Beta Ltd", OrganizationType.SERVICE_PROVIDER, "info@beta.com",
+                        "0711111111", "456 Side St", "Mombasa");
         when(organizationRepository.existsByNameAndIdNot("Beta Ltd", id)).thenReturn(false);
         when(organizationRepository.save(any(Organization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -97,7 +100,8 @@ class OrganizationServiceImplTest {
         when(organizationRepository.existsByNameAndIdNot("Beta Ltd", id)).thenReturn(true);
 
         assertThatThrownBy(() -> organizationService.update(id,
-                new OrganizationRequest("Beta Ltd", "info@beta.com", null, null, null)))
+                new OrganizationRequest("Beta Ltd", OrganizationType.SERVICE_PROVIDER, "info@beta.com",
+                        null, null, null)))
                 .isInstanceOf(IllegalStateException.class);
         verify(organizationRepository, never()).save(any());
     }

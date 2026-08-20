@@ -41,8 +41,8 @@ class OrganizationControllerTest {
     private final UUID organizationId = UUID.randomUUID();
 
     private OrganizationResponse sampleResponse() {
-        return new OrganizationResponse(organizationId, "Acme Ltd", "contact@acme.com", "0700000000",
-                "123 Main St", "Nairobi", Instant.now(), Instant.now());
+        return new OrganizationResponse(organizationId, "Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
+                "0700000000", "123 Main St", "Nairobi", Instant.now(), Instant.now());
     }
 
     @Test
@@ -54,6 +54,7 @@ class OrganizationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(organizationId.toString()))
                 .andExpect(jsonPath("$.name").value("Acme Ltd"))
+                .andExpect(jsonPath("$.organizationType").value("INSURER"))
                 .andExpect(jsonPath("$.email").value("contact@acme.com"))
                 .andExpect(jsonPath("$.city").value("Nairobi"));
     }
@@ -67,8 +68,8 @@ class OrganizationControllerTest {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new OrganizationRequest("Acme Ltd", "contact@acme.com", "0700000000",
-                                        "123 Main St", "Nairobi"))))
+                                new OrganizationRequest("Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
+                                        "0700000000", "123 Main St", "Nairobi"))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Acme Ltd"));
     }
@@ -80,7 +81,7 @@ class OrganizationControllerTest {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new OrganizationRequest("", "not-an-email", null, null, null))))
+                                new OrganizationRequest("", null, "not-an-email", null, null, null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation failed"));
     }
