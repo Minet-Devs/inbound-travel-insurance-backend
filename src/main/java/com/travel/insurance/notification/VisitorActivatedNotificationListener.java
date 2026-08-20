@@ -2,10 +2,11 @@ package com.travel.insurance.notification;
 
 import com.travel.insurance.common.email.EmailAttachment;
 import com.travel.insurance.common.email.EmailService;
+import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.common.util.LogoUrlNormalizer;
 import com.travel.insurance.config.MailProperties;
+import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerService;
-import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.notification.PolicyDocumentData.BenefitLine;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
@@ -97,11 +98,10 @@ public class VisitorActivatedNotificationListener {
                     visitorId);
         }
 
-        InsurerResponse insurer = insurerService.getById(policy.getInsurerId());
-        List<String> insurerNames = List.of(insurer.name());
-        String underwriterLogoUrl = insurer.logoUrl() != null && !insurer.logoUrl().isBlank()
-                ? LogoUrlNormalizer.normalize(insurer.logoUrl())
-                : null;
+        Insurer insurer = insurerService.getEntityById(policy.getInsurerId());
+        List<String> insurerNames = List.of(insurer.getName());
+        String underwriterLogoUrl = normalizeOrNull(insurer.getLogoUrl());
+        String esignatureUrl = normalizeOrNull(insurer.getEsignature());
         List<BenefitLine> benefitLines = visitorBenefits.stream()
                 .map(vb -> new BenefitLine(vb.benefitName(), vb.limitAmount()))
                 .toList();
@@ -122,6 +122,7 @@ public class VisitorActivatedNotificationListener {
                 policy.getPolicyType(),
                 insurerNames,
                 underwriterLogoUrl,
+                esignatureUrl,
                 benefitLines,
                 mailProperties.getEmergencyAssistance().getPhone(),
                 mailProperties.getEmergencyAssistance().getEmail());
@@ -134,13 +135,48 @@ public class VisitorActivatedNotificationListener {
         if (policyDocument != null) {
             attachments.add(new EmailAttachment(POLICY_DOCUMENT_ATTACHMENT_NAME, policyDocument));
         }
+        InsurerMailSettings mailSettings = resolveMailSettings(insurer);
         emailService.send(
-                mailProperties.getFrom(),
+                mailSettings.credentials(),
+                mailSettings.from(),
                 visitor.getEmail(),
                 "Your Travel Insurance Policy Document",
                 "<p>Dear " + visitor.getFullName() + ",</p>"
                         + "<p>Your travel insurance cover is now active. Your policy certificate is attached.</p>",
                 attachments);
+    }
+
+    /**
+     * An insurer's own mailbox is used only when it has fully configured its
+     * SMTP relay (host, port, notification email and password all set) — a
+     * custom {@code from} address is never mixed with the global relay, since
+     * most SMTP servers reject relaying on behalf of an unrelated sender
+     * (SPF/DKIM). Otherwise every field falls back to the global
+     * {@link MailProperties}, exactly as before this feature existed.
+     */
+    private InsurerMailSettings resolveMailSettings(Insurer insurer) {
+        boolean fullyConfigured = isNotBlank(insurer.getHost())
+                && insurer.getPort() != null
+                && isNotBlank(insurer.getNotificationEmail())
+                && isNotBlank(insurer.getNotificationEmailPassword());
+        if (fullyConfigured) {
+            return new InsurerMailSettings(
+                    insurer.getNotificationEmail(),
+                    new SmtpCredentials(insurer.getHost(), insurer.getPort(),
+                            insurer.getNotificationEmail(), insurer.getNotificationEmailPassword()));
+        }
+        return new InsurerMailSettings(mailProperties.getFrom(), null);
+    }
+
+    private static boolean isNotBlank(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private static String normalizeOrNull(String url) {
+        return isNotBlank(url) ? LogoUrlNormalizer.normalize(url) : null;
+    }
+
+    private record InsurerMailSettings(String from, SmtpCredentials credentials) {
     }
 
     /**

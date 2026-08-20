@@ -29,10 +29,15 @@ class PolicyDocumentRendererTest {
     }
 
     private PolicyDocumentData sampleData(List<BenefitLine> benefits) {
-        return sampleData(benefits, null);
+        return sampleData(benefits, null, null);
     }
 
     private PolicyDocumentData sampleData(List<BenefitLine> benefits, String underwriterLogoUrl) {
+        return sampleData(benefits, underwriterLogoUrl, null);
+    }
+
+    private PolicyDocumentData sampleData(List<BenefitLine> benefits, String underwriterLogoUrl,
+                                           String esignatureUrl) {
         return new PolicyDocumentData(
                 "Jane Traveler",
                 "P1234567",
@@ -49,6 +54,7 @@ class PolicyDocumentRendererTest {
                 PolicyType.IPMI_61_DAYS_TO_12_MONTHS,
                 List.of("Acme Insurance"),
                 underwriterLogoUrl,
+                esignatureUrl,
                 benefits,
                 "+254 700 000000",
                 "assistance@example.com");
@@ -96,6 +102,32 @@ class PolicyDocumentRendererTest {
         String html = renderer.renderHtml(data);
 
         assertThat(html).contains("[ UNDERWRITER LOGO ]");
+    }
+
+    @Test
+    void rendersEsignatureImageWhenUrlProvided() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(
+                List.of(new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))),
+                null, "https://cdn.example/acme-signature.png");
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("src=\"https://cdn.example/acme-signature.png\"");
+        assertThat(html).contains("Digitally signed by the underwriter");
+        assertThat(html).doesNotContain("No wet signature required");
+    }
+
+    @Test
+    void rendersDefaultSignatureCopyWhenNoEsignatureUrl() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(
+                List.of(new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("No wet signature required");
+        assertThat(html).doesNotContain("class=\"esign-img\"");
     }
 
     @Test

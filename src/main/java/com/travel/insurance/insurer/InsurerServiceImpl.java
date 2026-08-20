@@ -44,6 +44,12 @@ public class InsurerServiceImpl implements InsurerService {
 
     @Override
     @Transactional(readOnly = true)
+    public Insurer getEntityById(UUID id) {
+        return getEntity(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<InsurerResponse> list(Pageable pageable) {
         return insurerRepository.findAll(pageable).map(this::toResponse);
     }

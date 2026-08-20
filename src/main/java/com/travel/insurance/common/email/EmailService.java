@@ -15,7 +15,9 @@ import java.util.List;
  * knowledge) — mirrors {@code common/messaging/EventPublisher}'s catch-and-log
  * style so a broken mail server never propagates as an exception to a caller.
  * Never log the message body or attachment bytes here: callers pass PII
- * (KYC/medical data in this app's case).
+ * (KYC/medical data in this app's case). Callers may pass {@link SmtpCredentials}
+ * to relay a single send through a different mail server (e.g. a per-tenant
+ * mailbox) instead of the globally configured {@link #mailSender}.
  */
 @Component
 @RequiredArgsConstructor
@@ -23,6 +25,7 @@ import java.util.List;
 public class EmailService {
 
     private final JavaMailSender mailSender;
+    private final SmtpSenderFactory smtpSenderFactory;
 
     public void send(String from, String to, String subject, String htmlBody,
                       String attachmentFilename, byte[] attachmentBytes) {
@@ -32,8 +35,27 @@ public class EmailService {
 
     public void send(String from, String to, String subject, String htmlBody,
                       List<EmailAttachment> attachments) {
+        sendVia(null, from, to, subject, htmlBody, attachments);
+    }
+
+    public void send(String from, String to, String subject, String htmlBody) {
+        sendVia(null, from, to, subject, htmlBody, List.of());
+    }
+
+    public void send(SmtpCredentials credentials, String from, String to, String subject, String htmlBody,
+                      List<EmailAttachment> attachments) {
+        sendVia(credentials, from, to, subject, htmlBody, attachments);
+    }
+
+    public void send(SmtpCredentials credentials, String from, String to, String subject, String htmlBody) {
+        sendVia(credentials, from, to, subject, htmlBody, List.of());
+    }
+
+    private void sendVia(SmtpCredentials credentials, String from, String to, String subject, String htmlBody,
+                          List<EmailAttachment> attachments) {
         try {
-            MimeMessage message = mailSender.createMimeMessage();
+            JavaMailSender sender = credentials != null ? smtpSenderFactory.create(credentials) : mailSender;
+            MimeMessage message = sender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(from);
             helper.setTo(to);
@@ -46,14 +68,10 @@ public class EmailService {
                     }
                 }
             }
-            mailSender.send(message);
+            sender.send(message);
         } catch (Exception ex) {
             log.error("Failed to send email from [{}] to [{}] (subject=[{}]): {}",
                     from, to, subject, ex.getMessage(), ex);
         }
-    }
-
-    public void send(String from, String to, String subject, String htmlBody) {
-        send(from, to, subject, htmlBody, List.of());
     }
 }

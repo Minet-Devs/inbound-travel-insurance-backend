@@ -28,6 +28,7 @@
         }
         .logo-box div { padding-top: 17pt; }
         .logo-img { max-width: 130pt; max-height: 46pt; }
+        .esign-img { max-width: 140pt; max-height: 40pt; margin-bottom: 3pt; }
 
         /* Title band */
         .title-band { text-align: center; margin-top: 12pt; padding: 8pt 0; border-top: 0.75pt solid #cfcfcf; border-bottom: 0.75pt solid #cfcfcf; }
@@ -210,6 +211,7 @@
         <tr>
             <td>
                 <div class="line">
+                    <img th:if="${!#strings.isEmpty(esignatureUrl)}" class="esign-img" th:src="${esignatureUrl}" alt="Authorized signature"/><br th:if="${!#strings.isEmpty(esignatureUrl)}"/>
                     For and on behalf of
                     <strong th:text="${#strings.isEmpty(underwriterName)} ? 'the Underwriter' : ${underwriterName}">Acme Insurance</strong><br/>
                     Authorized Signatory
@@ -217,7 +219,8 @@
             </td>
             <td class="sysgen">
                 Kenya CARES Secretariat — System Generated<br/>
-                No wet signature required
+                <span th:if="${#strings.isEmpty(esignatureUrl)}">No wet signature required</span>
+                <span th:unless="${#strings.isEmpty(esignatureUrl)}">Digitally signed by the underwriter</span>
             </td>
         </tr>
     </table>

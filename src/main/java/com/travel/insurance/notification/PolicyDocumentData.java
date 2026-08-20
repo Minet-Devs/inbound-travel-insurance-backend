@@ -31,6 +31,7 @@ record PolicyDocumentData(
         PolicyType policyType,
         List<String> insurerNames,
         String underwriterLogoUrl,
+        String esignatureUrl,
         List<BenefitLine> benefits,
         String emergencyAssistancePhone,
         String emergencyAssistanceEmail

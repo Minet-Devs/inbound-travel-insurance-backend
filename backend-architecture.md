@@ -425,6 +425,33 @@ Policy
   `Visitor`'s PII columns — see "Security") and is deliberately **omitted**
   from `InsurerResponse`/`InsurerDetailResponse`; the other four fields are
   returned as plain values.
+- These outbound-email settings are consumed by
+  `VisitorActivatedNotificationListener` when it emails a visitor's policy
+  certificate. It loads the backing `Insurer` as an **entity** via
+  `InsurerService.getEntityById(UUID id)` (mirroring `PolicyService`/
+  `VisitorService`'s existing `getEntityById`) rather than `getById`'s DTO,
+  since `notificationEmailPassword` is intentionally never exposed on
+  `InsurerResponse` and the decrypted value is only obtainable by loading the
+  entity (decryption happens transparently via `EncryptedStringConverter` on
+  load). If the insurer's `host`, `port`, `notificationEmail`, and
+  `notificationEmailPassword` are **all** non-blank, the certificate is sent
+  through a `JavaMailSender` built from those credentials
+  (`common.email.SmtpCredentials` / `SmtpSenderFactory` /
+  `DefaultSmtpSenderFactory`, wired into `EmailService` alongside the
+  app-wide autoconfigured `JavaMailSender`), with `from` set to the
+  insurer's `notificationEmail`. Otherwise it falls back entirely to the
+  global `spring.mail.*` sender and `app.mail.from` — the `from` address and
+  the SMTP relay are always resolved together, never mixed, to avoid
+  SPF/relay rejection. `EmailService` stays domain-agnostic: the override is
+  passed in as a generic `SmtpCredentials` record, and `EmailServiceTest`
+  exercises the override path entirely against a mocked `SmtpSenderFactory`
+  — no test ever opens a real SMTP connection. `Insurer.esignature`, when
+  set, is normalized the same way as `logoUrl` (`LogoUrlNormalizer`, e.g.
+  for Dropbox share links) and rendered as an image in the certificate's
+  signature block (`policy-certificate.html`'s `.sign` table), replacing the
+  default "No wet signature required" copy with "Digitally signed by the
+  underwriter" so the certificate reads as genuinely signed when an insurer
+  has provided one.
 - **Benefit** is a standalone **global catalog** entry: a `benefitName` (free
   text) and a `limitAmount` (limit of cover). It is no longer scoped to a
   policy — there is no `policyId` or fixed `BenefitType` enum. The catalog is
