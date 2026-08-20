@@ -54,6 +54,7 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/insurers").denyAll();
                     auth.requestMatchers("/api/v1/insurers/**").hasAnyRole("ADMIN", "INSURER_USER");
                     // Disable POST create endpoint specifically — must come BEFORE the broader service-providers rule
+                    // insurers & service-providers are now create through organization to enable role based system access
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/service-providers").denyAll();
                     auth.requestMatchers("/api/v1/service-providers/**")
                             .hasAnyRole("ADMIN", "PROVIDER_USER");
