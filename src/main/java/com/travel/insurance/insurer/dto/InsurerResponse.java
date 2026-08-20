@@ -17,6 +17,7 @@ public record InsurerResponse(
         String host,
         Integer port,
         String esignature,
+        UUID organizationId,
         Instant createdDate,
         Instant updatedDate
 ) {

@@ -3,6 +3,8 @@ package com.travel.insurance.insurer.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
+import java.util.UUID;
+
 public record InsurerRequest(
         @NotBlank String name,
         @NotBlank @Email String contactEmail,
@@ -14,6 +16,7 @@ public record InsurerRequest(
         String notificationEmailPassword,
         String host,
         Integer port,
-        String esignature
+        String esignature,
+        UUID organizationId
 ) {
 }

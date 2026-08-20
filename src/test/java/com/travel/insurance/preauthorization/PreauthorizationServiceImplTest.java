@@ -158,7 +158,7 @@ class PreauthorizationServiceImplTest {
 
     private ServiceProviderResponse serviceProviderResponse() {
         return new ServiceProviderResponse(serviceProviderId, "Aga Khan Hospital",
-                "contact@agakhan.co.ke", null, null, Instant.now(), Instant.now());
+                "contact@agakhan.co.ke", null, null, null, Instant.now(), Instant.now());
     }
 
     private MedicalServiceResponse medicalServiceResponse() {

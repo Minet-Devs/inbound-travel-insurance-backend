@@ -3,6 +3,7 @@ package com.travel.insurance.insurer;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.insurer.dto.InsurerRequest;
 import com.travel.insurance.insurer.dto.InsurerResponse;
+import com.travel.insurance.organization.OrganizationService;
 import com.travel.insurance.policy.PolicyService;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
@@ -20,12 +21,14 @@ public class InsurerServiceImpl implements InsurerService {
     private final InsurerRepository insurerRepository;
     private final InsurerMapper insurerMapper;
     private final PolicyService policyService;
+    private final OrganizationService organizationService;
 
     public InsurerServiceImpl(InsurerRepository insurerRepository, InsurerMapper insurerMapper,
-                               @Lazy PolicyService policyService) {
+                               @Lazy PolicyService policyService, OrganizationService organizationService) {
         this.insurerRepository = insurerRepository;
         this.insurerMapper = insurerMapper;
         this.policyService = policyService;
+        this.organizationService = organizationService;
     }
 
     @Override
@@ -33,6 +36,7 @@ public class InsurerServiceImpl implements InsurerService {
         if (insurerRepository.existsByName(request.name())) {
             throw new IllegalStateException("Insurer already exists: " + request.name());
         }
+        validateOrganization(request.organizationId());
         return toResponse(insurerRepository.save(insurerMapper.toEntity(request)));
     }
 
@@ -63,8 +67,15 @@ public class InsurerServiceImpl implements InsurerService {
     @Override
     public InsurerResponse update(UUID id, InsurerRequest request) {
         Insurer insurer = getEntity(id);
+        validateOrganization(request.organizationId());
         insurerMapper.updateEntity(insurer, request);
         return toResponse(insurerRepository.save(insurer));
+    }
+
+    private void validateOrganization(UUID organizationId) {
+        if (organizationId != null) {
+            organizationService.getEntityById(organizationId);
+        }
     }
 
     private InsurerResponse toResponse(Insurer insurer) {
