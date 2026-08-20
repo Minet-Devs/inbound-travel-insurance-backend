@@ -293,6 +293,17 @@ com.travel.insurance/
 │       ├── DepartmentRequest.java
 │       └── DepartmentResponse.java
 │
+├── 📁 organization/                        # Feature: Organization directory (name, email, phone, address, city)
+│   ├── OrganizationController.java
+│   ├── OrganizationService.java            # Interface
+│   ├── OrganizationServiceImpl.java
+│   ├── OrganizationRepository.java
+│   ├── Organization.java                   # name (unique), email, phoneNumber, address, city
+│   ├── OrganizationMapper.java
+│   └── 📁 dto/
+│       ├── OrganizationRequest.java
+│       └── OrganizationResponse.java
+│
 ├── 📁 medicalservice/                      # Feature: Service catalog (belongs to a department)
 │   ├── MedicalServiceController.java
 │   ├── MedicalServiceService.java          # Interface
@@ -506,6 +517,13 @@ Policy
   inserted/created). Writes (create/update/delete/import) on both
   `/api/v1/departments` and `/api/v1/medical-services` are restricted to
   `ADMIN`; reads are open to any authenticated user.
+- An **Organization** is a standalone directory entry — `name` (unique),
+  `email`, `phoneNumber`, `address`, `city` — with plain CRUD
+  (`/api/v1/organizations`), following the same shape as Department. It is
+  unrelated to the `organizationId` column described in
+  [Users, Roles & Organizations](#users-roles--organizations), which points at
+  an `Insurer` or `ServiceProvider` row rather than this entity. Writes are
+  restricted to `ADMIN`; reads are open to any authenticated user.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,
@@ -838,6 +856,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Procedure Upload  | `/api/v1/procedures/uploads`  | `procedure_uploads`, `procedure_upload_rows` |
 | Department        | `/api/v1/departments`         | `departments`       |
 | Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
+| Organization      | `/api/v1/organizations`       | `organizations`     |
 | Reports           | `/api/v1/reports`             | (reads from existing tables) |
 | Member Statement  | `/api/v1/member-statements`   | — (computed, see [Member Statement Report](#member-statement-report)) |
 

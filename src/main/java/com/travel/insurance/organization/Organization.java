@@ -1,0 +1,33 @@
+package com.travel.insurance.organization;
+
+import com.travel.insurance.common.domain.BaseEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.hibernate.annotations.SQLDelete;
+import org.hibernate.annotations.SQLRestriction;
+
+@Entity
+@Table(name = "organizations")
+@SQLDelete(sql = "update organizations set deleted = true, deleted_date = now() where id = ?")
+@SQLRestriction("deleted = false")
+@Getter
+@Setter
+@NoArgsConstructor
+public class Organization extends BaseEntity {
+
+    @Column(nullable = false, unique = true)
+    private String name;
+
+    @Column(nullable = false)
+    private String email;
+
+    private String phoneNumber;
+
+    private String address;
+
+    private String city;
+}
