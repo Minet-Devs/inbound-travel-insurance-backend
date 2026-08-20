@@ -13,6 +13,10 @@ public record InsurerResponse(
         String logoUrl,
         Long policyToken,
         Long availablePolicies,
+        String notificationEmail,
+        String host,
+        Integer port,
+        String esignature,
         Instant createdDate,
         Instant updatedDate
 ) {

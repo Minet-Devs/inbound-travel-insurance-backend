@@ -23,6 +23,11 @@ public class InsurerMapper {
         insurer.setAddress(request.address());
         insurer.setLogoUrl(LogoUrlNormalizer.normalize(request.logoUrl()));
         insurer.setPolicyToken(request.policyToken());
+        insurer.setNotificationEmail(request.notificationEmail());
+        insurer.setNotificationEmailPassword(request.notificationEmailPassword());
+        insurer.setHost(request.host());
+        insurer.setPort(request.port());
+        insurer.setEsignature(request.esignature());
     }
 
     public InsurerResponse toResponse(Insurer insurer, UUID policyId) {
@@ -36,6 +41,10 @@ public class InsurerMapper {
                 insurer.getLogoUrl(),
                 insurer.getPolicyToken(),
                 insurer.getPolicyToken() != null ? insurer.getPolicyToken() : 0L,
+                insurer.getNotificationEmail(),
+                insurer.getHost(),
+                insurer.getPort(),
+                insurer.getEsignature(),
                 insurer.getCreatedDate(),
                 insurer.getUpdatedDate()
         );

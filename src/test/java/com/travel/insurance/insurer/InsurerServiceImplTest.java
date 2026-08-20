@@ -42,7 +42,8 @@ class InsurerServiceImplTest {
         insurerService = new InsurerServiceImpl(insurerRepository, insurerMapper, policyService);
         lenient().when(policyService.findPolicyIdByInsurerId(any())).thenReturn(Optional.empty());
         request = new InsurerRequest("Acme Insurance", "contact@acme.example", "+254700000000", "Nairobi",
-                "https://cdn.example/acme.png", 42L);
+                "https://cdn.example/acme.png", 42L, "notify@acme.example", "s3cr3t", "smtp.acme.example", 587,
+                "signature-data");
     }
 
     @Test
@@ -56,13 +57,17 @@ class InsurerServiceImplTest {
         assertThat(response.contactEmail()).isEqualTo("contact@acme.example");
         assertThat(response.logoUrl()).isEqualTo("https://cdn.example/acme.png");
         assertThat(response.policyToken()).isEqualTo(42L);
+        assertThat(response.notificationEmail()).isEqualTo("notify@acme.example");
+        assertThat(response.host()).isEqualTo("smtp.acme.example");
+        assertThat(response.port()).isEqualTo(587);
+        assertThat(response.esignature()).isEqualTo("signature-data");
         verify(insurerRepository).save(any(Insurer.class));
     }
 
     @Test
     void createNormalizesDropboxLogoUrlToDirectDownload() {
         InsurerRequest dropboxLogo = new InsurerRequest("Guardian Assurance", "ga@example.com", null, null,
-                "https://www.dropbox.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=0", null);
+                "https://www.dropbox.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=0", null, null, null, null, null, null);
         when(insurerRepository.existsByName("Guardian Assurance")).thenReturn(false);
         when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -124,7 +129,8 @@ class InsurerServiceImplTest {
         when(insurerRepository.findById(id)).thenReturn(Optional.of(existing));
         when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        InsurerRequest update = new InsurerRequest("Acme Re", "hello@acme.example", null, null, null, null);
+        InsurerRequest update = new InsurerRequest("Acme Re", "hello@acme.example", null, null, null, null, null,
+                null, null, null, null);
         InsurerResponse response = insurerService.update(id, update);
 
         assertThat(response.name()).isEqualTo("Acme Re");

@@ -53,7 +53,8 @@ class InsurerControllerTest {
 
     private InsurerResponse sampleResponse() {
         return new InsurerResponse(insurerId, policyId, "Acme Insurance", "contact@acme.example",
-                null, null, "https://cdn.example/acme.png", 42L, 42L, Instant.now(), Instant.now());
+                null, null, "https://cdn.example/acme.png", 42L, 42L, "notify@acme.example", "smtp.acme.example",
+                587, "signature-data", Instant.now(), Instant.now());
     }
 
     private PolicyResponse samplePolicy() {
@@ -78,7 +79,8 @@ class InsurerControllerTest {
         when(insurerService.create(any(InsurerRequest.class))).thenReturn(sampleResponse());
 
         InsurerRequest request = new InsurerRequest("Acme Insurance", "contact@acme.example", null, null,
-                "https://cdn.example/acme.png", 42L);
+                "https://cdn.example/acme.png", 42L, "notify@acme.example", "s3cr3t", "smtp.acme.example", 587,
+                "signature-data");
         mockMvc.perform(post("/api/v1/insurers")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -86,13 +88,19 @@ class InsurerControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Acme Insurance"))
                 .andExpect(jsonPath("$.logoUrl").value("https://cdn.example/acme.png"))
-                .andExpect(jsonPath("$.policyToken").value(42));
+                .andExpect(jsonPath("$.policyToken").value(42))
+                .andExpect(jsonPath("$.notificationEmail").value("notify@acme.example"))
+                .andExpect(jsonPath("$.host").value("smtp.acme.example"))
+                .andExpect(jsonPath("$.port").value(587))
+                .andExpect(jsonPath("$.esignature").value("signature-data"))
+                .andExpect(jsonPath("$.notificationEmailPassword").doesNotExist());
     }
 
     @Test
     @WithMockUser(roles = "ADMIN")
     void createRejectsInvalidBody() throws Exception {
-        InsurerRequest request = new InsurerRequest("", "not-an-email", null, null, null, null);
+        InsurerRequest request = new InsurerRequest("", "not-an-email", null, null, null, null, null, null, null,
+                null, null);
         mockMvc.perform(post("/api/v1/insurers")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

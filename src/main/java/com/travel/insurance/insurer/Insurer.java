@@ -1,7 +1,9 @@
 package com.travel.insurance.insurer;
 
+import com.travel.insurance.common.crypto.EncryptedStringConverter;
 import com.travel.insurance.common.domain.BaseEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -32,4 +34,16 @@ public class Insurer extends BaseEntity {
     private String logoUrl;
 
     private Long policyToken;
+
+    private String notificationEmail;
+
+    @Convert(converter = EncryptedStringConverter.class)
+    @Column(columnDefinition = "text")
+    private String notificationEmailPassword;
+
+    private String host;
+
+    private Integer port;
+
+    private String esignature;
 }
