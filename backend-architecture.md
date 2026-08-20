@@ -293,12 +293,13 @@ com.travel.insurance/
 │       ├── DepartmentRequest.java
 │       └── DepartmentResponse.java
 │
-├── 📁 organization/                        # Feature: Organization directory (name, email, phone, address, city)
+├── 📁 organization/                        # Feature: Organization directory (name, type, email, phone, address, city)
 │   ├── OrganizationController.java
 │   ├── OrganizationService.java            # Interface
 │   ├── OrganizationServiceImpl.java
 │   ├── OrganizationRepository.java
-│   ├── Organization.java                   # name (unique), email, phoneNumber, address, city
+│   ├── Organization.java                   # name (unique), organizationType, email, phoneNumber, address, city
+│   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER
 │   ├── OrganizationMapper.java
 │   └── 📁 dto/
 │       ├── OrganizationRequest.java
@@ -518,12 +519,15 @@ Policy
   `/api/v1/departments` and `/api/v1/medical-services` are restricted to
   `ADMIN`; reads are open to any authenticated user.
 - An **Organization** is a standalone directory entry — `name` (unique),
-  `email`, `phoneNumber`, `address`, `city` — with plain CRUD
+  `organizationType` (enum: `ADMIN`, `INSURER`, `SERVICE_PROVIDER`), `email`,
+  `phoneNumber`, `address`, `city` — with plain CRUD
   (`/api/v1/organizations`), following the same shape as Department. It is
   unrelated to the `organizationId` column described in
   [Users, Roles & Organizations](#users-roles--organizations), which points at
   an `Insurer` or `ServiceProvider` row rather than this entity. Writes are
   restricted to `ADMIN`; reads are open to any authenticated user.
+  `GET /api/v1/organizations?organizationType=…` (paged) filters the list by
+  type; the parameter is optional and omitting it returns all organizations.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,

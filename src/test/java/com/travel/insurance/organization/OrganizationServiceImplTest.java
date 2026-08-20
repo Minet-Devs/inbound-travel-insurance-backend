@@ -8,7 +8,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -34,7 +39,8 @@ class OrganizationServiceImplTest {
     @BeforeEach
     void setUp() {
         organizationService = new OrganizationServiceImpl(organizationRepository, organizationMapper);
-        request = new OrganizationRequest("Acme Ltd", "contact@acme.com", "0700000000", "123 Main St", "Nairobi");
+        request = new OrganizationRequest("Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
+                "0700000000", "123 Main St", "Nairobi");
     }
 
     @Test
@@ -46,6 +52,7 @@ class OrganizationServiceImplTest {
         OrganizationResponse response = organizationService.create(request);
 
         assertThat(response.name()).isEqualTo("Acme Ltd");
+        assertThat(response.organizationType()).isEqualTo(OrganizationType.INSURER);
         assertThat(response.email()).isEqualTo("contact@acme.com");
         assertThat(response.phoneNumber()).isEqualTo("0700000000");
         assertThat(response.address()).isEqualTo("123 Main St");
@@ -64,6 +71,32 @@ class OrganizationServiceImplTest {
     }
 
     @Test
+    void listWithoutFilterReturnsAllOrganizations() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Organization existing = organizationMapper.toEntity(request);
+        when(organizationRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(existing)));
+
+        Page<OrganizationResponse> result = organizationService.list(null, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(organizationRepository, never()).findByOrganizationType(any(), any());
+    }
+
+    @Test
+    void listFiltersByOrganizationType() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Organization existing = organizationMapper.toEntity(request);
+        when(organizationRepository.findByOrganizationType(OrganizationType.INSURER, pageable))
+                .thenReturn(new PageImpl<>(List.of(existing)));
+
+        Page<OrganizationResponse> result = organizationService.list(OrganizationType.INSURER, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).organizationType()).isEqualTo(OrganizationType.INSURER);
+        verify(organizationRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
     void getByIdThrowsWhenMissing() {
         UUID id = UUID.randomUUID();
         when(organizationRepository.findById(id)).thenReturn(Optional.empty());
@@ -78,7 +111,8 @@ class OrganizationServiceImplTest {
         Organization existing = organizationMapper.toEntity(request);
         when(organizationRepository.findById(id)).thenReturn(Optional.of(existing));
         OrganizationRequest updateRequest =
-                new OrganizationRequest("Beta Ltd", "info@beta.com", "0711111111", "456 Side St", "Mombasa");
+                new OrganizationRequest("Beta Ltd", OrganizationType.SERVICE_PROVIDER, "info@beta.com",
+                        "0711111111", "456 Side St", "Mombasa");
         when(organizationRepository.existsByNameAndIdNot("Beta Ltd", id)).thenReturn(false);
         when(organizationRepository.save(any(Organization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -97,7 +131,8 @@ class OrganizationServiceImplTest {
         when(organizationRepository.existsByNameAndIdNot("Beta Ltd", id)).thenReturn(true);
 
         assertThatThrownBy(() -> organizationService.update(id,
-                new OrganizationRequest("Beta Ltd", "info@beta.com", null, null, null)))
+                new OrganizationRequest("Beta Ltd", OrganizationType.SERVICE_PROVIDER, "info@beta.com",
+                        null, null, null)))
                 .isInstanceOf(IllegalStateException.class);
         verify(organizationRepository, never()).save(any());
     }

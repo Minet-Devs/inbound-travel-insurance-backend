@@ -36,8 +36,11 @@ public class OrganizationServiceImpl implements OrganizationService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<OrganizationResponse> list(Pageable pageable) {
-        return organizationRepository.findAll(pageable).map(organizationMapper::toResponse);
+    public Page<OrganizationResponse> list(OrganizationType organizationType, Pageable pageable) {
+        Page<Organization> organizations = organizationType == null
+                ? organizationRepository.findAll(pageable)
+                : organizationRepository.findByOrganizationType(organizationType, pageable);
+        return organizations.map(organizationMapper::toResponse);
     }
 
     @Override
