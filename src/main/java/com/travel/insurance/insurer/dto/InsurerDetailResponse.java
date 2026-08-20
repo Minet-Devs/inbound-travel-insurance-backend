@@ -15,6 +15,10 @@ public record InsurerDetailResponse(
         String logoUrl,
         Long policyToken,
         Long availablePolicies,
+        String notificationEmail,
+        String host,
+        Integer port,
+        String esignature,
         List<PolicyResponse> policies,
         Instant createdDate,
         Instant updatedDate
@@ -30,6 +34,10 @@ public record InsurerDetailResponse(
                 insurer.logoUrl(),
                 insurer.policyToken(),
                 insurer.availablePolicies(),
+                insurer.notificationEmail(),
+                insurer.host(),
+                insurer.port(),
+                insurer.esignature(),
                 policies,
                 insurer.createdDate(),
                 insurer.updatedDate());

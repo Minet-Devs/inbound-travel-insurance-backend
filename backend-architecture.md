@@ -417,6 +417,14 @@ Policy
   plain counterparts on the existing routes. `InsurerController` composes the
   detailed response itself from `InsurerService` + `PolicyService`
   (controller-level fan-in, same as `VisitorController.toDetail()`).
+- `Insurer` carries outbound-email/e-signature settings used for policy
+  document notifications: `notificationEmail`, `notificationEmailPassword`,
+  `host`, `port`, `esignature`. All are accepted on the `InsurerRequest`
+  (create/update). `notificationEmailPassword` is a credential and is
+  encrypted at rest via `EncryptedStringConverter` (same pattern as
+  `Visitor`'s PII columns — see "Security") and is deliberately **omitted**
+  from `InsurerResponse`/`InsurerDetailResponse`; the other four fields are
+  returned as plain values.
 - **Benefit** is a standalone **global catalog** entry: a `benefitName` (free
   text) and a `limitAmount` (limit of cover). It is no longer scoped to a
   policy — there is no `policyId` or fixed `BenefitType` enum. The catalog is

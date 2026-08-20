@@ -127,7 +127,7 @@ class VisitorActivatedNotificationListenerTest {
                         VisitorStatus.ACTIVE, Instant.now(), Instant.now())));
         when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
                 insurerId, null, "Acme Insurance", "contact@acme.example", null, null,
-                "https://cdn.example/acme.png", null, null, Instant.now(), Instant.now()));
+                "https://cdn.example/acme.png", null, null, null, null, null, null, Instant.now(), Instant.now()));
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -161,7 +161,7 @@ class VisitorActivatedNotificationListenerTest {
         when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
                 insurerId, null, "Acme Insurance", "contact@acme.example", null, null,
                 "https://www.dropbox.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=0", null,
-                null, Instant.now(), Instant.now()));
+                null, null, null, null, null, Instant.now(), Instant.now()));
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -178,7 +178,7 @@ class VisitorActivatedNotificationListenerTest {
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
         when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
-                insurerId, null, "Acme Insurance", "contact@acme.example", null, null, null, null, null, Instant.now(), Instant.now()));
+                insurerId, null, "Acme Insurance", "contact@acme.example", null, null, null, null, null, null, null, null, null, Instant.now(), Instant.now()));
         when(renderer.renderPdf(any(PolicyDocumentData.class)))
                 .thenThrow(new IllegalStateException("PDF rendering failed"));
 
@@ -195,7 +195,7 @@ class VisitorActivatedNotificationListenerTest {
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
         when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
-                insurerId, null, "Acme Insurance", "contact@acme.example", null, null, null, null, null, Instant.now(), Instant.now()));
+                insurerId, null, "Acme Insurance", "contact@acme.example", null, null, null, null, null, null, null, null, null, Instant.now(), Instant.now()));
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -209,7 +209,7 @@ class VisitorActivatedNotificationListenerTest {
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
         when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
-                insurerId, null, "Acme Insurance", "contact@acme.example", null, null, null, null, null, Instant.now(), Instant.now()));
+                insurerId, null, "Acme Insurance", "contact@acme.example", null, null, null, null, null, null, null, null, null, Instant.now(), Instant.now()));
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
 
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));

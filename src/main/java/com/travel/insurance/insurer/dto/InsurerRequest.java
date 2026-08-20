@@ -9,6 +9,11 @@ public record InsurerRequest(
         String contactPhone,
         String address,
         String logoUrl,
-        Long policyToken
+        Long policyToken,
+        @Email String notificationEmail,
+        String notificationEmailPassword,
+        String host,
+        Integer port,
+        String esignature
 ) {
 }
