@@ -16,6 +16,8 @@ public interface ServiceProviderService {
 
     ServiceProviderResponse getById(UUID id);
 
+    ServiceProvider getEntityById(UUID id);
+
     Page<ServiceProviderResponse> list(Pageable pageable);
 
     ServiceProviderResponse update(UUID id, ServiceProviderRequest request);
@@ -23,6 +25,8 @@ public interface ServiceProviderService {
     void delete(UUID id);
 
     boolean exists(UUID id);
+
+    void assignOrganizationId(UUID id, UUID organizationId);
 
     Map<UUID, String> namesByIds(Collection<UUID> serviceProviderIds);
 

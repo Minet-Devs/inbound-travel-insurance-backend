@@ -25,4 +25,6 @@ public interface InsurerService {
     void delete(UUID id);
 
     boolean exists(UUID id);
+
+    void assignOrganizationId(UUID id, UUID organizationId);
 }

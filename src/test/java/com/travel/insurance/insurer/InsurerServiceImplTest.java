@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Optional;
@@ -36,6 +37,9 @@ class InsurerServiceImplTest {
     @Mock
     private OrganizationService organizationService;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private final InsurerMapper insurerMapper = new InsurerMapper();
 
     private InsurerServiceImpl insurerService;
@@ -44,7 +48,8 @@ class InsurerServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        insurerService = new InsurerServiceImpl(insurerRepository, insurerMapper, policyService, organizationService);
+        insurerService = new InsurerServiceImpl(insurerRepository, insurerMapper, policyService, organizationService,
+                eventPublisher);
         lenient().when(policyService.findPolicyIdByInsurerId(any())).thenReturn(Optional.empty());
         request = new InsurerRequest("Acme Insurance", "contact@acme.example", "+254700000000", "Nairobi",
                 "https://cdn.example/acme.png", 42L, "notify@acme.example", "s3cr3t", "smtp.acme.example", 587,
@@ -67,6 +72,7 @@ class InsurerServiceImplTest {
         assertThat(response.port()).isEqualTo(587);
         assertThat(response.esignature()).isEqualTo("signature-data");
         verify(insurerRepository).save(any(Insurer.class));
+        verify(eventPublisher).publishEvent(any(InsurerCreatedEvent.class));
     }
 
     @Test
@@ -190,5 +196,19 @@ class InsurerServiceImplTest {
 
         assertThat(response.name()).isEqualTo("Acme Re");
         assertThat(response.contactEmail()).isEqualTo("hello@acme.example");
+    }
+
+    @Test
+    void assignOrganizationIdUpdatesEntity() {
+        UUID id = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
+        Insurer existing = insurerMapper.toEntity(request);
+        when(insurerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        insurerService.assignOrganizationId(id, organizationId);
+
+        assertThat(existing.getOrganizationId()).isEqualTo(organizationId);
+        verify(insurerRepository).save(existing);
     }
 }
