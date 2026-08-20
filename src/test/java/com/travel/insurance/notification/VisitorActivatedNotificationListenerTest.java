@@ -2,9 +2,10 @@ package com.travel.insurance.notification;
 
 import com.travel.insurance.common.email.EmailAttachment;
 import com.travel.insurance.common.email.EmailService;
+import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.config.MailProperties;
+import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerService;
-import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyType;
@@ -36,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -108,6 +110,14 @@ class VisitorActivatedNotificationListenerTest {
         return policy;
     }
 
+    private Insurer sampleInsurer() {
+        Insurer insurer = new Insurer();
+        insurer.setId(insurerId);
+        insurer.setName("Acme Insurance");
+        insurer.setContactEmail("contact@acme.example");
+        return insurer;
+    }
+
     @Test
     void ignoresTransitionsToNonActiveStatus() {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.SUSPENDED));
@@ -118,6 +128,8 @@ class VisitorActivatedNotificationListenerTest {
 
     @Test
     void sendsCertificateEmailWhenVisitorBecomesActive() {
+        Insurer insurer = sampleInsurer();
+        insurer.setLogoUrl("https://cdn.example/acme.png");
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of(
@@ -125,9 +137,7 @@ class VisitorActivatedNotificationListenerTest {
                         "Medical Expenses", new BigDecimal("20000.00"), BigDecimal.ZERO,
                         new BigDecimal("20000.00"),
                         VisitorStatus.ACTIVE, Instant.now(), Instant.now())));
-        when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
-                insurerId, null, "Acme Insurance", "contact@acme.example", null, null,
-                "https://cdn.example/acme.png", null, null, null, null, null, null, Instant.now(), Instant.now()));
+        when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -137,10 +147,12 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(dataCaptor.getValue().visitorFullName()).isEqualTo("Jane Traveler");
         assertThat(dataCaptor.getValue().insurerNames()).containsExactly("Acme Insurance");
         assertThat(dataCaptor.getValue().underwriterLogoUrl()).isEqualTo("https://cdn.example/acme.png");
+        assertThat(dataCaptor.getValue().esignatureUrl()).isNull();
         assertThat(dataCaptor.getValue().benefits()).hasSize(1);
 
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
         verify(emailService).send(
+                isNull(),
                 eq("no-reply@travelinsurance.example"),
                 eq("jane.traveler@example.com"),
                 anyString(),
@@ -155,13 +167,12 @@ class VisitorActivatedNotificationListenerTest {
 
     @Test
     void normalizesLegacyDropboxLogoUrlBeforeRendering() {
+        Insurer insurer = sampleInsurer();
+        insurer.setLogoUrl("https://www.dropbox.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=0");
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
-        when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
-                insurerId, null, "Acme Insurance", "contact@acme.example", null, null,
-                "https://www.dropbox.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=0", null,
-                null, null, null, null, null, Instant.now(), Instant.now()));
+        when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -177,8 +188,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
-        when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
-                insurerId, null, "Acme Insurance", "contact@acme.example", null, null, null, null, null, null, null, null, null, Instant.now(), Instant.now()));
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class)))
                 .thenThrow(new IllegalStateException("PDF rendering failed"));
 
@@ -186,7 +196,7 @@ class VisitorActivatedNotificationListenerTest {
                 new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE)))
                 .doesNotThrowAnyException();
 
-        verify(emailService, never()).send(anyString(), anyString(), anyString(), anyString(), anyList());
+        verify(emailService, never()).send(any(), anyString(), anyString(), anyString(), anyString(), anyList());
     }
 
     @Test
@@ -194,13 +204,12 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
-        when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
-                insurerId, null, "Acme Insurance", "contact@acme.example", null, null, null, null, null, null, null, null, null, Instant.now(), Instant.now()));
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
-        verify(emailService).send(anyString(), anyString(), anyString(), anyString(), anyList());
+        verify(emailService).send(any(), anyString(), anyString(), anyString(), anyString(), anyList());
     }
 
     @Test
@@ -208,13 +217,12 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
-        when(insurerService.getById(insurerId)).thenReturn(new InsurerResponse(
-                insurerId, null, "Acme Insurance", "contact@acme.example", null, null, null, null, null, null, null, null, null, Instant.now(), Instant.now()));
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
 
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
 
-        verify(emailService).send(anyString(), anyString(), anyString(), anyString(), anyList());
+        verify(emailService).send(any(), anyString(), anyString(), anyString(), anyString(), anyList());
     }
 
     @Test
@@ -226,5 +234,58 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
 
         verifyNoInteractions(policyService, visitorBenefitService, insurerService, renderer, emailService);
+    }
+
+    @Test
+    void usesInsurerSmtpCredentialsWhenFullyConfigured() {
+        Insurer insurer = sampleInsurer();
+        insurer.setHost("smtp.acme.example");
+        insurer.setPort(587);
+        insurer.setNotificationEmail("notify@acme.example");
+        insurer.setNotificationEmailPassword("s3cr3t");
+        insurer.setEsignature("https://cdn.example/acme-signature.png");
+
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
+
+        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
+
+        ArgumentCaptor<PolicyDocumentData> dataCaptor = ArgumentCaptor.forClass(PolicyDocumentData.class);
+        verify(renderer).renderPdf(dataCaptor.capture());
+        assertThat(dataCaptor.getValue().esignatureUrl()).isEqualTo("https://cdn.example/acme-signature.png");
+
+        ArgumentCaptor<SmtpCredentials> credentialsCaptor = ArgumentCaptor.forClass(SmtpCredentials.class);
+        verify(emailService).send(
+                credentialsCaptor.capture(),
+                eq("notify@acme.example"),
+                eq("jane.traveler@example.com"),
+                anyString(), anyString(), anyList());
+        assertThat(credentialsCaptor.getValue())
+                .isEqualTo(new SmtpCredentials("smtp.acme.example", 587, "notify@acme.example", "s3cr3t"));
+    }
+
+    @Test
+    void fallsBackToGlobalMailerWhenInsurerCredentialsPartiallyConfigured() {
+        Insurer insurer = sampleInsurer();
+        insurer.setHost("smtp.acme.example");
+        insurer.setPort(587);
+        // notificationEmail / notificationEmailPassword left unset -> not fully configured
+
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
+
+        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
+
+        verify(emailService).send(
+                isNull(),
+                eq("no-reply@travelinsurance.example"),
+                eq("jane.traveler@example.com"),
+                anyString(), anyString(), anyList());
     }
 }

@@ -14,6 +14,8 @@ public interface InsurerService {
 
     InsurerResponse getById(UUID id);
 
+    Insurer getEntityById(UUID id);
+
     Page<InsurerResponse> list(Pageable pageable);
 
     List<InsurerResponse> listAll();

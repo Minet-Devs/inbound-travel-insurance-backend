@@ -15,7 +15,9 @@ import java.util.Properties;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -23,6 +25,9 @@ class EmailServiceTest {
 
     @Mock
     private JavaMailSender mailSender;
+
+    @Mock
+    private SmtpSenderFactory smtpSenderFactory;
 
     private EmailService emailService;
 
@@ -32,7 +37,7 @@ class EmailServiceTest {
 
     @Test
     void sendsMimeMessageWithAttachment() {
-        emailService = new EmailService(mailSender);
+        emailService = new EmailService(mailSender, smtpSenderFactory);
         MimeMessage message = newMimeMessage();
         when(mailSender.createMimeMessage()).thenReturn(message);
 
@@ -44,7 +49,7 @@ class EmailServiceTest {
 
     @Test
     void sendsMimeMessageWithMultipleAttachments() {
-        emailService = new EmailService(mailSender);
+        emailService = new EmailService(mailSender, smtpSenderFactory);
         MimeMessage message = newMimeMessage();
         when(mailSender.createMimeMessage()).thenReturn(message);
 
@@ -57,7 +62,7 @@ class EmailServiceTest {
 
     @Test
     void doesNotPropagateWhenSendFails() {
-        emailService = new EmailService(mailSender);
+        emailService = new EmailService(mailSender, smtpSenderFactory);
         MimeMessage message = newMimeMessage();
         when(mailSender.createMimeMessage()).thenReturn(message);
         doThrow(new MailSendException("SMTP unavailable")).when(mailSender).send(any(MimeMessage.class));
@@ -69,7 +74,7 @@ class EmailServiceTest {
 
     @Test
     void doesNotPropagateWhenMimeMessageCreationFails() {
-        emailService = new EmailService(mailSender);
+        emailService = new EmailService(mailSender, smtpSenderFactory);
         when(mailSender.createMimeMessage()).thenThrow(new RuntimeException("boom"));
 
         assertThatCode(() -> emailService.send("from@example.com", "to@example.com", "Subject",
@@ -79,7 +84,7 @@ class EmailServiceTest {
 
     @Test
     void sendsPlainTextEmail() {
-        emailService = new EmailService(mailSender);
+        emailService = new EmailService(mailSender, smtpSenderFactory);
         MimeMessage message = newMimeMessage();
         when(mailSender.createMimeMessage()).thenReturn(message);
 
@@ -90,12 +95,50 @@ class EmailServiceTest {
 
     @Test
     void doesNotPropagateWhenPlainTextSendFails() {
-        emailService = new EmailService(mailSender);
+        emailService = new EmailService(mailSender, smtpSenderFactory);
         MimeMessage message = newMimeMessage();
         when(mailSender.createMimeMessage()).thenReturn(message);
         doThrow(new MailSendException("SMTP unavailable")).when(mailSender).send(any(MimeMessage.class));
 
         assertThatCode(() -> emailService.send("from@example.com", "to@example.com", "Subject", "<p>Body</p>"))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void sendsViaCustomSmtpSenderWhenCredentialsProvided() {
+        emailService = new EmailService(mailSender, smtpSenderFactory);
+        JavaMailSender customSender = mock(JavaMailSender.class);
+        MimeMessage message = newMimeMessage();
+        SmtpCredentials credentials = new SmtpCredentials("smtp.acme.example", 587, "notify@acme.example", "s3cr3t");
+        when(smtpSenderFactory.create(credentials)).thenReturn(customSender);
+        when(customSender.createMimeMessage()).thenReturn(message);
+
+        emailService.send(credentials, "notify@acme.example", "to@example.com", "Subject", "<p>Body</p>");
+
+        verify(customSender).send(message);
+        verifyNoInteractions(mailSender);
+    }
+
+    @Test
+    void fallsBackToDefaultSenderWhenCredentialsNull() {
+        emailService = new EmailService(mailSender, smtpSenderFactory);
+        MimeMessage message = newMimeMessage();
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        emailService.send(null, "from@example.com", "to@example.com", "Subject", "<p>Body</p>");
+
+        verify(mailSender).send(message);
+        verifyNoInteractions(smtpSenderFactory);
+    }
+
+    @Test
+    void doesNotPropagateWhenSmtpSenderFactoryThrows() {
+        emailService = new EmailService(mailSender, smtpSenderFactory);
+        SmtpCredentials credentials = new SmtpCredentials("smtp.acme.example", 587, "notify@acme.example", "s3cr3t");
+        when(smtpSenderFactory.create(credentials)).thenThrow(new RuntimeException("boom"));
+
+        assertThatCode(() -> emailService.send(credentials, "notify@acme.example", "to@example.com", "Subject",
+                "<p>Body</p>"))
                 .doesNotThrowAnyException();
     }
 }

@@ -97,6 +97,27 @@ class InsurerServiceImplTest {
     }
 
     @Test
+    void getEntityByIdReturnsEntity() {
+        UUID id = UUID.randomUUID();
+        Insurer insurer = insurerMapper.toEntity(request);
+        insurer.setId(id);
+        when(insurerRepository.findById(id)).thenReturn(Optional.of(insurer));
+
+        Insurer result = insurerService.getEntityById(id);
+
+        assertThat(result.getName()).isEqualTo("Acme Insurance");
+    }
+
+    @Test
+    void getEntityByIdThrowsWhenMissing() {
+        UUID id = UUID.randomUUID();
+        when(insurerRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> insurerService.getEntityById(id))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
     void getByIdIncludesPolicyIdBackedByInsurer() {
         UUID id = UUID.randomUUID();
         UUID policyId = UUID.randomUUID();
