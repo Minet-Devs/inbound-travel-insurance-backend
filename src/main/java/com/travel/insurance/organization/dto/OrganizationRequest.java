@@ -11,6 +11,11 @@ public record OrganizationRequest(
         @NotBlank @Email String email,
         String phoneNumber,
         String address,
-        String city
+        String city,
+        @Email String notificationEmail,
+        String notificationEmailPassword,
+        String host,
+        Integer port,
+        String esignature
 ) {
 }

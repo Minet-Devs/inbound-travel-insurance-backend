@@ -299,7 +299,9 @@ com.travel.insurance/
 │   ├── OrganizationService.java            # Interface
 │   ├── OrganizationServiceImpl.java
 │   ├── OrganizationRepository.java
-│   ├── Organization.java                   # name (unique), organizationType, email, phoneNumber, address, city
+│   ├── Organization.java                   # name (unique), organizationType, email, phoneNumber, address,
+│   │                                        # city, notificationEmail, notificationEmailPassword (encrypted),
+│   │                                        # host, port, esignature — all optional
 │   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER
 │   ├── OrganizationMapper.java
 │   ├── OrganizationCreatedEvent.java         # published on create; consumed below
@@ -533,6 +535,11 @@ Policy
   restricted to `ADMIN`; reads are open to any authenticated user.
   `GET /api/v1/organizations?organizationType=…` (paged) filters the list by
   type; the parameter is optional and omitting it returns all organizations.
+  It also carries the same optional outbound-email/e-signature settings as
+  `Insurer` — `notificationEmail`, `notificationEmailPassword` (encrypted at
+  rest via `EncryptedStringConverter`, never returned in `OrganizationResponse`),
+  `host`, `port`, `esignature` — added for parity, but not yet wired into the
+  `OrganizationCreatedListener` provisioning flow below.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,

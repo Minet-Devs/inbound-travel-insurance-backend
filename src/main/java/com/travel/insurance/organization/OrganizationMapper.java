@@ -20,6 +20,11 @@ public class OrganizationMapper {
         organization.setPhoneNumber(request.phoneNumber());
         organization.setAddress(request.address());
         organization.setCity(request.city());
+        organization.setNotificationEmail(request.notificationEmail());
+        organization.setNotificationEmailPassword(request.notificationEmailPassword());
+        organization.setHost(request.host());
+        organization.setPort(request.port());
+        organization.setEsignature(request.esignature());
     }
 
     public OrganizationResponse toResponse(Organization organization) {
@@ -31,6 +36,10 @@ public class OrganizationMapper {
                 organization.getPhoneNumber(),
                 organization.getAddress(),
                 organization.getCity(),
+                organization.getNotificationEmail(),
+                organization.getHost(),
+                organization.getPort(),
+                organization.getEsignature(),
                 organization.getCreatedDate(),
                 organization.getUpdatedDate()
         );
