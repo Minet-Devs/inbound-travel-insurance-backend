@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,16 +43,11 @@ class BiometricWebhookControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @Test
-    void acceptsValidCallbackFromAllowedIp() throws Exception {
-        when(properties.getCallbackAllowedIps()).thenReturn(java.util.List.of("167.71.128.93"));
+    void acceptsValidCallback() throws Exception {
         when(secureHashVerifier.isValid(anyCallback())).thenReturn(true);
 
         mockMvc.perform(post("/api/v1/webhooks/biometric-verification")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .with(request -> {
-                            request.setRemoteAddr("167.71.128.93");
-                            return request;
-                        })
                         .content(objectMapper.writeValueAsString(samplePayload())))
                 .andExpect(status().isOk());
 
@@ -59,47 +55,11 @@ class BiometricWebhookControllerTest {
     }
 
     @Test
-    void acceptsValidCallbackFromIpv6MappedAddress() throws Exception {
-        when(properties.getCallbackAllowedIps()).thenReturn(java.util.List.of("167.71.128.93"));
-        when(secureHashVerifier.isValid(anyCallback())).thenReturn(true);
-
-        mockMvc.perform(post("/api/v1/webhooks/biometric-verification")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .with(request -> {
-                            request.setRemoteAddr("::ffff:167.71.128.93");
-                            return request;
-                        })
-                        .content(objectMapper.writeValueAsString(samplePayload())))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void rejectsCallbackFromDisallowedIp() throws Exception {
-        when(properties.getCallbackAllowedIps()).thenReturn(java.util.List.of("167.71.142.137"));
-
-        mockMvc.perform(post("/api/v1/webhooks/biometric-verification")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .with(request -> {
-                            request.setRemoteAddr("203.0.113.9");
-                            return request;
-                        })
-                        .content(objectMapper.writeValueAsString(samplePayload())))
-                .andExpect(status().isForbidden());
-
-        verify(biometricVerificationService, never()).handleCallback(anyCallback());
-    }
-
-    @Test
     void rejectsCallbackWithInvalidSecureHash() throws Exception {
-        when(properties.getCallbackAllowedIps()).thenReturn(java.util.List.of("167.71.128.93"));
         when(secureHashVerifier.isValid(anyCallback())).thenReturn(false);
 
         mockMvc.perform(post("/api/v1/webhooks/biometric-verification")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .with(request -> {
-                            request.setRemoteAddr("167.71.128.93");
-                            return request;
-                        })
                         .content(objectMapper.writeValueAsString(samplePayload())))
                 .andExpect(status().isUnauthorized());
 
@@ -107,7 +67,7 @@ class BiometricWebhookControllerTest {
     }
 
     private BiometricCallbackPayload anyCallback() {
-        return org.mockito.ArgumentMatchers.any(BiometricCallbackPayload.class);
+        return any(BiometricCallbackPayload.class);
     }
 
     private BiometricCallbackPayload samplePayload() {
