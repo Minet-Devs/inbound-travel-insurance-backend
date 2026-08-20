@@ -40,6 +40,7 @@ class OrganizationCreatedListenerTest {
         organization.setEmail("contact@acme.example");
         organization.setPhoneNumber("+254700000000");
         organization.setAddress("Nairobi");
+        organization.setLogoUrl("https://cdn.example/acme.png");
         organization.setNotificationEmail("notify@acme.example");
         organization.setNotificationEmailPassword("s3cr3t");
         organization.setHost("smtp.acme.example");
@@ -62,6 +63,7 @@ class OrganizationCreatedListenerTest {
         assertThat(captor.getValue().contactEmail()).isEqualTo("contact@acme.example");
         assertThat(captor.getValue().contactPhone()).isEqualTo("+254700000000");
         assertThat(captor.getValue().address()).isEqualTo("Nairobi");
+        assertThat(captor.getValue().logoUrl()).isEqualTo("https://cdn.example/acme.png");
         assertThat(captor.getValue().notificationEmail()).isEqualTo("notify@acme.example");
         assertThat(captor.getValue().notificationEmailPassword()).isEqualTo("s3cr3t");
         assertThat(captor.getValue().host()).isEqualTo("smtp.acme.example");
