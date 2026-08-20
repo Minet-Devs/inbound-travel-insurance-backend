@@ -39,6 +39,8 @@ public class Organization extends BaseEntity {
 
     private String city;
 
+    private String logoUrl;
+
     private String notificationEmail;
 
     @Convert(converter = EncryptedStringConverter.class)

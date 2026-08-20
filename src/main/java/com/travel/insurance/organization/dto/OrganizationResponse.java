@@ -13,6 +13,7 @@ public record OrganizationResponse(
         String phoneNumber,
         String address,
         String city,
+        String logoUrl,
         String notificationEmail,
         String host,
         Integer port,

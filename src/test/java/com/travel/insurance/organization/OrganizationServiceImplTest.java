@@ -44,7 +44,7 @@ class OrganizationServiceImplTest {
     void setUp() {
         organizationService = new OrganizationServiceImpl(organizationRepository, organizationMapper, eventPublisher);
         request = new OrganizationRequest("Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
-                "0700000000", "123 Main St", "Nairobi", null, null, null, null, null);
+                "0700000000", "123 Main St", "Nairobi", null, null, null, null, null, null);
     }
 
     @Test
@@ -117,7 +117,7 @@ class OrganizationServiceImplTest {
         when(organizationRepository.findById(id)).thenReturn(Optional.of(existing));
         OrganizationRequest updateRequest =
                 new OrganizationRequest("Beta Ltd", OrganizationType.SERVICE_PROVIDER, "info@beta.com",
-                        "0711111111", "456 Side St", "Mombasa", null, null, null, null, null);
+                        "0711111111", "456 Side St", "Mombasa", null, null, null, null, null, null);
         when(organizationRepository.existsByNameAndIdNot("Beta Ltd", id)).thenReturn(false);
         when(organizationRepository.save(any(Organization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -137,7 +137,7 @@ class OrganizationServiceImplTest {
 
         assertThatThrownBy(() -> organizationService.update(id,
                 new OrganizationRequest("Beta Ltd", OrganizationType.SERVICE_PROVIDER, "info@beta.com",
-                        null, null, null, null, null, null, null, null)))
+                        null, null, null, null, null, null, null, null, null)))
                 .isInstanceOf(IllegalStateException.class);
         verify(organizationRepository, never()).save(any());
     }

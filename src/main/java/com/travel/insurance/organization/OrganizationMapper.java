@@ -1,5 +1,6 @@
 package com.travel.insurance.organization;
 
+import com.travel.insurance.common.util.LogoUrlNormalizer;
 import com.travel.insurance.organization.dto.OrganizationRequest;
 import com.travel.insurance.organization.dto.OrganizationResponse;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,7 @@ public class OrganizationMapper {
         organization.setPhoneNumber(request.phoneNumber());
         organization.setAddress(request.address());
         organization.setCity(request.city());
+        organization.setLogoUrl(LogoUrlNormalizer.normalize(request.logoUrl()));
         organization.setNotificationEmail(request.notificationEmail());
         organization.setNotificationEmailPassword(request.notificationEmailPassword());
         organization.setHost(request.host());
@@ -36,6 +38,7 @@ public class OrganizationMapper {
                 organization.getPhoneNumber(),
                 organization.getAddress(),
                 organization.getCity(),
+                organization.getLogoUrl(),
                 organization.getNotificationEmail(),
                 organization.getHost(),
                 organization.getPort(),
