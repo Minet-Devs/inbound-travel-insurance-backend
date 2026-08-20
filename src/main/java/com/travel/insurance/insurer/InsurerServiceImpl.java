@@ -5,6 +5,7 @@ import com.travel.insurance.insurer.dto.InsurerRequest;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.organization.OrganizationService;
 import com.travel.insurance.policy.PolicyService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,13 +23,16 @@ public class InsurerServiceImpl implements InsurerService {
     private final InsurerMapper insurerMapper;
     private final PolicyService policyService;
     private final OrganizationService organizationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public InsurerServiceImpl(InsurerRepository insurerRepository, InsurerMapper insurerMapper,
-                               @Lazy PolicyService policyService, OrganizationService organizationService) {
+                               @Lazy PolicyService policyService, OrganizationService organizationService,
+                               ApplicationEventPublisher eventPublisher) {
         this.insurerRepository = insurerRepository;
         this.insurerMapper = insurerMapper;
         this.policyService = policyService;
         this.organizationService = organizationService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -37,7 +41,9 @@ public class InsurerServiceImpl implements InsurerService {
             throw new IllegalStateException("Insurer already exists: " + request.name());
         }
         validateOrganization(request.organizationId());
-        return toResponse(insurerRepository.save(insurerMapper.toEntity(request)));
+        Insurer insurer = insurerRepository.save(insurerMapper.toEntity(request));
+        eventPublisher.publishEvent(new InsurerCreatedEvent(insurer.getId()));
+        return toResponse(insurer);
     }
 
     @Override
@@ -92,6 +98,13 @@ public class InsurerServiceImpl implements InsurerService {
     @Transactional(readOnly = true)
     public boolean exists(UUID id) {
         return insurerRepository.existsById(id);
+    }
+
+    @Override
+    public void assignOrganizationId(UUID id, UUID organizationId) {
+        Insurer insurer = getEntity(id);
+        insurer.setOrganizationId(organizationId);
+        insurerRepository.save(insurer);
     }
 
     private Insurer getEntity(UUID id) {

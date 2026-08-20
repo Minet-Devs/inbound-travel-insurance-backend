@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,9 @@ class ServiceProviderServiceImplTest {
     @Mock
     private OrganizationService organizationService;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private final ServiceProviderMapper serviceProviderMapper = new ServiceProviderMapper();
 
     private ServiceProviderServiceImpl serviceProviderService;
@@ -42,7 +46,7 @@ class ServiceProviderServiceImplTest {
     @BeforeEach
     void setUp() {
         serviceProviderService = new ServiceProviderServiceImpl(serviceProviderRepository, serviceProviderMapper,
-                organizationService);
+                organizationService, eventPublisher);
         request = new ServiceProviderRequest("Nairobi Hospital", "contact@nairobihospital.example",
                 "+254700000000", "Argwings Kodhek Rd", null);
     }
@@ -60,6 +64,7 @@ class ServiceProviderServiceImplTest {
         assertThat(response.contactPhone()).isEqualTo("+254700000000");
         assertThat(response.address()).isEqualTo("Argwings Kodhek Rd");
         verify(serviceProviderRepository).save(any(ServiceProvider.class));
+        verify(eventPublisher).publishEvent(any(ServiceProviderCreatedEvent.class));
     }
 
     @Test
@@ -108,6 +113,33 @@ class ServiceProviderServiceImplTest {
 
         assertThatThrownBy(() -> serviceProviderService.getById(id))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void getEntityByIdReturnsEntity() {
+        UUID id = UUID.randomUUID();
+        ServiceProvider provider = serviceProviderMapper.toEntity(request);
+        provider.setId(id);
+        when(serviceProviderRepository.findById(id)).thenReturn(Optional.of(provider));
+
+        ServiceProvider result = serviceProviderService.getEntityById(id);
+
+        assertThat(result.getName()).isEqualTo("Nairobi Hospital");
+    }
+
+    @Test
+    void assignOrganizationIdUpdatesEntity() {
+        UUID id = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
+        ServiceProvider existing = serviceProviderMapper.toEntity(request);
+        when(serviceProviderRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(serviceProviderRepository.save(any(ServiceProvider.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        serviceProviderService.assignOrganizationId(id, organizationId);
+
+        assertThat(existing.getOrganizationId()).isEqualTo(organizationId);
+        verify(serviceProviderRepository).save(existing);
     }
 
     @Test

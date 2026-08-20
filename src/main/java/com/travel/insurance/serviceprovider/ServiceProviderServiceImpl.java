@@ -5,6 +5,7 @@ import com.travel.insurance.organization.OrganizationService;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderRequest;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +27,7 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
     private final ServiceProviderRepository serviceProviderRepository;
     private final ServiceProviderMapper serviceProviderMapper;
     private final OrganizationService organizationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public ServiceProviderResponse create(ServiceProviderRequest request) {
@@ -33,14 +35,21 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
             throw new IllegalStateException("Service provider already exists: " + request.name());
         }
         validateOrganization(request.organizationId());
-        ServiceProvider provider = serviceProviderMapper.toEntity(request);
-        return serviceProviderMapper.toResponse(serviceProviderRepository.save(provider));
+        ServiceProvider provider = serviceProviderRepository.save(serviceProviderMapper.toEntity(request));
+        eventPublisher.publishEvent(new ServiceProviderCreatedEvent(provider.getId()));
+        return serviceProviderMapper.toResponse(provider);
     }
 
     @Override
     @Transactional(readOnly = true)
     public ServiceProviderResponse getById(UUID id) {
         return serviceProviderMapper.toResponse(getEntity(id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ServiceProvider getEntityById(UUID id) {
+        return getEntity(id);
     }
 
     @Override
@@ -72,6 +81,13 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
     @Transactional(readOnly = true)
     public boolean exists(UUID id) {
         return serviceProviderRepository.existsById(id);
+    }
+
+    @Override
+    public void assignOrganizationId(UUID id, UUID organizationId) {
+        ServiceProvider provider = getEntity(id);
+        provider.setOrganizationId(organizationId);
+        serviceProviderRepository.save(provider);
     }
 
     @Override
