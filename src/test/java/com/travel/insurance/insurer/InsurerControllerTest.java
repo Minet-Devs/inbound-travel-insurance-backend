@@ -54,7 +54,7 @@ class InsurerControllerTest {
     private InsurerResponse sampleResponse() {
         return new InsurerResponse(insurerId, policyId, "Acme Insurance", "contact@acme.example",
                 null, null, "https://cdn.example/acme.png", 42L, 42L, "notify@acme.example", "smtp.acme.example",
-                587, "signature-data", Instant.now(), Instant.now());
+                587, "signature-data", null, Instant.now(), Instant.now());
     }
 
     private PolicyResponse samplePolicy() {
@@ -80,7 +80,7 @@ class InsurerControllerTest {
 
         InsurerRequest request = new InsurerRequest("Acme Insurance", "contact@acme.example", null, null,
                 "https://cdn.example/acme.png", 42L, "notify@acme.example", "s3cr3t", "smtp.acme.example", 587,
-                "signature-data");
+                "signature-data", null);
         mockMvc.perform(post("/api/v1/insurers")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -100,7 +100,7 @@ class InsurerControllerTest {
     @WithMockUser(roles = "ADMIN")
     void createRejectsInvalidBody() throws Exception {
         InsurerRequest request = new InsurerRequest("", "not-an-email", null, null, null, null, null, null, null,
-                null, null);
+                null, null, null);
         mockMvc.perform(post("/api/v1/insurers")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

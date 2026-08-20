@@ -225,8 +225,8 @@ class UssdServiceImplTest {
         UssdSession session = createSession("PROMPT_HOSPITAL_NAME");
         UUID id1 = UUID.randomUUID();
         UUID id2 = UUID.randomUUID();
-        ServiceProviderResponse p1 = new ServiceProviderResponse(id1, "Avenue Healthcare Clinic", "info@avenue.example", "+254711111111", "Buruburu, Nairobi", Instant.now(), Instant.now());
-        ServiceProviderResponse p2 = new ServiceProviderResponse(id2, "Avenue Healthcare Rescue", "rescue@avenue.example", "+254722222222", "Parklands, Nairobi", Instant.now(), Instant.now());
+        ServiceProviderResponse p1 = new ServiceProviderResponse(id1, "Avenue Healthcare Clinic", "info@avenue.example", "+254711111111", "Buruburu, Nairobi", null, Instant.now(), Instant.now());
+        ServiceProviderResponse p2 = new ServiceProviderResponse(id2, "Avenue Healthcare Rescue", "rescue@avenue.example", "+254722222222", "Parklands, Nairobi", null, Instant.now(), Instant.now());
         when(serviceProviderService.searchByName("Avenue", 5)).thenReturn(List.of(p1, p2));
 
         UssdResponse response = ussdService.processSessionStep(session, "Avenue");

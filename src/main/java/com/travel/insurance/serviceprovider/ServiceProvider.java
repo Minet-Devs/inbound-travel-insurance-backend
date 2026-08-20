@@ -10,6 +10,8 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.util.UUID;
+
 @Entity
 @Table(name = "service_providers")
 @SQLDelete(sql = "update service_providers set deleted = true, deleted_date = now() where id = ?")
@@ -28,4 +30,6 @@ public class ServiceProvider extends BaseEntity {
     private String contactPhone;
 
     private String address;
+
+    private UUID organizationId;
 }

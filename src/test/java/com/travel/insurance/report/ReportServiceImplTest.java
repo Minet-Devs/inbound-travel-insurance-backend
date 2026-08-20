@@ -76,7 +76,7 @@ class ReportServiceImplTest {
         when(invoiceService.getByIds(Set.of(invoiceId))).thenReturn(List.of(invoice));
         when(icd11CodeService.getById(diagnosisId)).thenReturn(new Icd11CodeResponse(diagnosisId, "1A00", "Cholera", Instant.now(), Instant.now()));
         when(procedureService.getById(procedureId)).thenReturn(new ProcedureResponse(procedureId, "P001", "Consultation", "General consultation", null, true, null, Instant.now(), Instant.now()));
-        when(serviceProviderService.getById(providerId)).thenReturn(new com.travel.insurance.serviceprovider.dto.ServiceProviderResponse(providerId, "Nairobi Hospital", "info@nairobi.com", "+254700000000", "Nairobi", Instant.now(), Instant.now()));
+        when(serviceProviderService.getById(providerId)).thenReturn(new com.travel.insurance.serviceprovider.dto.ServiceProviderResponse(providerId, "Nairobi Hospital", "info@nairobi.com", "+254700000000", "Nairobi", null, Instant.now(), Instant.now()));
 
         ClaimReceiptResponse receipt = reportService.getClaimReceipt(claimId);
 
@@ -106,7 +106,7 @@ class ReportServiceImplTest {
         when(invoiceService.getByIds(anySet())).thenReturn(List.of());
         when(icd11CodeService.getById(diagnosisId)).thenReturn(new Icd11CodeResponse(diagnosisId, "1A00", "Cholera", Instant.now(), Instant.now()));
         when(procedureService.getById(procedureId)).thenReturn(new ProcedureResponse(procedureId, "P001", "Consultation", "General consultation", null, true, null, Instant.now(), Instant.now()));
-        when(serviceProviderService.getById(providerId)).thenReturn(new com.travel.insurance.serviceprovider.dto.ServiceProviderResponse(providerId, "Nairobi Hospital", "info@nairobi.com", "+254700000000", "Nairobi", Instant.now(), Instant.now()));
+        when(serviceProviderService.getById(providerId)).thenReturn(new com.travel.insurance.serviceprovider.dto.ServiceProviderResponse(providerId, "Nairobi Hospital", "info@nairobi.com", "+254700000000", "Nairobi", null, Instant.now(), Instant.now()));
 
         ClaimReceiptResponse receipt = reportService.getClaimReceipt(claimId);
 
@@ -123,7 +123,7 @@ class ReportServiceImplTest {
         when(invoiceService.getByIds(anySet())).thenReturn(List.of());
         when(icd11CodeService.getById(diagnosisId)).thenReturn(new Icd11CodeResponse(diagnosisId, "1A00", "Cholera", Instant.now(), Instant.now()));
         when(procedureService.getById(procedureId)).thenReturn(new ProcedureResponse(procedureId, "P001", "Consultation", "General consultation", null, true, null, Instant.now(), Instant.now()));
-        when(serviceProviderService.getById(providerId)).thenReturn(new com.travel.insurance.serviceprovider.dto.ServiceProviderResponse(providerId, "Nairobi Hospital", "info@nairobi.com", "+254700000000", "Nairobi", Instant.now(), Instant.now()));
+        when(serviceProviderService.getById(providerId)).thenReturn(new com.travel.insurance.serviceprovider.dto.ServiceProviderResponse(providerId, "Nairobi Hospital", "info@nairobi.com", "+254700000000", "Nairobi", null, Instant.now(), Instant.now()));
 
         ClaimReceiptResponse receipt = reportService.getClaimReceipt(claimId);
 
@@ -195,7 +195,7 @@ class ReportServiceImplTest {
         when(invoiceService.getByIds(anySet())).thenReturn(List.of());
         when(icd11CodeService.getById(diagnosisId)).thenReturn(new Icd11CodeResponse(diagnosisId, "1A00", "Cholera", Instant.now(), Instant.now()));
         when(procedureService.getById(procedureId)).thenReturn(new ProcedureResponse(procedureId, "P001", "Consultation", "General consultation", null, true, null, Instant.now(), Instant.now()));
-        when(serviceProviderService.getById(providerId)).thenReturn(new com.travel.insurance.serviceprovider.dto.ServiceProviderResponse(providerId, "Nairobi Hospital", "info@nairobi.com", "+254700000000", "Nairobi", Instant.now(), Instant.now()));
+        when(serviceProviderService.getById(providerId)).thenReturn(new com.travel.insurance.serviceprovider.dto.ServiceProviderResponse(providerId, "Nairobi Hospital", "info@nairobi.com", "+254700000000", "Nairobi", null, Instant.now(), Instant.now()));
         when(templateEngine.process(eq("report/claim-receipt"), any())).thenReturn("<html><body>test</body></html>");
 
         byte[] pdf = reportService.generateClaimReceiptPdf(claimId);

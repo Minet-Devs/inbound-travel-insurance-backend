@@ -28,6 +28,7 @@ public class InsurerMapper {
         insurer.setHost(request.host());
         insurer.setPort(request.port());
         insurer.setEsignature(request.esignature());
+        insurer.setOrganizationId(request.organizationId());
     }
 
     public InsurerResponse toResponse(Insurer insurer, UUID policyId) {
@@ -45,6 +46,7 @@ public class InsurerMapper {
                 insurer.getHost(),
                 insurer.getPort(),
                 insurer.getEsignature(),
+                insurer.getOrganizationId(),
                 insurer.getCreatedDate(),
                 insurer.getUpdatedDate()
         );

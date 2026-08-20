@@ -18,6 +18,7 @@ public class ServiceProviderMapper {
         provider.setContactEmail(request.contactEmail());
         provider.setContactPhone(request.contactPhone());
         provider.setAddress(request.address());
+        provider.setOrganizationId(request.organizationId());
     }
 
     public ServiceProviderResponse toResponse(ServiceProvider provider) {
@@ -27,6 +28,7 @@ public class ServiceProviderMapper {
                 provider.getContactEmail(),
                 provider.getContactPhone(),
                 provider.getAddress(),
+                provider.getOrganizationId(),
                 provider.getCreatedDate(),
                 provider.getUpdatedDate()
         );

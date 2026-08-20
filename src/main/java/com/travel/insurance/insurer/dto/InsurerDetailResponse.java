@@ -19,6 +19,7 @@ public record InsurerDetailResponse(
         String host,
         Integer port,
         String esignature,
+        UUID organizationId,
         List<PolicyResponse> policies,
         Instant createdDate,
         Instant updatedDate
@@ -38,6 +39,7 @@ public record InsurerDetailResponse(
                 insurer.host(),
                 insurer.port(),
                 insurer.esignature(),
+                insurer.organizationId(),
                 policies,
                 insurer.createdDate(),
                 insurer.updatedDate());

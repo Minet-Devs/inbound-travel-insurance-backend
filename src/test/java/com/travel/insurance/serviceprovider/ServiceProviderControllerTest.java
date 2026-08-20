@@ -42,7 +42,7 @@ class ServiceProviderControllerTest {
 
     private ServiceProviderResponse sampleResponse() {
         return new ServiceProviderResponse(providerId, "Nairobi Hospital", "contact@nairobihospital.example",
-                "+254700000000", "Argwings Kodhek Rd", Instant.now(), Instant.now());
+                "+254700000000", "Argwings Kodhek Rd", null, Instant.now(), Instant.now());
     }
 
     @Test
@@ -62,7 +62,7 @@ class ServiceProviderControllerTest {
         when(serviceProviderService.create(any(ServiceProviderRequest.class))).thenReturn(sampleResponse());
 
         ServiceProviderRequest request = new ServiceProviderRequest("Nairobi Hospital",
-                "contact@nairobihospital.example", "+254700000000", "Argwings Kodhek Rd");
+                "contact@nairobihospital.example", "+254700000000", "Argwings Kodhek Rd", null);
         mockMvc.perform(post("/api/v1/service-providers")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -76,7 +76,7 @@ class ServiceProviderControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void createRejectsInvalidBody() throws Exception {
-        ServiceProviderRequest request = new ServiceProviderRequest("", "not-an-email", null, null);
+        ServiceProviderRequest request = new ServiceProviderRequest("", "not-an-email", null, null, null);
         mockMvc.perform(post("/api/v1/service-providers")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

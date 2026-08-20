@@ -1,6 +1,7 @@
 package com.travel.insurance.serviceprovider;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.organization.OrganizationService;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderRequest;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import lombok.RequiredArgsConstructor;
@@ -24,12 +25,14 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
 
     private final ServiceProviderRepository serviceProviderRepository;
     private final ServiceProviderMapper serviceProviderMapper;
+    private final OrganizationService organizationService;
 
     @Override
     public ServiceProviderResponse create(ServiceProviderRequest request) {
         if (serviceProviderRepository.existsByName(request.name())) {
             throw new IllegalStateException("Service provider already exists: " + request.name());
         }
+        validateOrganization(request.organizationId());
         ServiceProvider provider = serviceProviderMapper.toEntity(request);
         return serviceProviderMapper.toResponse(serviceProviderRepository.save(provider));
     }
@@ -49,8 +52,15 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
     @Override
     public ServiceProviderResponse update(UUID id, ServiceProviderRequest request) {
         ServiceProvider provider = getEntity(id);
+        validateOrganization(request.organizationId());
         serviceProviderMapper.updateEntity(provider, request);
         return serviceProviderMapper.toResponse(serviceProviderRepository.save(provider));
+    }
+
+    private void validateOrganization(UUID organizationId) {
+        if (organizationId != null) {
+            organizationService.getEntityById(organizationId);
+        }
     }
 
     @Override

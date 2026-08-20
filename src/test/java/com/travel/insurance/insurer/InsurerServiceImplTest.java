@@ -3,6 +3,8 @@ package com.travel.insurance.insurer;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.insurer.dto.InsurerRequest;
 import com.travel.insurance.insurer.dto.InsurerResponse;
+import com.travel.insurance.organization.Organization;
+import com.travel.insurance.organization.OrganizationService;
 import com.travel.insurance.policy.PolicyService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,9 @@ class InsurerServiceImplTest {
     @Mock
     private PolicyService policyService;
 
+    @Mock
+    private OrganizationService organizationService;
+
     private final InsurerMapper insurerMapper = new InsurerMapper();
 
     private InsurerServiceImpl insurerService;
@@ -39,11 +44,11 @@ class InsurerServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        insurerService = new InsurerServiceImpl(insurerRepository, insurerMapper, policyService);
+        insurerService = new InsurerServiceImpl(insurerRepository, insurerMapper, policyService, organizationService);
         lenient().when(policyService.findPolicyIdByInsurerId(any())).thenReturn(Optional.empty());
         request = new InsurerRequest("Acme Insurance", "contact@acme.example", "+254700000000", "Nairobi",
                 "https://cdn.example/acme.png", 42L, "notify@acme.example", "s3cr3t", "smtp.acme.example", 587,
-                "signature-data");
+                "signature-data", null);
     }
 
     @Test
@@ -65,9 +70,38 @@ class InsurerServiceImplTest {
     }
 
     @Test
+    void createRejectsUnknownOrganizationId() {
+        UUID organizationId = UUID.randomUUID();
+        InsurerRequest withOrganization = new InsurerRequest("Acme Insurance", "contact@acme.example", null, null,
+                null, null, null, null, null, null, null, organizationId);
+        when(insurerRepository.existsByName("Acme Insurance")).thenReturn(false);
+        when(organizationService.getEntityById(organizationId))
+                .thenThrow(new ResourceNotFoundException("Organization", organizationId));
+
+        assertThatThrownBy(() -> insurerService.create(withOrganization))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(insurerRepository, never()).save(any());
+    }
+
+    @Test
+    void createAcceptsExistingOrganizationId() {
+        UUID organizationId = UUID.randomUUID();
+        InsurerRequest withOrganization = new InsurerRequest("Acme Insurance", "contact@acme.example", null, null,
+                null, null, null, null, null, null, null, organizationId);
+        when(insurerRepository.existsByName("Acme Insurance")).thenReturn(false);
+        when(organizationService.getEntityById(organizationId)).thenReturn(new Organization());
+        when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        InsurerResponse response = insurerService.create(withOrganization);
+
+        assertThat(response.organizationId()).isEqualTo(organizationId);
+    }
+
+    @Test
     void createNormalizesDropboxLogoUrlToDirectDownload() {
         InsurerRequest dropboxLogo = new InsurerRequest("Guardian Assurance", "ga@example.com", null, null,
-                "https://www.dropbox.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=0", null, null, null, null, null, null);
+                "https://www.dropbox.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=0", null, null, null, null, null, null,
+                null);
         when(insurerRepository.existsByName("Guardian Assurance")).thenReturn(false);
         when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -151,7 +185,7 @@ class InsurerServiceImplTest {
         when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         InsurerRequest update = new InsurerRequest("Acme Re", "hello@acme.example", null, null, null, null, null,
-                null, null, null, null);
+                null, null, null, null, null);
         InsurerResponse response = insurerService.update(id, update);
 
         assertThat(response.name()).isEqualTo("Acme Re");

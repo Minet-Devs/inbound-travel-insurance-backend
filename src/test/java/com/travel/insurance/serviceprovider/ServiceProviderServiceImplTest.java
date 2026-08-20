@@ -1,6 +1,8 @@
 package com.travel.insurance.serviceprovider;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.organization.Organization;
+import com.travel.insurance.organization.OrganizationService;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderRequest;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +30,9 @@ class ServiceProviderServiceImplTest {
     @Mock
     private ServiceProviderRepository serviceProviderRepository;
 
+    @Mock
+    private OrganizationService organizationService;
+
     private final ServiceProviderMapper serviceProviderMapper = new ServiceProviderMapper();
 
     private ServiceProviderServiceImpl serviceProviderService;
@@ -36,9 +41,10 @@ class ServiceProviderServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        serviceProviderService = new ServiceProviderServiceImpl(serviceProviderRepository, serviceProviderMapper);
+        serviceProviderService = new ServiceProviderServiceImpl(serviceProviderRepository, serviceProviderMapper,
+                organizationService);
         request = new ServiceProviderRequest("Nairobi Hospital", "contact@nairobihospital.example",
-                "+254700000000", "Argwings Kodhek Rd");
+                "+254700000000", "Argwings Kodhek Rd", null);
     }
 
     @Test
@@ -67,6 +73,35 @@ class ServiceProviderServiceImplTest {
     }
 
     @Test
+    void createRejectsUnknownOrganizationId() {
+        UUID organizationId = UUID.randomUUID();
+        ServiceProviderRequest withOrganization = new ServiceProviderRequest("Nairobi Hospital",
+                "contact@nairobihospital.example", null, null, organizationId);
+        when(serviceProviderRepository.existsByName("Nairobi Hospital")).thenReturn(false);
+        when(organizationService.getEntityById(organizationId))
+                .thenThrow(new ResourceNotFoundException("Organization", organizationId));
+
+        assertThatThrownBy(() -> serviceProviderService.create(withOrganization))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(serviceProviderRepository, never()).save(any());
+    }
+
+    @Test
+    void createAcceptsExistingOrganizationId() {
+        UUID organizationId = UUID.randomUUID();
+        ServiceProviderRequest withOrganization = new ServiceProviderRequest("Nairobi Hospital",
+                "contact@nairobihospital.example", null, null, organizationId);
+        when(serviceProviderRepository.existsByName("Nairobi Hospital")).thenReturn(false);
+        when(organizationService.getEntityById(organizationId)).thenReturn(new Organization());
+        when(serviceProviderRepository.save(any(ServiceProvider.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ServiceProviderResponse response = serviceProviderService.create(withOrganization);
+
+        assertThat(response.organizationId()).isEqualTo(organizationId);
+    }
+
+    @Test
     void getByIdThrowsWhenMissing() {
         UUID id = UUID.randomUUID();
         when(serviceProviderRepository.findById(id)).thenReturn(Optional.empty());
@@ -84,7 +119,7 @@ class ServiceProviderServiceImplTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         ServiceProviderRequest update = new ServiceProviderRequest("Aga Khan Hospital",
-                "info@agakhan.example", null, null);
+                "info@agakhan.example", null, null, null);
         ServiceProviderResponse response = serviceProviderService.update(id, update);
 
         assertThat(response.name()).isEqualTo("Aga Khan Hospital");

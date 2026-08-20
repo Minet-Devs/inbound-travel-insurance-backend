@@ -778,6 +778,13 @@ entities:
   `INSURER_USER` may only see policies and claims whose
   `insurerId` equals `user.organizationId`. Roles gate *which endpoints* a user can
   call; `organizationId` gates *which rows* they can see.
+- Separately, `Insurer` and `ServiceProvider` each carry their own optional
+  `organizationId: UUID` pointing at an `organization.Organization` row (the
+  directory entry described earlier) — an ID-only reference, validated via
+  `OrganizationService.getEntityById` on create/update (404 if the id doesn't
+  resolve). This is unrelated to `User.organizationId` above: that column
+  points *at* an `Insurer`/`ServiceProvider` row, while this one points *from*
+  one to its `Organization` directory entry.
 - The `auth` feature owns login and JWT concerns and depends on `user`
   (service → service); `config/SecurityConfig` wires the JWT filter and
   role-based route rules.

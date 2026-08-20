@@ -12,6 +12,8 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.util.UUID;
+
 @Entity
 @Table(name = "insurers")
 @SQLDelete(sql = "update insurers set deleted = true, deleted_date = now() where id = ?")
@@ -46,4 +48,6 @@ public class Insurer extends BaseEntity {
     private Integer port;
 
     private String esignature;
+
+    private UUID organizationId;
 }
