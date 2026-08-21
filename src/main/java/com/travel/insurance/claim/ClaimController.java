@@ -35,7 +35,7 @@ public class ClaimController {
     }
 
     @PutMapping("/{id}/invoice")
-    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT', 'PROVIDER_USER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER_USER')")
     public ResponseEntity<ClaimResponse> attachInvoice(
             @PathVariable UUID id, @RequestBody AttachInvoiceRequest request) {
         return ResponseEntity.ok(claimService.attachInvoice(id, request));
@@ -52,20 +52,20 @@ public class ClaimController {
     }
 
     @PostMapping("/{id}/decision")
-    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT', 'INSURER_USER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSURER_USER')")
     public ResponseEntity<ClaimResponse> decide(@PathVariable UUID id,
                                                 @Valid @RequestBody ClaimDecisionRequest request) {
         return ResponseEntity.ok(claimService.decide(id, request));
     }
 
     @PostMapping("/{id}/payment")
-    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT', 'INSURER_USER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSURER_USER')")
     public ResponseEntity<ClaimResponse> markPaid(@PathVariable UUID id) {
         return ResponseEntity.ok(claimService.markPaid(id));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         claimService.delete(id);
         return ResponseEntity.noContent().build();

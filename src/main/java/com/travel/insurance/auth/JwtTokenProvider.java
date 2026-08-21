@@ -1,6 +1,5 @@
 package com.travel.insurance.auth;
 
-import com.travel.insurance.user.Role;
 import com.travel.insurance.user.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -14,12 +13,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Component
 public class JwtTokenProvider {
 
-    public static final String CLAIM_ROLES = "roles";
+    public static final String CLAIM_ROLE = "role";
     public static final String CLAIM_ORGANIZATION_ID = "organizationId";
     public static final String CLAIM_TOKEN_TYPE = "tokenType";
     public static final String TOKEN_TYPE_ACCESS = "access";
@@ -63,10 +61,9 @@ public class JwtTokenProvider {
 
     private String createToken(User user, String tokenType, long ttlSeconds) {
         Instant now = Instant.now();
-        String roles = user.getRoles().stream().map(Role::name).collect(Collectors.joining(","));
         return Jwts.builder()
                 .subject(user.getId().toString())
-                .claim(CLAIM_ROLES, roles)
+                .claim(CLAIM_ROLE, user.getRole().name())
                 .claim(CLAIM_ORGANIZATION_ID,
                         user.getOrganizationId() != null ? user.getOrganizationId().toString() : null)
                 .claim(CLAIM_TOKEN_TYPE, tokenType)

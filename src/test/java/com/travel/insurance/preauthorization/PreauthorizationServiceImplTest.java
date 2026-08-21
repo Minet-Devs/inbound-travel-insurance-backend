@@ -39,7 +39,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -192,8 +191,8 @@ class PreauthorizationServiceImplTest {
         return preauthorization;
     }
 
-    private void authenticateAs(UUID organizationId, String... roles) {
-        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), organizationId, Set.of(roles));
+    private void authenticateAs(UUID organizationId, String role) {
+        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), organizationId, role);
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(user, null, List.of()));
     }

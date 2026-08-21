@@ -787,8 +787,11 @@ A single `User` entity serves everyone — admin staff, insurer staff, and
 service provider staff. Users are distinguished by role, not by separate
 entities:
 
-- `User.roles` is a `Set<Role>` (enum, `@ElementCollection`) mapped to Spring
-  Security authorities.
+- `User.role` is a single `Role` enum column (`ADMIN`, `INSURER_USER`,
+  `PROVIDER_USER`) — a user has exactly one role, mapped to a single Spring
+  Security authority. The JWT carries it as a single `role` claim
+  (`JwtTokenProvider.CLAIM_ROLE`); `AuthenticatedUser.role` is a single
+  `String`, not a set.
 - Users belonging to an external organization carry a plain
   `organizationId: UUID` together with the discriminating role
   (`INSURER_USER` → ID of an `Insurer`, `PROVIDER_USER` → ID of a

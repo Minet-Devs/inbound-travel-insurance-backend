@@ -3,7 +3,6 @@ package com.travel.insurance.user.dto;
 import com.travel.insurance.user.Role;
 
 import java.time.Instant;
-import java.util.Set;
 import java.util.UUID;
 
 public record UserResponse(
@@ -12,7 +11,7 @@ public record UserResponse(
         String lastName,
         String email,
         String phoneNumber,
-        Set<Role> roles,
+        Role role,
         UUID organizationId,
         Instant createdDate,
         Instant updatedDate

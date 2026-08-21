@@ -28,7 +28,7 @@ public class PreauthorizationController {
     private final PreauthorizationService preauthorizationService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT', 'PROVIDER_USER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER_USER')")
     public ResponseEntity<PreauthorizationResponse> create(
             @Valid @RequestBody PreauthorizationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(preauthorizationService.create(request));
@@ -45,14 +45,14 @@ public class PreauthorizationController {
     }
 
     @PostMapping("/{id}/decision")
-    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT', 'INSURER_USER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSURER_USER')")
     public ResponseEntity<PreauthorizationResponse> decide(
             @PathVariable UUID id, @Valid @RequestBody PreauthorizationDecisionRequest request) {
         return ResponseEntity.ok(preauthorizationService.decide(id, request));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         preauthorizationService.delete(id);
         return ResponseEntity.noContent().build();
