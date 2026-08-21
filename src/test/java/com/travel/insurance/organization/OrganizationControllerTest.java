@@ -45,7 +45,8 @@ class OrganizationControllerTest {
 
     private OrganizationResponse sampleResponse() {
         return new OrganizationResponse(organizationId, "Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
-                "0700000000", "123 Main St", "Nairobi", Instant.now(), Instant.now());
+                "0700000000", "123 Main St", "Nairobi", "https://cdn.example/acme.png", 123456L, "notify@acme.com",
+                "smtp.acme.com", 587, "signature-data", Instant.now(), Instant.now());
     }
 
     @Test
@@ -72,9 +73,18 @@ class OrganizationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new OrganizationRequest("Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
-                                        "0700000000", "123 Main St", "Nairobi"))))
+                                        "0700000000", "123 Main St", "Nairobi", "https://cdn.example/acme.png",
+                                        123456L, "notify@acme.com", "s3cr3t", "smtp.acme.com", 587,
+                                        "signature-data"))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name").value("Acme Ltd"));
+                .andExpect(jsonPath("$.name").value("Acme Ltd"))
+                .andExpect(jsonPath("$.logoUrl").value("https://cdn.example/acme.png"))
+                .andExpect(jsonPath("$.policyToken").value(123456))
+                .andExpect(jsonPath("$.notificationEmail").value("notify@acme.com"))
+                .andExpect(jsonPath("$.host").value("smtp.acme.com"))
+                .andExpect(jsonPath("$.port").value(587))
+                .andExpect(jsonPath("$.esignature").value("signature-data"))
+                .andExpect(jsonPath("$.notificationEmailPassword").doesNotExist());
     }
 
     @Test
@@ -84,7 +94,8 @@ class OrganizationControllerTest {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new OrganizationRequest("", null, "not-an-email", null, null, null))))
+                                new OrganizationRequest("", null, "not-an-email", null, null, null, null, null, null,
+                                        null, null, null, null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation failed"));
     }

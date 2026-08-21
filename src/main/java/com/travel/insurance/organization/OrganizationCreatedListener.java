@@ -11,8 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Provisions the matching Insurer/ServiceProvider whenever an Organization of
- * that type is created, linking it back via organizationId. ADMIN-type
- * organizations have no matching entity and are ignored.
+ * that type is created, linking it back via organizationId. For INSURER,
+ * the logoUrl, policyToken, and notification email/e-signature settings are
+ * carried across too. ADMIN-type organizations have no matching entity and
+ * are ignored.
  */
 @Component
 @RequiredArgsConstructor
@@ -32,7 +34,13 @@ public class OrganizationCreatedListener {
                     organization.getEmail(),
                     organization.getPhoneNumber(),
                     organization.getAddress(),
-                    null, null, null, null, null, null, null,
+                    organization.getLogoUrl(),
+                    organization.getPolicyToken(),
+                    organization.getNotificationEmail(),
+                    organization.getNotificationEmailPassword(),
+                    organization.getHost(),
+                    organization.getPort(),
+                    organization.getEsignature(),
                     organization.getId()));
             case SERVICE_PROVIDER -> serviceProviderService.create(new ServiceProviderRequest(
                     organization.getName(),

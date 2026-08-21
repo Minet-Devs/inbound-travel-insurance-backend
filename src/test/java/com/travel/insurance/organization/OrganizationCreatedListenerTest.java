@@ -40,6 +40,13 @@ class OrganizationCreatedListenerTest {
         organization.setEmail("contact@acme.example");
         organization.setPhoneNumber("+254700000000");
         organization.setAddress("Nairobi");
+        organization.setLogoUrl("https://cdn.example/acme.png");
+        organization.setPolicyToken(123456L);
+        organization.setNotificationEmail("notify@acme.example");
+        organization.setNotificationEmailPassword("s3cr3t");
+        organization.setHost("smtp.acme.example");
+        organization.setPort(587);
+        organization.setEsignature("signature-data");
         return organization;
     }
 
@@ -57,6 +64,13 @@ class OrganizationCreatedListenerTest {
         assertThat(captor.getValue().contactEmail()).isEqualTo("contact@acme.example");
         assertThat(captor.getValue().contactPhone()).isEqualTo("+254700000000");
         assertThat(captor.getValue().address()).isEqualTo("Nairobi");
+        assertThat(captor.getValue().logoUrl()).isEqualTo("https://cdn.example/acme.png");
+        assertThat(captor.getValue().policyToken()).isEqualTo(123456L);
+        assertThat(captor.getValue().notificationEmail()).isEqualTo("notify@acme.example");
+        assertThat(captor.getValue().notificationEmailPassword()).isEqualTo("s3cr3t");
+        assertThat(captor.getValue().host()).isEqualTo("smtp.acme.example");
+        assertThat(captor.getValue().port()).isEqualTo(587);
+        assertThat(captor.getValue().esignature()).isEqualTo("signature-data");
         assertThat(captor.getValue().organizationId()).isEqualTo(organization.getId());
         verify(serviceProviderService, never()).create(any());
     }

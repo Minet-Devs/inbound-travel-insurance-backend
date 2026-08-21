@@ -13,6 +13,12 @@ public record OrganizationResponse(
         String phoneNumber,
         String address,
         String city,
+        String logoUrl,
+        Long policyToken,
+        String notificationEmail,
+        String host,
+        Integer port,
+        String esignature,
         Instant createdDate,
         Instant updatedDate
 ) {

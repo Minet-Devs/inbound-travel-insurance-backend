@@ -299,7 +299,10 @@ com.travel.insurance/
 │   ├── OrganizationService.java            # Interface
 │   ├── OrganizationServiceImpl.java
 │   ├── OrganizationRepository.java
-│   ├── Organization.java                   # name (unique), organizationType, email, phoneNumber, address, city
+│   ├── Organization.java                   # name (unique), organizationType, email, phoneNumber, address,
+│   │                                        # city, logoUrl, policyToken, notificationEmail,
+│   │                                        # notificationEmailPassword (encrypted), host, port,
+│   │                                        # esignature — all optional
 │   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER
 │   ├── OrganizationMapper.java
 │   ├── OrganizationCreatedEvent.java         # published on create; consumed below
@@ -533,6 +536,18 @@ Policy
   restricted to `ADMIN`; reads are open to any authenticated user.
   `GET /api/v1/organizations?organizationType=…` (paged) filters the list by
   type; the parameter is optional and omitting it returns all organizations.
+  It also carries the same optional `logoUrl` (normalized via
+  `LogoUrlNormalizer`, same as `Insurer`), an optional `policyToken` (`Long`,
+  same meaning as `Insurer.policyToken` — see
+  [Policy Tokenization (Quota Management)](#policy-tokenization-quota-management)), and
+  outbound-email/e-signature settings as `Insurer` — `notificationEmail`,
+  `notificationEmailPassword` (encrypted at rest via
+  `EncryptedStringConverter`, never returned in `OrganizationResponse`),
+  `host`, `port`, `esignature`. For an `INSURER`-type organization, all of
+  these (including `logoUrl` and `policyToken`) are carried across to the
+  provisioned `Insurer` by `OrganizationCreatedListener` below;
+  `ServiceProvider` has no equivalent fields, so `SERVICE_PROVIDER`
+  organizations don't carry any of this.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) plus the
   passport-based basic KYC attributes captured at onboarding: full name,
