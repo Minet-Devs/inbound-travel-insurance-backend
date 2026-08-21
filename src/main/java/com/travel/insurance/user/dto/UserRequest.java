@@ -15,6 +15,6 @@ public record UserRequest(
         @NotBlank @Size(min = 8) String password,
         String phoneNumber,
         @NotNull Role role,
-        UUID organizationId
+        @NotNull UUID organizationId
 ) {
 }
