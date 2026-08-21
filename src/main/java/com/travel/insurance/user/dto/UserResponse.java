@@ -13,6 +13,7 @@ public record UserResponse(
         String phoneNumber,
         Role role,
         UUID organizationId,
+        String organizationName,
         Instant createdDate,
         Instant updatedDate
 ) {

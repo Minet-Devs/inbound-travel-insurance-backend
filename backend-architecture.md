@@ -793,12 +793,22 @@ entities:
   (`JwtTokenProvider.CLAIM_ROLE`); `AuthenticatedUser.role` is a single
   `String`, not a set.
 - Every user carries a plain `organizationId: UUID` together with the
-  discriminating role (`INSURER_USER` → ID of an `Insurer`, `PROVIDER_USER` →
-  ID of a `ServiceProvider`; `ADMIN` still requires one, even though it has
-  no scoping effect for that role). `UserRequest.organizationId` is
-  `@NotNull`, enforced at create/update time. This is a plain column, **not**
-  a JPA relation, so the `user` package stays decoupled from `insurer` and
-  `serviceprovider`.
+  discriminating role: `INSURER_USER` → ID of an `Insurer`, `PROVIDER_USER` →
+  ID of a `ServiceProvider`, `ADMIN` → ID of an `organization.Organization`
+  row directly (an admin belongs to an `Organization` rather than an
+  `Insurer`/`ServiceProvider`). `UserRequest.organizationId` is `@NotNull`
+  for every role. This is a plain column, **not** a JPA relation, so the
+  `user` package stays decoupled from `insurer`/`serviceprovider`/
+  `organization`.
+- `UserResponse.organizationName` and the JWT's `organizationName` claim
+  (`JwtTokenProvider.CLAIM_ORGANIZATION_NAME`, set at login/refresh) resolve
+  `User.organizationId` by branching on role — `UserServiceImpl.organizationName`
+  calls `InsurerService.namesByIds`/`ServiceProviderService.namesByIds`/
+  `OrganizationService.namesByIds` (batch, id→name lookups, same pattern as
+  `MedicalServiceResponse.departmentName`) depending on whether the role is
+  `INSURER_USER`/`PROVIDER_USER`/`ADMIN`. `AuthServiceImpl.issueTokens`
+  resolves the name fresh from the current `User` row on every login and
+  refresh, so it is never stale inside a long-lived refresh token.
 - Data scoping is enforced in the service layer: for example, an
   `INSURER_USER` may only see policies and claims whose
   `insurerId` equals `user.organizationId`. Roles gate *which endpoints* a user can

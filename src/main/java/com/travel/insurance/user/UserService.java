@@ -23,4 +23,6 @@ public interface UserService {
     Optional<User> findEntityByEmail(String email);
 
     User getEntityById(UUID id);
+
+    String organizationName(User user);
 }

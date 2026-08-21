@@ -17,7 +17,7 @@ public class UserMapper {
         applyRequest(user, request);
     }
 
-    public UserResponse toResponse(User user) {
+    public UserResponse toResponse(User user, String organizationName) {
         return new UserResponse(
                 user.getId(),
                 user.getFirstName(),
@@ -26,6 +26,7 @@ public class UserMapper {
                 user.getPhoneNumber(),
                 user.getRole(),
                 user.getOrganizationId(),
+                organizationName,
                 user.getCreatedDate(),
                 user.getUpdatedDate()
         );

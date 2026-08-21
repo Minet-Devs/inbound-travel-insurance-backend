@@ -40,9 +40,10 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private TokenResponse issueTokens(User user) {
+        String organizationName = userService.organizationName(user);
         return TokenResponse.bearer(
-                jwtTokenProvider.createAccessToken(user),
-                jwtTokenProvider.createRefreshToken(user),
+                jwtTokenProvider.createAccessToken(user, organizationName),
+                jwtTokenProvider.createRefreshToken(user, organizationName),
                 jwtTokenProvider.accessTokenTtlSeconds());
     }
 }
