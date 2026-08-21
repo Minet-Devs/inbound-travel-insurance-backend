@@ -10,7 +10,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -66,5 +69,15 @@ public class OrganizationServiceImpl implements OrganizationService {
     public Organization getEntityById(UUID id) {
         return organizationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization", id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, String> namesByIds(Collection<UUID> organizationIds) {
+        if (organizationIds.isEmpty()) {
+            return Map.of();
+        }
+        return organizationRepository.findAllById(organizationIds).stream()
+                .collect(Collectors.toMap(Organization::getId, Organization::getName));
     }
 }

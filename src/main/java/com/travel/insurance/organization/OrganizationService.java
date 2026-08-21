@@ -5,6 +5,8 @@ import com.travel.insurance.organization.dto.OrganizationResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.UUID;
 
 public interface OrganizationService {
@@ -20,4 +22,6 @@ public interface OrganizationService {
     void delete(UUID id);
 
     Organization getEntityById(UUID id);
+
+    Map<UUID, String> namesByIds(Collection<UUID> organizationIds);
 }

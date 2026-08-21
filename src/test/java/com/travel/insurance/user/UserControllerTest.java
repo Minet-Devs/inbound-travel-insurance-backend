@@ -44,7 +44,7 @@ class UserControllerTest {
 
     private UserResponse sampleResponse() {
         return new UserResponse(userId, "Jane", "Doe", "jane@acme.com", "0700000000", Role.INSURER_USER,
-                UUID.randomUUID(), Instant.now(), Instant.now());
+                UUID.randomUUID(), "Minet Insurance", Instant.now(), Instant.now());
     }
 
     @Test
@@ -56,7 +56,8 @@ class UserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(userId.toString()))
                 .andExpect(jsonPath("$.firstName").value("Jane"))
-                .andExpect(jsonPath("$.role").value("INSURER_USER"));
+                .andExpect(jsonPath("$.role").value("INSURER_USER"))
+                .andExpect(jsonPath("$.organizationName").value("Minet Insurance"));
     }
 
     @Test

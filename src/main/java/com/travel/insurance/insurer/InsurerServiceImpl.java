@@ -11,8 +11,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -97,5 +100,15 @@ public class InsurerServiceImpl implements InsurerService {
     private Insurer getEntity(UUID id) {
         return insurerRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Insurer", id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, String> namesByIds(Collection<UUID> insurerIds) {
+        if (insurerIds.isEmpty()) {
+            return Map.of();
+        }
+        return insurerRepository.findAllById(insurerIds).stream()
+                .collect(Collectors.toMap(Insurer::getId, Insurer::getName));
     }
 }

@@ -19,6 +19,7 @@ public class JwtTokenProvider {
 
     public static final String CLAIM_ROLE = "role";
     public static final String CLAIM_ORGANIZATION_ID = "organizationId";
+    public static final String CLAIM_ORGANIZATION_NAME = "organizationName";
     public static final String CLAIM_TOKEN_TYPE = "tokenType";
     public static final String TOKEN_TYPE_ACCESS = "access";
     public static final String TOKEN_TYPE_REFRESH = "refresh";
@@ -35,12 +36,12 @@ public class JwtTokenProvider {
         this.refreshTokenTtlSeconds = refreshTokenTtlSeconds;
     }
 
-    public String createAccessToken(User user) {
-        return createToken(user, TOKEN_TYPE_ACCESS, accessTokenTtlSeconds);
+    public String createAccessToken(User user, String organizationName) {
+        return createToken(user, organizationName, TOKEN_TYPE_ACCESS, accessTokenTtlSeconds);
     }
 
-    public String createRefreshToken(User user) {
-        return createToken(user, TOKEN_TYPE_REFRESH, refreshTokenTtlSeconds);
+    public String createRefreshToken(User user, String organizationName) {
+        return createToken(user, organizationName, TOKEN_TYPE_REFRESH, refreshTokenTtlSeconds);
     }
 
     public long accessTokenTtlSeconds() {
@@ -59,13 +60,14 @@ public class JwtTokenProvider {
         }
     }
 
-    private String createToken(User user, String tokenType, long ttlSeconds) {
+    private String createToken(User user, String organizationName, String tokenType, long ttlSeconds) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(user.getId().toString())
                 .claim(CLAIM_ROLE, user.getRole().name())
                 .claim(CLAIM_ORGANIZATION_ID,
                         user.getOrganizationId() != null ? user.getOrganizationId().toString() : null)
+                .claim(CLAIM_ORGANIZATION_NAME, organizationName)
                 .claim(CLAIM_TOKEN_TYPE, tokenType)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(ttlSeconds)))

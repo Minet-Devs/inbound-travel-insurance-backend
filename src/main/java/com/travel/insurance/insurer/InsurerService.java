@@ -5,7 +5,9 @@ import com.travel.insurance.insurer.dto.InsurerResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public interface InsurerService {
@@ -25,4 +27,6 @@ public interface InsurerService {
     void delete(UUID id);
 
     boolean exists(UUID id);
+
+    Map<UUID, String> namesByIds(Collection<UUID> insurerIds);
 }
