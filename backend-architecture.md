@@ -792,11 +792,13 @@ entities:
   Security authority. The JWT carries it as a single `role` claim
   (`JwtTokenProvider.CLAIM_ROLE`); `AuthenticatedUser.role` is a single
   `String`, not a set.
-- Users belonging to an external organization carry a plain
-  `organizationId: UUID` together with the discriminating role
-  (`INSURER_USER` → ID of an `Insurer`, `PROVIDER_USER` → ID of a
-  `ServiceProvider`). This is a plain column, **not** a JPA relation, so the
-  `user` package stays decoupled from `insurer` and `serviceprovider`.
+- Every user carries a plain `organizationId: UUID` together with the
+  discriminating role (`INSURER_USER` → ID of an `Insurer`, `PROVIDER_USER` →
+  ID of a `ServiceProvider`; `ADMIN` still requires one, even though it has
+  no scoping effect for that role). `UserRequest.organizationId` is
+  `@NotNull`, enforced at create/update time. This is a plain column, **not**
+  a JPA relation, so the `user` package stays decoupled from `insurer` and
+  `serviceprovider`.
 - Data scoping is enforced in the service layer: for example, an
   `INSURER_USER` may only see policies and claims whose
   `insurerId` equals `user.organizationId`. Roles gate *which endpoints* a user can

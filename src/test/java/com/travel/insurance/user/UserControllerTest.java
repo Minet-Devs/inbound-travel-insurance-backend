@@ -83,7 +83,20 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new UserRequest("Jane", "Doe", "jane@acme.com", "password123",
-                                        "0700000000", null, null))))
+                                        "0700000000", null, UUID.randomUUID()))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createRejectsMissingOrganizationId() throws Exception {
+        mockMvc.perform(post("/api/v1/users")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new UserRequest("Jane", "Doe", "jane@acme.com", "password123",
+                                        "0700000000", Role.ADMIN, null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation failed"));
     }
