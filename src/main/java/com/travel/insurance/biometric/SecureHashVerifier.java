@@ -22,7 +22,7 @@ public class SecureHashVerifier {
 
     public boolean isValid(BiometricCallbackPayload payload) {
         String mac = HexFormat.of().formatHex(
-                hmacSha256(properties.getClientSecret(), concat(payload.result(), payload.requestId(), payload.relyingPartyRequestId())))
+                hmacSha256(properties.getClientSecret(), concat(payload.result(), payload.requestId(),properties.getclientid(), payload.relyingPartyRequestId())))
                 .toLowerCase(Locale.ROOT);
         String expected = java.util.Base64.getEncoder().encodeToString(mac.getBytes(StandardCharsets.UTF_8));
         byte[] given = (payload.secureHash() == null ? "" : payload.secureHash()).getBytes(StandardCharsets.UTF_8);
