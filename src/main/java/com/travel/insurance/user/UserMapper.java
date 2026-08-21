@@ -4,8 +4,6 @@ import com.travel.insurance.user.dto.UserRequest;
 import com.travel.insurance.user.dto.UserResponse;
 import org.springframework.stereotype.Component;
 
-import java.util.HashSet;
-
 @Component
 public class UserMapper {
 
@@ -26,7 +24,7 @@ public class UserMapper {
                 user.getLastName(),
                 user.getEmail(),
                 user.getPhoneNumber(),
-                user.getRoles(),
+                user.getRole(),
                 user.getOrganizationId(),
                 user.getCreatedDate(),
                 user.getUpdatedDate()
@@ -38,7 +36,7 @@ public class UserMapper {
         user.setLastName(request.lastName());
         user.setEmail(request.email());
         user.setPhoneNumber(request.phoneNumber());
-        user.setRoles(new HashSet<>(request.roles()));
+        user.setRole(request.role());
         user.setOrganizationId(request.organizationId());
     }
 }

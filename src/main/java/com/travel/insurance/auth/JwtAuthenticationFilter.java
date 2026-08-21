@@ -15,11 +15,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -46,26 +43,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private void authenticate(Claims claims, HttpServletRequest request) {
-        Set<String> roles = parseRoles(claims);
+        String role = claims.get(JwtTokenProvider.CLAIM_ROLE, String.class);
         String organizationId = claims.get(JwtTokenProvider.CLAIM_ORGANIZATION_ID, String.class);
         AuthenticatedUser principal = new AuthenticatedUser(
                 UUID.fromString(claims.getSubject()),
                 organizationId != null ? UUID.fromString(organizationId) : null,
-                roles);
-        List<SimpleGrantedAuthority> authorities = roles.stream()
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                .toList();
+                role);
+        List<SimpleGrantedAuthority> authorities = role == null || role.isBlank()
+                ? List.of()
+                : List.of(new SimpleGrantedAuthority("ROLE_" + role));
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(principal, null, authorities);
         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(authentication);
-    }
-
-    private Set<String> parseRoles(Claims claims) {
-        String roles = claims.get(JwtTokenProvider.CLAIM_ROLES, String.class);
-        if (roles == null || roles.isBlank()) {
-            return Set.of();
-        }
-        return Arrays.stream(roles.split(",")).collect(Collectors.toSet());
     }
 }

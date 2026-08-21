@@ -106,7 +106,7 @@ public class PolicyServiceImpl implements PolicyService {
         if (user == null) {
             return policyRepository.findAll(pageable);
         }
-        if (user.roles().contains("INSURER_USER")) {
+        if ("INSURER_USER".equals(user.role())) {
             return policyRepository.findAllByInsurerId(user.organizationId(), pageable);
         }
         return policyRepository.findAll(pageable);
@@ -117,7 +117,7 @@ public class PolicyServiceImpl implements PolicyService {
         if (user == null) {
             return;
         }
-        if (user.roles().contains("INSURER_USER") && !policy.getInsurerId().equals(user.organizationId())) {
+        if ("INSURER_USER".equals(user.role()) && !policy.getInsurerId().equals(user.organizationId())) {
             throw new AccessDeniedException("Policy belongs to another insurer");
         }
     }

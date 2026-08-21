@@ -12,7 +12,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.Optional;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -31,7 +30,7 @@ class UserRepositoryTest {
         user.setLastName("Doe");
         user.setEmail(email);
         user.setPassword("hashed");
-        user.setRoles(Set.of(Role.ADMIN));
+        user.setRole(Role.ADMIN);
         return user;
     }
 
@@ -44,7 +43,7 @@ class UserRepositoryTest {
         assertThat(found).isPresent();
         assertThat(found.get().getId()).isNotNull();
         assertThat(found.get().getCreatedDate()).isNotNull();
-        assertThat(found.get().getRoles()).containsExactly(Role.ADMIN);
+        assertThat(found.get().getRole()).isEqualTo(Role.ADMIN);
     }
 
     @Test

@@ -259,7 +259,7 @@ public class ClaimServiceImpl implements ClaimService {
 
     private Page<Claim> findScoped(Pageable pageable) {
         AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
-        if (user != null && user.roles().contains("PROVIDER_USER")) {
+        if (user != null && "PROVIDER_USER".equals(user.role())) {
             return claimRepository.findAllByServiceProviderId(user.organizationId(), pageable);
         }
         return claimRepository.findAll(pageable);
