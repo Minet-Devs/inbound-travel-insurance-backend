@@ -22,6 +22,7 @@ public class OrganizationMapper {
         organization.setAddress(request.address());
         organization.setCity(request.city());
         organization.setLogoUrl(LogoUrlNormalizer.normalize(request.logoUrl()));
+        organization.setPolicyToken(request.policyToken());
         organization.setNotificationEmail(request.notificationEmail());
         organization.setNotificationEmailPassword(request.notificationEmailPassword());
         organization.setHost(request.host());
@@ -39,6 +40,7 @@ public class OrganizationMapper {
                 organization.getAddress(),
                 organization.getCity(),
                 organization.getLogoUrl(),
+                organization.getPolicyToken(),
                 organization.getNotificationEmail(),
                 organization.getHost(),
                 organization.getPort(),

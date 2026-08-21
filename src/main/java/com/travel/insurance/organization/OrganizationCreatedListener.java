@@ -12,9 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Provisions the matching Insurer/ServiceProvider whenever an Organization of
  * that type is created, linking it back via organizationId. For INSURER,
- * the logoUrl and notification email/e-signature settings are carried
- * across too. ADMIN-type organizations have no matching entity and are
- * ignored.
+ * the logoUrl, policyToken, and notification email/e-signature settings are
+ * carried across too. ADMIN-type organizations have no matching entity and
+ * are ignored.
  */
 @Component
 @RequiredArgsConstructor
@@ -35,7 +35,7 @@ public class OrganizationCreatedListener {
                     organization.getPhoneNumber(),
                     organization.getAddress(),
                     organization.getLogoUrl(),
-                    null,
+                    organization.getPolicyToken(),
                     organization.getNotificationEmail(),
                     organization.getNotificationEmailPassword(),
                     organization.getHost(),

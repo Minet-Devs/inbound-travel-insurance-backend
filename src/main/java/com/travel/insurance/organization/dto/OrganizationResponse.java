@@ -14,6 +14,7 @@ public record OrganizationResponse(
         String address,
         String city,
         String logoUrl,
+        Long policyToken,
         String notificationEmail,
         String host,
         Integer port,

@@ -13,6 +13,7 @@ public record OrganizationRequest(
         String address,
         String city,
         String logoUrl,
+        Long policyToken,
         @Email String notificationEmail,
         String notificationEmailPassword,
         String host,

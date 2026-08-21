@@ -41,6 +41,8 @@ public class Organization extends BaseEntity {
 
     private String logoUrl;
 
+    private Long policyToken;
+
     private String notificationEmail;
 
     @Convert(converter = EncryptedStringConverter.class)
