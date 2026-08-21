@@ -11,6 +11,7 @@ import com.travel.insurance.common.messaging.EventPublisher;
 import com.travel.insurance.config.EkYcProperties;
 import com.travel.insurance.config.RabbitConfig;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -60,22 +62,48 @@ public class BiometricVerificationServiceImpl implements BiometricVerificationSe
 
     @Override
     public void handleCallback(BiometricCallbackPayload payload) {
+        log.info("Processing callback for eKYC requestId={}, status={}, result={}, statusCode={}",
+                payload.requestId(), payload.status(), payload.result(), payload.statusCode());
+
         BiometricVerification verification = repository.findByEkycRequestId(payload.requestId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "BiometricVerification for eKYC request_id " + payload.requestId()));
+                .orElseThrow(() -> {
+                    log.error("BiometricVerification record not found for eKYC request_id {}", payload.requestId());
+                    return new ResourceNotFoundException(
+                            "BiometricVerification for eKYC request_id " + payload.requestId());
+                });
+
         if (verification.getStatus() != BiometricVerificationStatus.PENDING) {
+            log.warn("BiometricVerification {} already in status {}, ignoring callback",
+                    verification.getId(), verification.getStatus());
             return;
         }
-        verification.setStatus(BiometricVerificationStatus.from(payload.status()));
+
+        try {
+            verification.setStatus(BiometricVerificationStatus.from(payload.status()));
+        } catch (Exception e) {
+            log.error("Failed to map status '{}' to BiometricVerificationStatus: {}", payload.status(), e.getMessage());
+            throw e;
+        }
+
         verification.setResult(payload.result());
         verification.setStatusCode(payload.statusCode());
         verification.setRemainingAttempts(payload.remainingAttempts());
         BiometricVerification resolved = repository.save(verification);
-        eventPublisher.publish(RabbitConfig.BIOMETRIC_VERIFICATION_RESOLVED_KEY, Map.of(
-                "verificationId", resolved.getId().toString(),
-                "policyNumber", resolved.getPolicyNumber(),
-                "status", resolved.getStatus().name(),
-                "result", resolved.getResult()));
+        log.info("Saved BiometricVerification {}: new status={}, result={}",
+                resolved.getId(), resolved.getStatus(), resolved.getResult());
+
+        try {
+            eventPublisher.publish(RabbitConfig.BIOMETRIC_VERIFICATION_RESOLVED_KEY, Map.of(
+                    "verificationId", resolved.getId().toString(),
+                    "policyNumber", resolved.getPolicyNumber(),
+                    "status", resolved.getStatus().name(),
+                    "result", resolved.getResult()));
+            log.info("Published BIOMETRIC_VERIFICATION_RESOLVED event for verification {}", resolved.getId());
+        } catch (Exception e) {
+            log.error("Failed to publish BIOMETRIC_VERIFICATION_RESOLVED event for verification {}: {}",
+                    resolved.getId(), e.getMessage(), e);
+            throw e;
+        }
     }
 
     @Override

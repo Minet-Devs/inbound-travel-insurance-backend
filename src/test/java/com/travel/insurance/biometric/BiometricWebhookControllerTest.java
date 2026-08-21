@@ -66,6 +66,18 @@ class BiometricWebhookControllerTest {
         verify(biometricVerificationService, never()).handleCallback(anyCallback());
     }
 
+    @Test
+    void returnsInternalServerErrorWhenServiceFails() throws Exception {
+        when(secureHashVerifier.isValid(anyCallback())).thenReturn(true);
+        org.mockito.Mockito.doThrow(new RuntimeException("Database error"))
+                .when(biometricVerificationService).handleCallback(anyCallback());
+
+        mockMvc.perform(post("/api/v1/webhooks/biometric-verification")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(samplePayload())))
+                .andExpect(status().isInternalServerError());
+    }
+
     private BiometricCallbackPayload anyCallback() {
         return any(BiometricCallbackPayload.class);
     }
