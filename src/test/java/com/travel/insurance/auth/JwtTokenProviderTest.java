@@ -35,7 +35,6 @@ class JwtTokenProviderTest {
         Claims claims = jwtTokenProvider.parse(token).orElseThrow();
 
         assertThat(claims.getSubject()).isEqualTo(user.getId().toString());
-        assertThat(claims.get(JwtTokenProvider.CLAIM_USER_ID)).isEqualTo(user.getId().toString());
         assertThat(claims.get(JwtTokenProvider.CLAIM_FIRST_NAME)).isEqualTo("Jane");
         assertThat(claims.get(JwtTokenProvider.CLAIM_LAST_NAME)).isEqualTo("Doe");
         assertThat(claims.get(JwtTokenProvider.CLAIM_EMAIL)).isEqualTo("jane@acme.com");

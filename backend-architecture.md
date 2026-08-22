@@ -792,10 +792,11 @@ entities:
   Security authority. The JWT carries it as a single `role` claim
   (`JwtTokenProvider.CLAIM_ROLE`); `AuthenticatedUser.role` is a single
   `String`, not a set.
-- Besides the standard `sub` claim (the user id), the JWT also carries
-  `userId`, `firstName`, `lastName`, and `email` claims
-  (`JwtTokenProvider.CLAIM_USER_ID`/`CLAIM_FIRST_NAME`/`CLAIM_LAST_NAME`/
-  `CLAIM_EMAIL`) so clients can render basic profile info without a separate
+- Besides the standard `sub` claim (the user id — clients should read the
+  user id from `sub`, not a duplicate claim), the JWT also carries
+  `firstName`, `lastName`, and `email` claims
+  (`JwtTokenProvider.CLAIM_FIRST_NAME`/`CLAIM_LAST_NAME`/`CLAIM_EMAIL`) so
+  clients can render basic profile info without a separate
   `GET /api/v1/users/{id}` call. These are set once at token issuance
   (login/refresh) and are not re-verified per request — clients needing
   guaranteed-fresh profile data should still call the users endpoint.
