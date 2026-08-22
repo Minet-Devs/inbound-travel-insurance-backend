@@ -8,7 +8,6 @@ import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
-import com.travel.insurance.policy.PolicyType;
 import com.travel.insurance.visitor.Gender;
 import com.travel.insurance.visitor.MaritalStatus;
 import com.travel.insurance.visitor.Visitor;
@@ -104,8 +103,6 @@ class VisitorActivatedNotificationListenerTest {
 
     private Policy samplePolicy() {
         Policy policy = new Policy();
-        policy.setPolicyNumber("POL-0001");
-        policy.setPolicyType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS);
         policy.setInsurerId(insurerId);
         return policy;
     }
@@ -160,7 +157,7 @@ class VisitorActivatedNotificationListenerTest {
                 attachmentsCaptor.capture());
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
-                .containsExactly("policy-certificate-POL-0001.pdf", "Policy_Document_July_2026.pdf");
+                .containsExactly("policy-certificate-P1234567.pdf", "Policy_Document_July_2026.pdf");
         assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-1.4".getBytes());
         assertThat(attachmentsCaptor.getValue().get(1).content()).isNotEmpty();
     }

@@ -2,7 +2,6 @@ package com.travel.insurance.preauthorization;
 
 import com.travel.insurance.benefit.Benefit;
 import com.travel.insurance.icd11.Icd11Code;
-import com.travel.insurance.policy.Policy;
 import com.travel.insurance.preauthorization.dto.PreauthorizationItemRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationItemResponse;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
@@ -48,7 +47,7 @@ public class PreauthorizationMapper {
         return item;
     }
 
-    public PreauthorizationResponse toResponse(Preauthorization preauthorization, Policy policy, Visitor visitor,
+    public PreauthorizationResponse toResponse(Preauthorization preauthorization, Visitor visitor,
                                                Icd11Code icd11Code, Benefit benefit,
                                                ServiceProviderResponse serviceProvider, UUID medicalServiceId,
                                                String medicalServiceName, List<PreauthorizationItem> items) {
@@ -57,7 +56,6 @@ public class PreauthorizationMapper {
         return new PreauthorizationResponse(
                 preauthorization.getId(),
                 preauthorization.getPolicyId(),
-                policy.getPolicyNumber(),
                 preauthorization.getVisitorId(),
                 visitor != null ? visitor.getFullName() : null,
                 preauthorization.getIcd11CodeId(),

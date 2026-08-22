@@ -23,17 +23,10 @@ import java.util.UUID;
 @NoArgsConstructor
 public class Policy extends BaseEntity {
 
-    @Column(nullable = false, unique = true)
-    private String policyNumber;
-
     @Column(nullable = false)
     private UUID insurerId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private PolicyType policyType;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private PolicyStatus status = PolicyStatus.DRAFT;
+    private PolicyStatus status = PolicyStatus.ACTIVE;
 }

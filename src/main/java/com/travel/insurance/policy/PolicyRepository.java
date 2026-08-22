@@ -15,6 +15,4 @@ public interface PolicyRepository extends JpaRepository<Policy, UUID> {
     List<Policy> findAllByInsurerId(UUID insurerId);
 
     Optional<Policy> findFirstByInsurerId(UUID insurerId);
-
-    boolean existsByPolicyNumber(String policyNumber);
 }

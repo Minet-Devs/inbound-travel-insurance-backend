@@ -88,7 +88,6 @@ class MemberStatementServiceImplTest {
         visitor.setPassportNumber("P1234567");
 
         policy = new Policy();
-        policy.setPolicyNumber("POL-0001");
     }
 
     @Test
@@ -107,7 +106,6 @@ class MemberStatementServiceImplTest {
 
         assertThat(statement.memberName()).isEqualTo("Jane Traveler");
         assertThat(statement.passportNumber()).isEqualTo("P1234567");
-        assertThat(statement.policyNumber()).isEqualTo("POL-0001");
         assertThat(statement.transactions()).hasSize(1);
         MemberStatementTransaction transaction = statement.transactions().getFirst();
         assertThat(transaction.transactionDate()).isEqualTo(LocalDate.of(2020, 1, 1));

@@ -33,9 +33,6 @@ public class PolicyServiceImpl implements PolicyService {
     @Override
     public PolicyResponse create(PolicyRequest request) {
         validateRequest(request);
-        if (policyRepository.existsByPolicyNumber(request.policyNumber())) {
-            throw new IllegalStateException("Policy number already exists: " + request.policyNumber());
-        }
         Policy policy = policyRepository.save(policyMapper.toEntity(request));
         publishIfActivated(null, policy);
         return policyMapper.toResponse(policy);
@@ -134,7 +131,6 @@ public class PolicyServiceImpl implements PolicyService {
         if (isActivating(previousStatus, policy)) {
             eventPublisher.publish(RabbitConfig.POLICY_ACTIVATED_KEY, Map.of(
                     "policyId", policy.getId().toString(),
-                    "policyNumber", policy.getPolicyNumber(),
                     "insurerId", policy.getInsurerId().toString()));
         }
     }

@@ -37,7 +37,6 @@ public class PolicyDocumentRenderer {
     String renderHtml(PolicyDocumentData data) {
         Context context = new Context();
         context.setVariable("data", data);
-        context.setVariable("productLabel", displayName(data.policyType().name()));
         context.setVariable("underwriterName", String.join(", ", data.insurerNames()));
         context.setVariable("underwriterLogoUrl", data.underwriterLogoUrl());
         context.setVariable("esignatureUrl", data.esignatureUrl());

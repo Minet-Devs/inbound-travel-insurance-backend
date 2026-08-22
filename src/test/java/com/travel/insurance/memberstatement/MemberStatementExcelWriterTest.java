@@ -28,7 +28,7 @@ class MemberStatementExcelWriterTest {
             List<VisitorBenefitResponse> benefits, List<MemberStatementTransaction> transactions) {
         return new MemberStatementResponse(
                 UUID.randomUUID(), "Jane Traveler", "P1234567",
-                UUID.randomUUID(), "POL-0001", benefits, transactions);
+                UUID.randomUUID(), benefits, transactions);
     }
 
     @Test

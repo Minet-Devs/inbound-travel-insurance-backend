@@ -59,8 +59,8 @@ class PolicyServiceImplTest {
         SecurityContextHolder.clearContext();
     }
 
-    private PolicyRequest requestWithType(PolicyType policyType, PolicyStatus status) {
-        return new PolicyRequest("POL-001", insurerId, policyType, status);
+    private PolicyRequest requestWithStatus(PolicyStatus status) {
+        return new PolicyRequest(insurerId, status);
     }
 
     private void authenticateAs(UUID organizationId, String role) {
@@ -73,7 +73,7 @@ class PolicyServiceImplTest {
     void createRejectsUnknownInsurer() {
         when(insurerService.exists(insurerId)).thenReturn(false);
 
-        PolicyRequest request = requestWithType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS, null);
+        PolicyRequest request = requestWithStatus(null);
 
         assertThatThrownBy(() -> policyService.create(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -82,30 +82,32 @@ class PolicyServiceImplTest {
     }
 
     @Test
-    void createSavesPolicyWithPolicyType() {
+    void createSavesPolicyWithActiveStatusByDefault() {
         when(insurerService.exists(insurerId)).thenReturn(true);
-        when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
-        when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        PolicyRequest request = requestWithType(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS, null);
-
-        PolicyResponse response = policyService.create(request);
-
-        assertThat(response.policyType()).isEqualTo(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS);
-        verify(policyRepository).save(any(Policy.class));
-    }
-
-    @Test
-    void createPublishesActivatedEventWhenStatusIsActive() {
-        when(insurerService.exists(insurerId)).thenReturn(true);
-        when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
         when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> {
             Policy saved = invocation.getArgument(0);
             saved.setId(UUID.randomUUID());
             return saved;
         });
 
-        PolicyRequest request = requestWithType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS, PolicyStatus.ACTIVE);
+        PolicyRequest request = requestWithStatus(null);
+
+        PolicyResponse response = policyService.create(request);
+
+        assertThat(response.status()).isEqualTo(PolicyStatus.ACTIVE);
+        verify(policyRepository).save(any(Policy.class));
+    }
+
+    @Test
+    void createPublishesActivatedEventWhenStatusIsActive() {
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> {
+            Policy saved = invocation.getArgument(0);
+            saved.setId(UUID.randomUUID());
+            return saved;
+        });
+
+        PolicyRequest request = requestWithStatus(PolicyStatus.ACTIVE);
 
         policyService.create(request);
 
@@ -114,7 +116,7 @@ class PolicyServiceImplTest {
 
     @Test
     void listByInsurerIdReturnsPoliciesBackedByThatInsurer() {
-        Policy policy = policyMapper.toEntity(requestWithType(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS, null));
+        Policy policy = policyMapper.toEntity(requestWithStatus(null));
         policy.setId(UUID.randomUUID());
         when(policyRepository.findAllByInsurerId(insurerId)).thenReturn(List.of(policy));
 
@@ -127,10 +129,9 @@ class PolicyServiceImplTest {
     @Test
     void createDoesNotPublishActivatedEventWhenStatusIsDraft() {
         when(insurerService.exists(insurerId)).thenReturn(true);
-        when(policyRepository.existsByPolicyNumber("POL-001")).thenReturn(false);
         when(policyRepository.save(any(Policy.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        PolicyRequest request = requestWithType(PolicyType.IPMI_61_DAYS_TO_12_MONTHS, null);
+        PolicyRequest request = requestWithStatus(PolicyStatus.DRAFT);
 
         policyService.create(request);
 
@@ -142,7 +143,7 @@ class PolicyServiceImplTest {
         UUID organizationId = UUID.randomUUID();
         authenticateAs(organizationId, "INSURER_USER");
         when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(insurerId));
-        Policy policy = policyMapper.toEntity(requestWithType(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS, null));
+        Policy policy = policyMapper.toEntity(requestWithStatus(null));
         Pageable pageable = PageRequest.of(0, 10);
         when(policyRepository.findAllByInsurerId(insurerId, pageable))
                 .thenReturn(new PageImpl<>(List.of(policy)));

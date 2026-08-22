@@ -5,7 +5,6 @@ import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
-import com.travel.insurance.policy.PolicyType;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -91,7 +90,6 @@ class VisitorQuotaValidationTest {
     private Policy createPolicyWithInsurer(UUID insurerId) {
         Policy policy = new Policy();
         policy.setId(policyId);
-        policy.setPolicyType(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS);
         policy.setInsurerId(insurerId);
         return policy;
     }

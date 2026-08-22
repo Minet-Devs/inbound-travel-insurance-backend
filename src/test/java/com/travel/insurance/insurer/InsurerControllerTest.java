@@ -6,7 +6,6 @@ import com.travel.insurance.insurer.dto.InsurerRequest;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyStatus;
-import com.travel.insurance.policy.PolicyType;
 import com.travel.insurance.policy.dto.PolicyResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,8 +57,8 @@ class InsurerControllerTest {
     }
 
     private PolicyResponse samplePolicy() {
-        return new PolicyResponse(UUID.randomUUID(), "POL-0001", insurerId,
-                PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS, PolicyStatus.ACTIVE, Instant.now(), Instant.now());
+        return new PolicyResponse(policyId, insurerId,
+                PolicyStatus.ACTIVE, Instant.now(), Instant.now());
     }
 
     @Test
@@ -130,7 +129,7 @@ class InsurerControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(insurerId.toString()))
                 .andExpect(jsonPath("$[0].name").value("Acme Insurance"))
-                .andExpect(jsonPath("$[0].policies[0].policyNumber").value("POL-0001"));
+                .andExpect(jsonPath("$[0].policies[0].id").value(policyId.toString()));
     }
 
     @Test
