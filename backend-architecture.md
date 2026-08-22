@@ -111,6 +111,9 @@ com.travel.insurance/
 │   ├── InsurerRepository.java
 │   ├── Insurer.java                        # ...organizationId (nullable, → Organization)
 │   ├── InsurerMapper.java
+│   ├── InsurerCreatedEvent.java             # published on create; consumed below
+│   ├── InsurerCreatedListener.java          # @EventListener — provisions a starter
+│   │                                        # Policy via PolicyService.create
 │   └── 📁 dto/
 │       ├── InsurerRequest.java
 │       ├── InsurerResponse.java
@@ -847,8 +850,18 @@ entities:
   the same transaction as the `Organization` create, a failure here (e.g. an
   `Insurer`/`ServiceProvider` name collision) rolls back the organization
   creation too. Creating an `Insurer`/`ServiceProvider` directly (with or
-  without an `organizationId`) does **not** create an `Organization` — only
-  `Organization` creation provisions downstream.
+  without an `organizationId`) does **not** create an `Organization`.
+- Provisioning continues one hop further: `InsurerServiceImpl.create`
+  publishes an in-process `InsurerCreatedEvent` (via `ApplicationEventPublisher`,
+  synchronously within the same transaction) after saving.
+  `insurer.InsurerCreatedListener` responds by creating a starter `Policy`
+  for that insurer via `PolicyService.create` (`status` left `null`, so
+  `PolicyMapper` defaults it to `ACTIVE`) — every `Insurer`, whether created
+  directly or provisioned from an `Organization`, ends up with a `Policy` to
+  back visitors against without a separate manual step. As with the
+  `Organization` → `Insurer`/`ServiceProvider` step, this runs in the same
+  transaction as the `Insurer` create, so a failure here rolls back the
+  insurer creation too.
 - The `auth` feature owns login and JWT concerns and depends on `user`
   (service → service); `config/SecurityConfig` wires the JWT filter and
   role-based route rules.

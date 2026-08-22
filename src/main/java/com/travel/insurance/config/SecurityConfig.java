@@ -53,21 +53,15 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/v1/users/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/insurers").denyAll();
                     auth.requestMatchers("/api/v1/insurers/**").hasAnyRole("ADMIN", "INSURER_USER");
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/policies").denyAll();
                     // Disable POST create endpoint specifically — must come BEFORE the broader service-providers rule
                     // insurers & service-providers are now create through organization to enable role based system access
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/service-providers").denyAll();
-                    auth.requestMatchers("/api/v1/service-providers/**")
-                            .hasAnyRole("ADMIN", "PROVIDER_USER");
+                    auth.requestMatchers("/api/v1/service-providers/**").hasAnyRole("ADMIN", "PROVIDER_USER");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/icd11-codes/**").hasRole("ADMIN");
-                    auth.requestMatchers(HttpMethod.POST, "/api/v1/departments/**", "/api/v1/medical-services/**",
-                                    "/api/v1/organizations/**")
-                            .hasRole("ADMIN");
-                    auth.requestMatchers(HttpMethod.PUT, "/api/v1/departments/**", "/api/v1/medical-services/**",
-                                    "/api/v1/organizations/**")
-                            .hasRole("ADMIN");
-                    auth.requestMatchers(HttpMethod.DELETE, "/api/v1/departments/**", "/api/v1/medical-services/**",
-                                    "/api/v1/organizations/**")
-                            .hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**").hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.PUT, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**").hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.DELETE, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**").hasRole("ADMIN");
                     auth.anyRequest().authenticated();
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
