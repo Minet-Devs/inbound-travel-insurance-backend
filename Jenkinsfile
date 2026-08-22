@@ -225,7 +225,7 @@ pipeline {
 def getBranchForEnvironment() {
     switch(env.ENVIRONMENT) {
         case 'dev':
-            return 'feat/insurer-service-provider-organization-id'
+            return 'main'
         case 'uat':
             return 'uat'
         case 'production':
