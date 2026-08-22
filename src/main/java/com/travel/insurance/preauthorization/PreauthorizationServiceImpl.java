@@ -130,7 +130,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     }
 
     private PreauthorizationResponse enrich(Preauthorization preauthorization) {
-        Policy policy = policyService.getEntityById(preauthorization.getPolicyId());
+        policyService.getEntityById(preauthorization.getPolicyId());
         Visitor visitor = preauthorization.getVisitorId() != null
                 ? visitorService.getEntityById(preauthorization.getVisitorId())
                 : null;
@@ -151,7 +151,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
                 .orElse(List.of());
 
         return preauthorizationMapper.toResponse(
-                preauthorization, policy, visitor, icd11Code, benefit, serviceProvider,
+                preauthorization, visitor, icd11Code, benefit, serviceProvider,
                 medicalServiceId, medicalServiceName, items);
     }
 

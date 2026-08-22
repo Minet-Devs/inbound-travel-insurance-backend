@@ -126,7 +126,6 @@ class PreauthorizationServiceImplTest {
     private Policy activePolicy() {
         Policy policy = new Policy();
         policy.setId(policyId);
-        policy.setPolicyNumber("POL-001");
         policy.setStatus(PolicyStatus.ACTIVE);
         return policy;
     }
@@ -254,7 +253,6 @@ class PreauthorizationServiceImplTest {
         assertThat(response.status()).isEqualTo(PreauthorizationStatus.PENDING);
         assertThat(response.visitorId()).isEqualTo(visitorId);
         assertThat(response.visitorName()).isEqualTo("Jane Traveler");
-        assertThat(response.policyNumber()).isEqualTo("POL-001");
         assertThat(response.icd11Code()).isEqualTo("1A00");
         assertThat(response.icd11Title()).isEqualTo("Cholera");
         assertThat(response.benefitName()).isEqualTo("Medical Expenses");

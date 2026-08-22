@@ -1,7 +1,6 @@
 package com.travel.insurance.notification;
 
 import com.travel.insurance.notification.PolicyDocumentData.BenefitLine;
-import com.travel.insurance.policy.PolicyType;
 import com.travel.insurance.visitor.Gender;
 import org.junit.jupiter.api.Test;
 import org.thymeleaf.spring6.SpringTemplateEngine;
@@ -50,8 +49,6 @@ class PolicyDocumentRendererTest {
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 11, 1),
                 "Tourism",
-                "POL-0001",
-                PolicyType.IPMI_61_DAYS_TO_12_MONTHS,
                 List.of("Acme Insurance"),
                 underwriterLogoUrl,
                 esignatureUrl,
@@ -70,8 +67,7 @@ class PolicyDocumentRendererTest {
 
         assertThat(html).contains("Jane Traveler");
         assertThat(html).contains("P1234567");
-        assertThat(html).contains("POL-0001");
-        assertThat(html).contains("Ipmi 61 Days To 12 Months");
+        assertThat(html).contains("Kenya CARES Inbound Cover");
         assertThat(html).contains("Medical Expenses");
         assertThat(html).contains("20,000");
         assertThat(html).contains("Acme Insurance");

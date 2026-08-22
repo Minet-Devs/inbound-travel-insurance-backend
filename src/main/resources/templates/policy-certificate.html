@@ -112,10 +112,6 @@
     <table class="meta">
         <tr>
             <td>
-                <div class="k">Policy Number</div>
-                <div class="v" th:text="${data.policyNumber}">POL-0001</div>
-            </td>
-            <td>
                 <div class="k">Date of Issue</div>
                 <div class="v" th:text="${issueDate}">08 August 2026</div>
             </td>
@@ -151,7 +147,7 @@
         <table class="fields">
             <tr>
                 <td><span class="k">Underwriter</span><span class="v" th:text="${#strings.isEmpty(underwriterName)} ? '—' : ${underwriterName}">Acme Insurance</span></td>
-                <td><span class="k">Product</span><span class="v" th:text="|Kenya CARES Inbound Cover — ${productLabel}|">Kenya CARES Inbound Cover — Single Entry Up To 30 Days</span></td>
+                <td><span class="k">Product</span><span class="v">Kenya CARES Inbound Cover</span></td>
             </tr>
             <tr>
                 <td><span class="k">Cover Period</span><span class="v" th:text="|${coverStart} — ${coverEnd} (${coverDays} days)|">08 Aug 2026 — 06 Sep 2026 (30 days)</span></td>

@@ -6,7 +6,6 @@ import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
-import com.travel.insurance.policy.PolicyType;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -27,6 +26,9 @@ import java.util.UUID;
 @Transactional
 public class VisitorServiceImpl implements VisitorService {
 
+    private static final int MIN_COVER_DAYS = 1;
+    private static final int MAX_COVER_DAYS = 365;
+
     private final VisitorRepository visitorRepository;
     private final VisitorMapper visitorMapper;
     private final PolicyService policyService;
@@ -37,7 +39,7 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     public VisitorResponse create(VisitorRequest request) {
         Policy policy = policyService.getEntityById(request.policyId());
-        validateCoverPeriod(policy, request);
+        validateCoverPeriod(request);
         validatePolicyQuota(policy);
         String passportNumberHash = blindIndexService.hmac(request.passportNumber());
         if (visitorRepository.existsByPassportNumberHash(passportNumberHash)) {
@@ -83,8 +85,8 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     public VisitorResponse update(UUID id, VisitorRequest request) {
         Visitor visitor = getEntityById(id);
-        Policy policy = policyService.getEntityById(request.policyId());
-        validateCoverPeriod(policy, request);
+        policyService.getEntityById(request.policyId());
+        validateCoverPeriod(request);
         String passportNumberHash = blindIndexService.hmac(request.passportNumber());
         if (visitorRepository.existsByPassportNumberHashAndIdNot(passportNumberHash, id)) {
             throw new IllegalStateException(
@@ -145,16 +147,15 @@ public class VisitorServiceImpl implements VisitorService {
         return visitorMapper.toResponse(visitor);
     }
 
-    private void validateCoverPeriod(Policy policy, VisitorRequest request) {
+    private void validateCoverPeriod(VisitorRequest request) {
         if (request.dateOut().isBefore(request.dateIn())) {
             throw new IllegalArgumentException("Date out must not be before date in");
         }
         long days = ChronoUnit.DAYS.between(request.dateIn(), request.dateOut()) + 1;
-        PolicyType policyType = policy.getPolicyType();
-        if (!policyType.isValidDuration(days)) {
+        if (days < MIN_COVER_DAYS || days > MAX_COVER_DAYS) {
             throw new IllegalArgumentException(
-                    "Travel period of %d day(s) is not valid for policy type %s (must be between %d and %d days)"
-                            .formatted(days, policyType, policyType.getMinDays(), policyType.getMaxDays()));
+                    "Travel period of %d day(s) is not valid (must be between %d and %d days)"
+                            .formatted(days, MIN_COVER_DAYS, MAX_COVER_DAYS));
         }
     }
 

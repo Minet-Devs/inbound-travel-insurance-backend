@@ -118,8 +118,6 @@ public class VisitorActivatedNotificationListener {
                 visitor.getDateIn(),
                 visitor.getDateOut(),
                 visitor.getReasonForTravel(),
-                policy.getPolicyNumber(),
-                policy.getPolicyType(),
                 insurerNames,
                 underwriterLogoUrl,
                 esignatureUrl,
@@ -130,7 +128,7 @@ public class VisitorActivatedNotificationListener {
         byte[] pdf = renderer.renderPdf(data);
         List<EmailAttachment> attachments = new ArrayList<>();
         attachments.add(new EmailAttachment(
-                "policy-certificate-" + policy.getPolicyNumber() + ".pdf", pdf));
+                "policy-certificate-" + visitor.getPassportNumber() + ".pdf", pdf));
         byte[] policyDocument = loadPolicyDocument();
         if (policyDocument != null) {
             attachments.add(new EmailAttachment(POLICY_DOCUMENT_ATTACHMENT_NAME, policyDocument));

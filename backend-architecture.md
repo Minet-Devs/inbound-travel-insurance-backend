@@ -134,11 +134,8 @@ com.travel.insurance/
 │   ├── PolicyService.java                  # Interface
 │   ├── PolicyServiceImpl.java
 │   ├── PolicyRepository.java
-│   ├── Policy.java                         # insurerId, policyType
+│   ├── Policy.java                         # insurerId
 │   ├── PolicyStatus.java                   # Enum: DRAFT, ACTIVE, EXPIRED, CANCELLED
-│   ├── PolicyType.java                     # Enum: SINGLE_ENTRY_UP_TO_30_DAYS,
-│   │                                       #       SINGLE_ENTRY_31_TO_60_DAYS,
-│   │                                       #       IPMI_61_DAYS_TO_12_MONTHS
 │   ├── PolicyMapper.java
 │   └── 📁 dto/
 │       ├── PolicyRequest.java
@@ -352,7 +349,7 @@ com.travel.insurance/
 │   ├── MemberStatementPdfRenderer.java     # Thymeleaf → openhtmltopdf, same pipeline as
 │   │                                       # PolicyDocumentRenderer (templates/member-statement.html)
 │   └── 📁 dto/
-│       ├── MemberStatementResponse.java    # memberName/passportNumber/policyNumber +
+│       ├── MemberStatementResponse.java    # memberName/passportNumber/policyId +
 │       │                                   # benefits (List<VisitorBenefitResponse>,
 │       │                                   # reused as-is) + transactions
 │       └── MemberStatementTransaction.java # one row per Claim (not per Invoice)
@@ -403,15 +400,12 @@ Policy
 ```
 
 - A **Policy** is the insurance contract. It references a single backing
-  insurer (`insurerId`) and carries a `policyType` and a status, but no
-  cover dates of its own — one policy covers many visitors, each entering
-  and leaving on their own schedule, so a fixed date range doesn't belong at
-  the policy level. `policyType` is one of the three cover periods mandated
-  by the Ministry of Health's Mandatory Inbound Travel Health Insurance
-  framework (`PolicyType`: `SINGLE_ENTRY_UP_TO_30_DAYS`,
-  `SINGLE_ENTRY_31_TO_60_DAYS`, `IPMI_61_DAYS_TO_12_MONTHS`), each carrying a
-  min/max day range; it's enforced per visitor instead (see below). A policy
-  holds no treatment-level detail. `GET /api/v1/policies/{id}` and the paged
+  insurer (`insurerId`) and carries a status, but no cover dates of its own —
+  one policy covers many visitors, each entering and leaving on their own
+  schedule, so a fixed date range doesn't belong at the policy level. Every
+  policy allows a single cover-period range (1 day up to 12 months), enforced
+  per visitor instead (see below). A policy holds no treatment-level detail.
+  `GET /api/v1/policies/{id}` and the paged
   `GET /api/v1/policies` return `PolicyDetailResponse` rows that embed the
   benefit catalog under `benefits`; since benefits are global (see below),
   every policy carries the whole catalog. `PolicyController` fetches it once
@@ -560,7 +554,7 @@ Policy
   are string-mapped enums. `dateIn`/`dateOut` is where the mandated cover
   period actually gets enforced: `VisitorServiceImpl` fetches the visitor's
   policy and rejects a create/update where `dateOut` is before `dateIn`, or
-  where the day span between them falls outside the policy's `PolicyType`
+  where the day span between them falls outside the allowed 1-to-365-day
   range — `IllegalArgumentException` (→ 400) either way. It also carries a
   set of nullable border/payment-tracking attributes populated after
   onboarding: `paymentReference`, `etaReference` (eTA/authorization
@@ -631,8 +625,8 @@ Policy
   audit columns (already populated by `AuditorAware` on every save) and are
   surfaced in `PreauthorizationResponse` as `decidedBy`/`decidedAt`, `null`
   while the request is still `PENDING`. `PreauthorizationResponse` also
-  resolves display names for every referenced ID — `policyNumber`,
-  `visitorName`, `icd11Code`/`icd11Title`, `benefitName`,
+  resolves display names for every referenced ID — `visitorName`,
+  `icd11Code`/`icd11Title`, `benefitName`,
   `serviceProviderName` — via the respective feature services, so API
   consumers never have to display a raw UUID.
 
@@ -996,9 +990,7 @@ POST /api/v1/insurers
 # Create policy linked to insurer
 POST /api/v1/policies
 {
-  "policyNumber": "POL-001",
   "insurerId": "<insurer-id>",
-  "policyType": "SINGLE_ENTRY_UP_TO_30_DAYS",
   "status": "ACTIVE"
 }
 
@@ -1074,7 +1066,7 @@ emails them a personalized policy certificate as a PDF attachment:
   email with it (see `policy-document-analysis.md` for the full reference
   analysis).
 - The activation email carries two attachments: the personalized
-  `policy-certificate-<policyNumber>.pdf` (rendered per visitor) and the static
+  `policy-certificate-<passportNumber>.pdf` (rendered per visitor) and the static
   policy wording `templates/Policy_Document_July_2026.pdf`, loaded once from the
   classpath and cached. If the bundled document can't be read it is logged and
   skipped so the certificate still goes out.

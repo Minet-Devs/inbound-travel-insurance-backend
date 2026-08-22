@@ -64,7 +64,6 @@ public class MemberStatementServiceImpl implements MemberStatementService {
                 visitor.getFullName(),
                 visitor.getPassportNumber(),
                 policy.getId(),
-                policy.getPolicyNumber(),
                 visitorBenefitService.listAllByVisitor(visitor.getId()),
                 buildTransactions(visitor.getId(), fromDate, toDate));
     }

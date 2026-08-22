@@ -1,6 +1,5 @@
 package com.travel.insurance.notification;
 
-import com.travel.insurance.policy.PolicyType;
 import com.travel.insurance.visitor.Gender;
 
 import java.math.BigDecimal;
@@ -27,8 +26,6 @@ record PolicyDocumentData(
         LocalDate dateIn,
         LocalDate dateOut,
         String reasonForTravel,
-        String policyNumber,
-        PolicyType policyType,
         List<String> insurerNames,
         String underwriterLogoUrl,
         String esignatureUrl,

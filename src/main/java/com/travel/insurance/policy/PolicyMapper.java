@@ -14,18 +14,14 @@ public class PolicyMapper {
     }
 
     public void updateEntity(Policy policy, PolicyRequest request) {
-        policy.setPolicyNumber(request.policyNumber());
         policy.setInsurerId(request.insurerId());
-        policy.setPolicyType(request.policyType());
-        policy.setStatus(request.status() != null ? request.status() : PolicyStatus.DRAFT);
+        policy.setStatus(request.status() != null ? request.status() : PolicyStatus.ACTIVE);
     }
 
     public PolicyResponse toResponse(Policy policy) {
         return new PolicyResponse(
                 policy.getId(),
-                policy.getPolicyNumber(),
                 policy.getInsurerId(),
-                policy.getPolicyType(),
                 policy.getStatus(),
                 policy.getCreatedDate(),
                 policy.getUpdatedDate()

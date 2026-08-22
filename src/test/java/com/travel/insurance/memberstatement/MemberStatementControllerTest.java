@@ -40,7 +40,7 @@ class MemberStatementControllerTest {
 
     private MemberStatementResponse sampleStatement() {
         return new MemberStatementResponse(
-                UUID.randomUUID(), "Jane Traveler", "P1234567", UUID.randomUUID(), "POL-0001",
+                UUID.randomUUID(), "Jane Traveler", "P1234567", UUID.randomUUID(),
                 List.of(),
                 List.of(new MemberStatementTransaction(
                         UUID.randomUUID(), LocalDate.of(2026, 6, 1), UUID.randomUUID(), "Medical Expenses",

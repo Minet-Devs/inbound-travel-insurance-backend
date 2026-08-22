@@ -10,7 +10,6 @@ public record MemberStatementResponse(
         String memberName,
         String passportNumber,
         UUID policyId,
-        String policyNumber,
         List<VisitorBenefitResponse> benefits,
         List<MemberStatementTransaction> transactions
 ) {
