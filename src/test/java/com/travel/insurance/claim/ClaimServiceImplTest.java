@@ -8,6 +8,7 @@ import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
 import com.travel.insurance.common.service.CurrencyConversionService;
+import com.travel.insurance.common.util.AuthenticatedUser;
 import com.travel.insurance.icd11.Icd11CodeService;
 import com.travel.insurance.icd11.dto.Icd11CodeResponse;
 import com.travel.insurance.insurer.InsurerService;
@@ -20,14 +21,22 @@ import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.preauthorization.PreauthorizationService;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
+import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -61,6 +70,9 @@ class ClaimServiceImplTest {
 
     @Mock
     private InsurerService insurerService;
+
+    @Mock
+    private ServiceProviderService serviceProviderService;
 
     @Mock
     private InvoiceService invoiceService;
@@ -100,7 +112,7 @@ class ClaimServiceImplTest {
     void setUp() {
         claimService = new ClaimServiceImpl(
                 claimRepository, claimMapper, policyService, benefitService,
-                visitorService, insurerService, invoiceService,
+                visitorService, insurerService, serviceProviderService, invoiceService,
                 icd11CodeService, procedureService,
                 currencyConversionService, eventPublisher, preauthorizationService);
         policyId = UUID.randomUUID();
@@ -112,6 +124,17 @@ class ClaimServiceImplTest {
         diagnosisId1 = UUID.randomUUID();
         diagnosisId2 = UUID.randomUUID();
         procedureId1 = UUID.randomUUID();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void authenticateAs(UUID organizationId, String role) {
+        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), organizationId, role);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user, null, List.of()));
     }
 
     private Policy policyCoveredBy(UUID insurerId) {
@@ -320,6 +343,25 @@ class ClaimServiceImplTest {
 
         assertThat(responses).hasSize(1);
         assertThat(responses.getFirst().visitorId()).isEqualTo(visitorId);
+    }
+
+    @Test
+    void listScopesToServiceProviderForProviderUserViaOrganizationId() {
+        UUID organizationId = UUID.randomUUID();
+        UUID serviceProviderId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(serviceProviderId));
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(UUID.randomUUID());
+        Pageable pageable = PageRequest.of(0, 10);
+        when(claimRepository.findAllByServiceProviderId(serviceProviderId, pageable))
+                .thenReturn(new PageImpl<>(List.of(claim)));
+
+        Page<ClaimResponse> result = claimService.list(pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(claimRepository).findAllByServiceProviderId(serviceProviderId, pageable);
+        verify(claimRepository, never()).findAll(any(Pageable.class));
     }
 
     @Test

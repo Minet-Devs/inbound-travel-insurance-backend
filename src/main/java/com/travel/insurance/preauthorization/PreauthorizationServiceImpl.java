@@ -189,7 +189,12 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     private Page<Preauthorization> findScoped(Pageable pageable) {
         AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
         if (user != null && "PROVIDER_USER".equals(user.role())) {
-            return preauthorizationRepository.findAllByServiceProviderId(user.organizationId(), pageable);
+            UUID serviceProviderId = serviceProviderService.findIdByOrganizationId(user.organizationId())
+                    .orElse(null);
+            if (serviceProviderId == null) {
+                return Page.empty(pageable);
+            }
+            return preauthorizationRepository.findAllByServiceProviderId(serviceProviderId, pageable);
         }
         return preauthorizationRepository.findAll(pageable);
     }

@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ServiceProviderService {
@@ -27,4 +28,6 @@ public interface ServiceProviderService {
     Map<UUID, String> namesByIds(Collection<UUID> serviceProviderIds);
 
     List<ServiceProviderResponse> searchByName(String name, int limit);
+
+    Optional<UUID> findIdByOrganizationId(UUID organizationId);
 }

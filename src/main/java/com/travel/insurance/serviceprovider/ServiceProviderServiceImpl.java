@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -99,5 +100,11 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
     private ServiceProvider getEntity(UUID id) {
         return serviceProviderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceProvider", id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findIdByOrganizationId(UUID organizationId) {
+        return serviceProviderRepository.findFirstByOrganizationId(organizationId).map(ServiceProvider::getId);
     }
 }

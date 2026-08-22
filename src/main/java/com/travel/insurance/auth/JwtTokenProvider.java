@@ -17,6 +17,9 @@ import java.util.Optional;
 @Component
 public class JwtTokenProvider {
 
+    public static final String CLAIM_FIRST_NAME = "firstName";
+    public static final String CLAIM_LAST_NAME = "lastName";
+    public static final String CLAIM_EMAIL = "email";
     public static final String CLAIM_ROLE = "role";
     public static final String CLAIM_ORGANIZATION_ID = "organizationId";
     public static final String CLAIM_ORGANIZATION_NAME = "organizationName";
@@ -64,6 +67,9 @@ public class JwtTokenProvider {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(user.getId().toString())
+                .claim(CLAIM_FIRST_NAME, user.getFirstName())
+                .claim(CLAIM_LAST_NAME, user.getLastName())
+                .claim(CLAIM_EMAIL, user.getEmail())
                 .claim(CLAIM_ROLE, user.getRole().name())
                 .claim(CLAIM_ORGANIZATION_ID,
                         user.getOrganizationId() != null ? user.getOrganizationId().toString() : null)

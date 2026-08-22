@@ -1,16 +1,25 @@
 package com.travel.insurance.policy;
 
 import com.travel.insurance.common.messaging.EventPublisher;
+import com.travel.insurance.common.util.AuthenticatedUser;
 import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.policy.dto.PolicyRequest;
 import com.travel.insurance.policy.dto.PolicyResponse;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,8 +54,19 @@ class PolicyServiceImplTest {
                 policyRepository, policyMapper, insurerService, eventPublisher);
     }
 
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
     private PolicyRequest requestWithType(PolicyType policyType, PolicyStatus status) {
         return new PolicyRequest("POL-001", insurerId, policyType, status);
+    }
+
+    private void authenticateAs(UUID organizationId, String role) {
+        AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), organizationId, role);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user, null, List.of()));
     }
 
     @Test
@@ -115,5 +135,36 @@ class PolicyServiceImplTest {
         policyService.create(request);
 
         verify(eventPublisher, never()).publish(any(), any());
+    }
+
+    @Test
+    void listScopesToInsurerForInsurerUserViaOrganizationId() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(insurerId));
+        Policy policy = policyMapper.toEntity(requestWithType(PolicyType.SINGLE_ENTRY_UP_TO_30_DAYS, null));
+        Pageable pageable = PageRequest.of(0, 10);
+        when(policyRepository.findAllByInsurerId(insurerId, pageable))
+                .thenReturn(new PageImpl<>(List.of(policy)));
+
+        Page<PolicyResponse> result = policyService.list(pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(policyRepository).findAllByInsurerId(insurerId, pageable);
+        verify(policyRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listReturnsEmptyWhenInsurerUserHasNoMatchingInsurer() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.empty());
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Page<PolicyResponse> result = policyService.list(pageable);
+
+        assertThat(result.getContent()).isEmpty();
+        verify(policyRepository, never()).findAllByInsurerId(any(), any());
+        verify(policyRepository, never()).findAll(any(Pageable.class));
     }
 }

@@ -107,7 +107,11 @@ public class PolicyServiceImpl implements PolicyService {
             return policyRepository.findAll(pageable);
         }
         if ("INSURER_USER".equals(user.role())) {
-            return policyRepository.findAllByInsurerId(user.organizationId(), pageable);
+            UUID insurerId = insurerService.findIdByOrganizationId(user.organizationId()).orElse(null);
+            if (insurerId == null) {
+                return Page.empty(pageable);
+            }
+            return policyRepository.findAllByInsurerId(insurerId, pageable);
         }
         return policyRepository.findAll(pageable);
     }
@@ -117,7 +121,11 @@ public class PolicyServiceImpl implements PolicyService {
         if (user == null) {
             return;
         }
-        if ("INSURER_USER".equals(user.role()) && !policy.getInsurerId().equals(user.organizationId())) {
+        if (!"INSURER_USER".equals(user.role())) {
+            return;
+        }
+        UUID insurerId = insurerService.findIdByOrganizationId(user.organizationId()).orElse(null);
+        if (!policy.getInsurerId().equals(insurerId)) {
             throw new AccessDeniedException("Policy belongs to another insurer");
         }
     }

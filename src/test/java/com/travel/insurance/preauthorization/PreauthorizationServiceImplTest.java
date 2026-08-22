@@ -388,7 +388,9 @@ class PreauthorizationServiceImplTest {
 
     @Test
     void listScopesToServiceProviderForProviderUser() {
-        authenticateAs(serviceProviderId, "PROVIDER_USER");
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(serviceProviderId));
         Page<Preauthorization> page = new PageImpl<>(List.of(pendingPreauthorization()));
         Pageable pageable = PageRequest.of(0, 10);
         when(preauthorizationRepository.findAllByServiceProviderId(serviceProviderId, pageable)).thenReturn(page);

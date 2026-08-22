@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface InsurerService {
@@ -29,4 +30,6 @@ public interface InsurerService {
     boolean exists(UUID id);
 
     Map<UUID, String> namesByIds(Collection<UUID> insurerIds);
+
+    Optional<UUID> findIdByOrganizationId(UUID organizationId);
 }
