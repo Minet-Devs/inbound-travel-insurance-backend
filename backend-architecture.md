@@ -792,34 +792,42 @@ entities:
   Security authority. The JWT carries it as a single `role` claim
   (`JwtTokenProvider.CLAIM_ROLE`); `AuthenticatedUser.role` is a single
   `String`, not a set.
-- Every user carries a plain `organizationId: UUID` together with the
-  discriminating role: `INSURER_USER` → ID of an `Insurer`, `PROVIDER_USER` →
-  ID of a `ServiceProvider`, `ADMIN` → ID of an `organization.Organization`
-  row directly (an admin belongs to an `Organization` rather than an
-  `Insurer`/`ServiceProvider`). `UserRequest.organizationId` is `@NotNull`
-  for every role. This is a plain column, **not** a JPA relation, so the
-  `user` package stays decoupled from `insurer`/`serviceprovider`/
-  `organization`.
+- Every user, regardless of role, carries a plain `organizationId: UUID`
+  pointing directly at an `organization.Organization` row (the directory
+  entry described earlier) — the same id an `ADMIN` client would get back
+  from `GET /api/v1/organizations`. `UserRequest.organizationId` is
+  `@NotNull` and validated against `OrganizationService.getEntityById` on
+  create/update (404 if it doesn't resolve). This is a plain column, **not**
+  a JPA relation, so the `user` package stays decoupled from `organization`.
+  `User.organizationId` never points directly at an `Insurer`/`ServiceProvider`
+  row — see below for how `INSURER_USER`/`PROVIDER_USER` scoping bridges that
+  gap.
 - `UserResponse.organizationName` and the JWT's `organizationName` claim
   (`JwtTokenProvider.CLAIM_ORGANIZATION_NAME`, set at login/refresh) resolve
-  `User.organizationId` by branching on role — `UserServiceImpl.organizationName`
-  calls `InsurerService.namesByIds`/`ServiceProviderService.namesByIds`/
-  `OrganizationService.namesByIds` (batch, id→name lookups, same pattern as
-  `MedicalServiceResponse.departmentName`) depending on whether the role is
-  `INSURER_USER`/`PROVIDER_USER`/`ADMIN`. `AuthServiceImpl.issueTokens`
-  resolves the name fresh from the current `User` row on every login and
-  refresh, so it is never stale inside a long-lived refresh token.
-- Data scoping is enforced in the service layer: for example, an
-  `INSURER_USER` may only see policies and claims whose
-  `insurerId` equals `user.organizationId`. Roles gate *which endpoints* a user can
-  call; `organizationId` gates *which rows* they can see.
+  `User.organizationId` via `OrganizationService.namesByIds` (batch id→name
+  lookup, same pattern as `MedicalServiceResponse.departmentName`) — the same
+  lookup for every role, since `organizationId` always means "the
+  `Organization` row". `AuthServiceImpl.issueTokens` resolves the name fresh
+  from the current `User` row on every login and refresh, so it is never
+  stale inside a long-lived refresh token.
 - Separately, `Insurer` and `ServiceProvider` each carry their own optional
-  `organizationId: UUID` pointing at an `organization.Organization` row (the
-  directory entry described earlier) — an ID-only reference, validated via
-  `OrganizationService.getEntityById` on create/update (404 if the id doesn't
-  resolve). This is unrelated to `User.organizationId` above: that column
-  points *at* an `Insurer`/`ServiceProvider` row, while this one points *from*
-  one to its `Organization` directory entry.
+  `organizationId: UUID` pointing at the same `organization.Organization`
+  row — an ID-only reference, validated via `OrganizationService.getEntityById`
+  on create/update (404 if the id doesn't resolve). Both `User.organizationId`
+  and `Insurer`/`ServiceProvider.organizationId` point *at* the same
+  `Organization` id space; they are just two different entities referencing
+  the same directory entry, not a two-hop chain.
+- Data scoping bridges `User.organizationId` (an `Organization` id) to the
+  `Insurer`/`ServiceProvider` id that policies/claims/preauthorizations
+  actually key on, via `InsurerService.findIdByOrganizationId`/
+  `ServiceProviderService.findIdByOrganizationId` (each backed by
+  `findFirstByOrganizationId` on the respective repository). For example,
+  `PolicyServiceImpl.findScoped` resolves the current `INSURER_USER`'s
+  `Insurer` id from their `organizationId` before filtering
+  `findAllByInsurerId`; if no `Insurer`/`ServiceProvider` currently has that
+  `organizationId`, scoping returns an empty page rather than falling back to
+  unscoped access. Roles gate *which endpoints* a user can call;
+  `organizationId` (via this bridge) gates *which rows* they can see.
 - The direction of provisioning runs from `Organization` outward, not the
   other way round: `OrganizationServiceImpl.create` publishes an in-process
   `OrganizationCreatedEvent` (via `ApplicationEventPublisher`, synchronously

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -110,5 +111,11 @@ public class InsurerServiceImpl implements InsurerService {
         }
         return insurerRepository.findAllById(insurerIds).stream()
                 .collect(Collectors.toMap(Insurer::getId, Insurer::getName));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findIdByOrganizationId(UUID organizationId) {
+        return insurerRepository.findFirstByOrganizationId(organizationId).map(Insurer::getId);
     }
 }

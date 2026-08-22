@@ -23,6 +23,7 @@ import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.preauthorization.PreauthorizationService;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
+import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -65,6 +66,7 @@ public class ClaimServiceImpl implements ClaimService {
     private final BenefitService benefitService;
     private final VisitorService visitorService;
     private final InsurerService insurerService;
+    private final ServiceProviderService serviceProviderService;
     private final InvoiceService invoiceService;
     private final Icd11CodeService icd11CodeService;
     private final ProcedureService procedureService;
@@ -260,7 +262,12 @@ public class ClaimServiceImpl implements ClaimService {
     private Page<Claim> findScoped(Pageable pageable) {
         AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
         if (user != null && "PROVIDER_USER".equals(user.role())) {
-            return claimRepository.findAllByServiceProviderId(user.organizationId(), pageable);
+            UUID serviceProviderId = serviceProviderService.findIdByOrganizationId(user.organizationId())
+                    .orElse(null);
+            if (serviceProviderId == null) {
+                return Page.empty(pageable);
+            }
+            return claimRepository.findAllByServiceProviderId(serviceProviderId, pageable);
         }
         return claimRepository.findAll(pageable);
     }
