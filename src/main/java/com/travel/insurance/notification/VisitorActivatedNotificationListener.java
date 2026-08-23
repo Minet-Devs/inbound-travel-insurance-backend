@@ -142,6 +142,7 @@ public class VisitorActivatedNotificationListener {
                 "<p>Dear " + visitor.getFullName() + ",</p>"
                         + "<p>Your travel insurance cover is now active. Your policy certificate is attached.</p>",
                 attachments);
+        log.info("Sent policy document for visitor {} to {}", visitorId, visitor.getEmail());
     }
 
     /**
