@@ -2,7 +2,6 @@ package com.travel.insurance.report;
 
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.report.dto.ClaimReceiptResponse;
-import com.travel.insurance.report.dto.ClaimInvoiceGroup;
 import com.travel.insurance.report.dto.ProviderClaimReportResponse;
 import com.travel.insurance.report.dto.ProviderClaimReportSummary;
 import com.travel.insurance.report.dto.ProviderClaimReportRow;
