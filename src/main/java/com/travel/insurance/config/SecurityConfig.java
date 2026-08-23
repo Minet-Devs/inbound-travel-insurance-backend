@@ -41,9 +41,10 @@ public class SecurityConfig {
                     if (!environment.acceptsProfiles(Profiles.of("prod"))) {
                         auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
                     }
-                    auth.requestMatchers("/api/v1/users/**").hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.POST,"/api/v1/users").hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.GET,"/api/v1/users").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/insurers").denyAll();
-                    auth.requestMatchers("/api/v1/insurers/**").hasAnyRole("ADMIN", "INSURER_USER");
+                    auth.requestMatchers("/api/v1/insurers/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/policies").denyAll();
                     // Disable POST create endpoint specifically — must come BEFORE the broader service-providers rule
                     // insurers & service-providers are now create through organization to enable role based system access
