@@ -37,10 +37,10 @@ spring:
     out-of-order: true
 
   rabbitmq:
-    host: ${RABBITMQ_HOST}
-    port: ${RABBITMQ_PORT}
-    username: ${RABBITMQ_USER}
-    password: ${RABBITMQ_PASS}
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:travel}
+    password: ${RABBITMQ_PASS:travel}
 
   mail:
     host: ${SMTP_HOST:localhost}
