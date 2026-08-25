@@ -578,6 +578,12 @@ Policy
   separate border events. This endpoint is separate from the general
   `update`/`create` flow since these values are typically recorded later,
   by a border-control integration rather than at KYC onboarding.
+  `GET /api/v1/visitors` (the paged list) takes an optional `insurerId` query
+  param — omitted, it returns all visitors (`VisitorRepository.findAll`);
+  provided, it filters to that insurer's visitors
+  (`VisitorRepository.findByInsurerId`) using the denormalized `insurerId`
+  column directly, the same optional-filter shape as
+  `GET /api/v1/organizations?organizationType=…`.
   `GET /api/v1/visitors/{id}` and
   `GET /api/v1/visitors/by-passport?passportNumber=…` return a
   `VisitorDetailResponse` that embeds the visitor's assigned benefits
