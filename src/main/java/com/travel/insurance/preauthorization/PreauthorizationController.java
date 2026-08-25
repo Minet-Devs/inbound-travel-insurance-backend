@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -40,8 +41,9 @@ public class PreauthorizationController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<PreauthorizationResponse>> list(Pageable pageable) {
-        return ResponseEntity.ok(preauthorizationService.list(pageable));
+    public ResponseEntity<Page<PreauthorizationResponse>> list(
+            @RequestParam(required = false) UUID insurerId, Pageable pageable) {
+        return ResponseEntity.ok(preauthorizationService.list(insurerId, pageable));
     }
 
     @PostMapping("/{id}/decision")

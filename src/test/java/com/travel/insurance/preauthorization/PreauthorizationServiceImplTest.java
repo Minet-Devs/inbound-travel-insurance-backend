@@ -88,6 +88,7 @@ class PreauthorizationServiceImplTest {
     private PreauthorizationServiceImpl preauthorizationService;
 
     private final UUID policyId = UUID.randomUUID();
+    private final UUID insurerId = UUID.randomUUID();
     private final UUID visitorId = UUID.randomUUID();
     private final UUID icd11CodeId = UUID.randomUUID();
     private final UUID benefitId = UUID.randomUUID();
@@ -127,6 +128,7 @@ class PreauthorizationServiceImplTest {
         Policy policy = new Policy();
         policy.setId(policyId);
         policy.setStatus(PolicyStatus.ACTIVE);
+        policy.setInsurerId(insurerId);
         return policy;
     }
 
@@ -174,6 +176,7 @@ class PreauthorizationServiceImplTest {
         Preauthorization preauthorization = new Preauthorization();
         preauthorization.setId(UUID.randomUUID());
         preauthorization.setPolicyId(policyId);
+        preauthorization.setInsurerId(insurerId);
         preauthorization.setVisitorId(visitorId);
         preauthorization.setIcd11CodeId(icd11CodeId);
         preauthorization.setBenefitId(benefitId);
@@ -251,6 +254,7 @@ class PreauthorizationServiceImplTest {
         PreauthorizationResponse response = preauthorizationService.create(validRequest());
 
         assertThat(response.status()).isEqualTo(PreauthorizationStatus.PENDING);
+        assertThat(response.insurerId()).isEqualTo(insurerId);
         assertThat(response.visitorId()).isEqualTo(visitorId);
         assertThat(response.visitorName()).isEqualTo("Jane Traveler");
         assertThat(response.icd11Code()).isEqualTo("1A00");
@@ -393,7 +397,7 @@ class PreauthorizationServiceImplTest {
         Pageable pageable = PageRequest.of(0, 10);
         when(preauthorizationRepository.findAllByServiceProviderId(serviceProviderId, pageable)).thenReturn(page);
 
-        Page<PreauthorizationResponse> result = preauthorizationService.list(pageable);
+        Page<PreauthorizationResponse> result = preauthorizationService.list(null, pageable);
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().getFirst().serviceProviderName()).isEqualTo("Aga Khan Hospital");
@@ -408,9 +412,40 @@ class PreauthorizationServiceImplTest {
         Pageable pageable = PageRequest.of(0, 10);
         when(preauthorizationRepository.findAll(pageable)).thenReturn(page);
 
-        Page<PreauthorizationResponse> result = preauthorizationService.list(pageable);
+        Page<PreauthorizationResponse> result = preauthorizationService.list(null, pageable);
 
         assertThat(result.getContent()).hasSize(1);
+        verify(preauthorizationRepository, never()).findAllByServiceProviderId(any(), any());
+    }
+
+    @Test
+    void listFiltersByInsurerIdForNonProviderUser() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        Page<Preauthorization> page = new PageImpl<>(List.of(pendingPreauthorization()));
+        Pageable pageable = PageRequest.of(0, 10);
+        when(preauthorizationRepository.findAllByInsurerId(insurerId, pageable)).thenReturn(page);
+
+        Page<PreauthorizationResponse> result = preauthorizationService.list(insurerId, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().getFirst().insurerId()).isEqualTo(insurerId);
+        verify(preauthorizationRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listCombinesInsurerIdFilterWithServiceProviderScopeForProviderUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(serviceProviderId));
+        Page<Preauthorization> page = new PageImpl<>(List.of(pendingPreauthorization()));
+        Pageable pageable = PageRequest.of(0, 10);
+        when(preauthorizationRepository.findAllByServiceProviderIdAndInsurerId(serviceProviderId, insurerId, pageable))
+                .thenReturn(page);
+
+        Page<PreauthorizationResponse> result = preauthorizationService.list(insurerId, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(preauthorizationRepository).findAllByServiceProviderIdAndInsurerId(serviceProviderId, insurerId, pageable);
         verify(preauthorizationRepository, never()).findAllByServiceProviderId(any(), any());
     }
 }

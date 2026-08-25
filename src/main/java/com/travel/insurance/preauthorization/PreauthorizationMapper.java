@@ -56,6 +56,7 @@ public class PreauthorizationMapper {
         return new PreauthorizationResponse(
                 preauthorization.getId(),
                 preauthorization.getPolicyId(),
+                preauthorization.getInsurerId(),
                 preauthorization.getVisitorId(),
                 visitor != null ? visitor.getFullName() : null,
                 preauthorization.getIcd11CodeId(),
