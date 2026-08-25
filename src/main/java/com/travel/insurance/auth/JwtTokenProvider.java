@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 public class JwtTokenProvider {
@@ -23,6 +24,8 @@ public class JwtTokenProvider {
     public static final String CLAIM_ROLE = "role";
     public static final String CLAIM_ORGANIZATION_ID = "organizationId";
     public static final String CLAIM_ORGANIZATION_NAME = "organizationName";
+    public static final String CLAIM_SERVICE_PROVIDER_ID = "serviceProviderId";
+    public static final String CLAIM_INSURER_ID = "insurerId";
     public static final String CLAIM_TOKEN_TYPE = "tokenType";
     public static final String TOKEN_TYPE_ACCESS = "access";
     public static final String TOKEN_TYPE_REFRESH = "refresh";
@@ -39,12 +42,12 @@ public class JwtTokenProvider {
         this.refreshTokenTtlSeconds = refreshTokenTtlSeconds;
     }
 
-    public String createAccessToken(User user, String organizationName) {
-        return createToken(user, organizationName, TOKEN_TYPE_ACCESS, accessTokenTtlSeconds);
+    public String createAccessToken(User user, String organizationName, UUID serviceProviderId, UUID insurerId) {
+        return createToken(user, organizationName, serviceProviderId, insurerId, TOKEN_TYPE_ACCESS, accessTokenTtlSeconds);
     }
 
-    public String createRefreshToken(User user, String organizationName) {
-        return createToken(user, organizationName, TOKEN_TYPE_REFRESH, refreshTokenTtlSeconds);
+    public String createRefreshToken(User user, String organizationName, UUID serviceProviderId, UUID insurerId) {
+        return createToken(user, organizationName, serviceProviderId, insurerId, TOKEN_TYPE_REFRESH, refreshTokenTtlSeconds);
     }
 
     public long accessTokenTtlSeconds() {
@@ -63,7 +66,8 @@ public class JwtTokenProvider {
         }
     }
 
-    private String createToken(User user, String organizationName, String tokenType, long ttlSeconds) {
+    private String createToken(User user, String organizationName, UUID serviceProviderId, UUID insurerId,
+                                String tokenType, long ttlSeconds) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(user.getId().toString())
@@ -74,6 +78,8 @@ public class JwtTokenProvider {
                 .claim(CLAIM_ORGANIZATION_ID,
                         user.getOrganizationId() != null ? user.getOrganizationId().toString() : null)
                 .claim(CLAIM_ORGANIZATION_NAME, organizationName)
+                .claim(CLAIM_SERVICE_PROVIDER_ID, serviceProviderId != null ? serviceProviderId.toString() : null)
+                .claim(CLAIM_INSURER_ID, insurerId != null ? insurerId.toString() : null)
                 .claim(CLAIM_TOKEN_TYPE, tokenType)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(ttlSeconds)))

@@ -30,7 +30,8 @@ class JwtTokenProviderTest {
 
     @Test
     void accessTokenCarriesUserProfileClaims() {
-        String token = jwtTokenProvider.createAccessToken(user, "Minet Insurance");
+        UUID insurerId = UUID.randomUUID();
+        String token = jwtTokenProvider.createAccessToken(user, "Minet Insurance", null, insurerId);
 
         Claims claims = jwtTokenProvider.parse(token).orElseThrow();
 
@@ -41,12 +42,14 @@ class JwtTokenProviderTest {
         assertThat(claims.get(JwtTokenProvider.CLAIM_ROLE)).isEqualTo("INSURER_USER");
         assertThat(claims.get(JwtTokenProvider.CLAIM_ORGANIZATION_ID)).isEqualTo(user.getOrganizationId().toString());
         assertThat(claims.get(JwtTokenProvider.CLAIM_ORGANIZATION_NAME)).isEqualTo("Minet Insurance");
+        assertThat(claims.get(JwtTokenProvider.CLAIM_SERVICE_PROVIDER_ID)).isNull();
+        assertThat(claims.get(JwtTokenProvider.CLAIM_INSURER_ID)).isEqualTo(insurerId.toString());
         assertThat(claims.get(JwtTokenProvider.CLAIM_TOKEN_TYPE)).isEqualTo(JwtTokenProvider.TOKEN_TYPE_ACCESS);
     }
 
     @Test
     void refreshTokenCarriesRefreshTokenType() {
-        String token = jwtTokenProvider.createRefreshToken(user, "Minet Insurance");
+        String token = jwtTokenProvider.createRefreshToken(user, "Minet Insurance", null, UUID.randomUUID());
 
         Claims claims = jwtTokenProvider.parse(token).orElseThrow();
 
@@ -55,7 +58,7 @@ class JwtTokenProviderTest {
 
     @Test
     void parseRejectsTamperedToken() {
-        String token = jwtTokenProvider.createAccessToken(user, "Minet Insurance");
+        String token = jwtTokenProvider.createAccessToken(user, "Minet Insurance", null, UUID.randomUUID());
 
         assertThat(jwtTokenProvider.parse(token + "tampered")).isEmpty();
     }

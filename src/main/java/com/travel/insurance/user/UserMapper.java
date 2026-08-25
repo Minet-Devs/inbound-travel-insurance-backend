@@ -4,6 +4,8 @@ import com.travel.insurance.user.dto.UserRequest;
 import com.travel.insurance.user.dto.UserResponse;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 public class UserMapper {
 
@@ -17,7 +19,7 @@ public class UserMapper {
         applyRequest(user, request);
     }
 
-    public UserResponse toResponse(User user, String organizationName) {
+    public UserResponse toResponse(User user, String organizationName, UUID serviceProviderId, UUID insurerId) {
         return new UserResponse(
                 user.getId(),
                 user.getFirstName(),
@@ -27,6 +29,8 @@ public class UserMapper {
                 user.getRole(),
                 user.getOrganizationId(),
                 organizationName,
+                serviceProviderId,
+                insurerId,
                 user.getCreatedDate(),
                 user.getUpdatedDate()
         );

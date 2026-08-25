@@ -14,6 +14,8 @@ public record UserResponse(
         Role role,
         UUID organizationId,
         String organizationName,
+        UUID serviceProviderId,
+        UUID insurerId,
         Instant createdDate,
         Instant updatedDate
 ) {

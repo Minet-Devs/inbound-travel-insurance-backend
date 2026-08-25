@@ -1,7 +1,9 @@
 package com.travel.insurance.user;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.organization.OrganizationService;
+import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.user.dto.UserRequest;
 import com.travel.insurance.user.dto.UserResponse;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,8 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final OrganizationService organizationService;
+    private final ServiceProviderService serviceProviderService;
+    private final InsurerService insurerService;
 
     @Override
     public UserResponse create(UserRequest request) {
@@ -55,7 +59,8 @@ public class UserServiceImpl implements UserService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         Map<UUID, String> organizationNames = organizationService.namesByIds(organizationIds);
-        return page.map(user -> userMapper.toResponse(user, organizationNames.get(user.getOrganizationId())));
+        return page.map(user -> userMapper.toResponse(user, organizationNames.get(user.getOrganizationId()),
+                serviceProviderId(user), insurerId(user)));
     }
 
     @Override
@@ -95,7 +100,25 @@ public class UserServiceImpl implements UserService {
         return organizationService.namesByIds(List.of(organizationId)).get(organizationId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public UUID serviceProviderId(User user) {
+        if (user.getRole() != Role.PROVIDER_USER || user.getOrganizationId() == null) {
+            return null;
+        }
+        return serviceProviderService.findIdByOrganizationId(user.getOrganizationId()).orElse(null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UUID insurerId(User user) {
+        if (user.getRole() != Role.INSURER_USER || user.getOrganizationId() == null) {
+            return null;
+        }
+        return insurerService.findIdByOrganizationId(user.getOrganizationId()).orElse(null);
+    }
+
     private UserResponse toResponse(User user) {
-        return userMapper.toResponse(user, organizationName(user));
+        return userMapper.toResponse(user, organizationName(user), serviceProviderId(user), insurerId(user));
     }
 }

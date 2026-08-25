@@ -833,6 +833,16 @@ entities:
   `organizationId`, scoping returns an empty page rather than falling back to
   unscoped access. Roles gate *which endpoints* a user can call;
   `organizationId` (via this bridge) gates *which rows* they can see.
+- `UserResponse` and the JWT (`JwtTokenProvider.CLAIM_SERVICE_PROVIDER_ID`/
+  `CLAIM_INSURER_ID`) also expose the bridged `serviceProviderId`/`insurerId`
+  directly, via `UserService.serviceProviderId(User)`/`insurerId(User)`
+  (`UserServiceImpl`, reusing the same `findIdByOrganizationId` bridge above).
+  `serviceProviderId` is populated only for `PROVIDER_USER` (`null`
+  otherwise); `insurerId` only for `INSURER_USER` (`null` otherwise); both are
+  `null` when the role doesn't match or the bridge can't resolve an
+  `Insurer`/`ServiceProvider` for the user's `organizationId`. As with
+  `organizationName`, `AuthServiceImpl.issueTokens` resolves both fresh from
+  the current `User` row on every login and refresh.
 - The direction of provisioning runs from `Organization` outward, not the
   other way round: `OrganizationServiceImpl.create` publishes an in-process
   `OrganizationCreatedEvent` (via `ApplicationEventPublisher`, synchronously

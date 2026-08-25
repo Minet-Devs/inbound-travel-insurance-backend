@@ -41,9 +41,11 @@ public class AuthServiceImpl implements AuthService {
 
     private TokenResponse issueTokens(User user) {
         String organizationName = userService.organizationName(user);
+        UUID serviceProviderId = userService.serviceProviderId(user);
+        UUID insurerId = userService.insurerId(user);
         return TokenResponse.bearer(
-                jwtTokenProvider.createAccessToken(user, organizationName),
-                jwtTokenProvider.createRefreshToken(user, organizationName),
+                jwtTokenProvider.createAccessToken(user, organizationName, serviceProviderId, insurerId),
+                jwtTokenProvider.createRefreshToken(user, organizationName, serviceProviderId, insurerId),
                 jwtTokenProvider.accessTokenTtlSeconds());
     }
 }

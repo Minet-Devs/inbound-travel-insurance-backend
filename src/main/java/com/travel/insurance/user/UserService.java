@@ -25,4 +25,8 @@ public interface UserService {
     User getEntityById(UUID id);
 
     String organizationName(User user);
+
+    UUID serviceProviderId(User user);
+
+    UUID insurerId(User user);
 }
