@@ -50,11 +50,14 @@ class AuthServiceImplTest {
 
     @Test
     void loginIssuesTokensWithOrganizationName() {
+        UUID insurerId = UUID.randomUUID();
         when(userService.findEntityByEmail("jane@acme.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "hashed")).thenReturn(true);
         when(userService.organizationName(user)).thenReturn("Minet Insurance");
-        when(jwtTokenProvider.createAccessToken(user, "Minet Insurance")).thenReturn("access-token");
-        when(jwtTokenProvider.createRefreshToken(user, "Minet Insurance")).thenReturn("refresh-token");
+        when(userService.serviceProviderId(user)).thenReturn(null);
+        when(userService.insurerId(user)).thenReturn(insurerId);
+        when(jwtTokenProvider.createAccessToken(user, "Minet Insurance", null, insurerId)).thenReturn("access-token");
+        when(jwtTokenProvider.createRefreshToken(user, "Minet Insurance", null, insurerId)).thenReturn("refresh-token");
         when(jwtTokenProvider.accessTokenTtlSeconds()).thenReturn(900L);
 
         TokenResponse response = authService.login(new LoginRequest("jane@acme.com", "password123"));

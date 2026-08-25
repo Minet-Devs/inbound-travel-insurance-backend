@@ -1,7 +1,9 @@
 package com.travel.insurance.user;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.organization.OrganizationService;
+import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.user.dto.UserRequest;
 import com.travel.insurance.user.dto.UserResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +42,12 @@ class UserServiceImplTest {
     @Mock
     private OrganizationService organizationService;
 
+    @Mock
+    private ServiceProviderService serviceProviderService;
+
+    @Mock
+    private InsurerService insurerService;
+
     private final UserMapper userMapper = new UserMapper();
 
     private UserServiceImpl userService;
@@ -48,10 +56,13 @@ class UserServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserServiceImpl(userRepository, userMapper, passwordEncoder, organizationService);
+        userService = new UserServiceImpl(userRepository, userMapper, passwordEncoder, organizationService,
+                serviceProviderService, insurerService);
         request = new UserRequest("Jane", "Doe", "jane@acme.com", "password123", "0700000000",
                 Role.INSURER_USER, UUID.randomUUID());
         lenient().when(organizationService.namesByIds(any())).thenReturn(Map.of());
+        lenient().when(insurerService.findIdByOrganizationId(any())).thenReturn(Optional.empty());
+        lenient().when(serviceProviderService.findIdByOrganizationId(any())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -126,6 +137,37 @@ class UserServiceImplTest {
         UserResponse response = userService.update(id, updateRequest);
 
         assertThat(response.role()).isEqualTo(Role.PROVIDER_USER);
+    }
+
+    @Test
+    void createResolvesInsurerIdForInsurerUser() {
+        UUID insurerId = UUID.randomUUID();
+        when(userRepository.existsByEmail("jane@acme.com")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(insurerService.findIdByOrganizationId(request.organizationId())).thenReturn(Optional.of(insurerId));
+
+        UserResponse response = userService.create(request);
+
+        assertThat(response.insurerId()).isEqualTo(insurerId);
+        assertThat(response.serviceProviderId()).isNull();
+    }
+
+    @Test
+    void createResolvesServiceProviderIdForProviderUser() {
+        UUID serviceProviderId = UUID.randomUUID();
+        UserRequest providerRequest = new UserRequest("Jane", "Doe", "jane@acme.com", "password123",
+                "0700000000", Role.PROVIDER_USER, request.organizationId());
+        when(userRepository.existsByEmail("jane@acme.com")).thenReturn(false);
+        when(passwordEncoder.encode("password123")).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(serviceProviderService.findIdByOrganizationId(request.organizationId()))
+                .thenReturn(Optional.of(serviceProviderId));
+
+        UserResponse response = userService.create(providerRequest);
+
+        assertThat(response.serviceProviderId()).isEqualTo(serviceProviderId);
+        assertThat(response.insurerId()).isNull();
     }
 
     @Test
