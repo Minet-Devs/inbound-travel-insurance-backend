@@ -47,6 +47,7 @@ public class VisitorServiceImpl implements VisitorService {
                     "Visitor already exists with passport number: " + request.passportNumber());
         }
         Visitor visitor = visitorMapper.toEntity(request);
+        visitor.setInsurerId(policy.getInsurerId());
         visitor.setPassportNumberHash(passportNumberHash);
         visitor = visitorRepository.save(visitor);
         eventPublisher.publishEvent(new VisitorCreatedEvent(visitor.getId(), visitor.getPolicyId()));
@@ -85,7 +86,7 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     public VisitorResponse update(UUID id, VisitorRequest request) {
         Visitor visitor = getEntityById(id);
-        policyService.getEntityById(request.policyId());
+        Policy policy = policyService.getEntityById(request.policyId());
         validateCoverPeriod(request);
         String passportNumberHash = blindIndexService.hmac(request.passportNumber());
         if (visitorRepository.existsByPassportNumberHashAndIdNot(passportNumberHash, id)) {
@@ -93,6 +94,7 @@ public class VisitorServiceImpl implements VisitorService {
                     "Visitor already exists with passport number: " + request.passportNumber());
         }
         visitorMapper.updateEntity(visitor, request);
+        visitor.setInsurerId(policy.getInsurerId());
         visitor.setPassportNumberHash(passportNumberHash);
         return visitorMapper.toResponse(visitor);
     }

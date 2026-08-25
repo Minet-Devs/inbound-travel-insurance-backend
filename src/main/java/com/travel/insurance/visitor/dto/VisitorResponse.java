@@ -11,6 +11,7 @@ import java.util.UUID;
 public record VisitorResponse(
         UUID id,
         UUID policyId,
+        UUID insurerId,
         String fullName,
         String passportNumber,
         LocalDate dateOfBirth,

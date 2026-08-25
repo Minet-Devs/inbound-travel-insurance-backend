@@ -116,6 +116,7 @@ class VisitorServiceImplTest {
 
         assertThat(response.fullName()).isEqualTo("Jane Traveler");
         assertThat(response.policyId()).isEqualTo(policyId);
+        assertThat(response.insurerId()).isEqualTo(insurerId);
         assertThat(response.visitorStatus()).isEqualTo(VisitorStatus.ACTIVE);
         verify(visitorRepository).save(any(Visitor.class));
         verify(eventPublisher).publishEvent(any(VisitorCreatedEvent.class));
@@ -276,6 +277,23 @@ class VisitorServiceImplTest {
         VisitorResponse response = visitorService.update(id, request);
 
         assertThat(response.passportNumber()).isEqualTo("P1234567");
+    }
+
+    @Test
+    void updateResolvesInsurerIdFromPolicy() {
+        UUID id = UUID.randomUUID();
+        Visitor existing = visitorMapper.toEntity(request);
+        existing.setInsurerId(insurerId);
+        UUID newInsurerId = UUID.randomUUID();
+        Policy newPolicy = new Policy();
+        newPolicy.setInsurerId(newInsurerId);
+        when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(policyService.getEntityById(policyId)).thenReturn(newPolicy);
+        when(visitorRepository.existsByPassportNumberHashAndIdNot(hashOf("P1234567"), id)).thenReturn(false);
+
+        VisitorResponse response = visitorService.update(id, request);
+
+        assertThat(response.insurerId()).isEqualTo(newInsurerId);
     }
 
     @Test

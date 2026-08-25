@@ -55,7 +55,7 @@ class VisitorControllerTest {
     private final UUID benefitId = UUID.randomUUID();
 
     private VisitorResponse sampleVisitor() {
-        return new VisitorResponse(visitorId, policyId, "Jane Traveler", "P1234567",
+        return new VisitorResponse(visitorId, policyId, UUID.randomUUID(), "Jane Traveler", "P1234567",
                 LocalDate.of(1990, 5, 12), Gender.FEMALE, "Germany", "12 Example Street, Berlin",
                 "jane.traveler@example.com", "+254700000000",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),

@@ -31,6 +31,9 @@ public class Visitor extends BaseEntity {
     @Column(nullable = false)
     private UUID policyId;
 
+    @Column(nullable = false)
+    private UUID insurerId;
+
     @Convert(converter = EncryptedStringConverter.class)
     @Column(nullable = false, columnDefinition = "text")
     private String fullName;

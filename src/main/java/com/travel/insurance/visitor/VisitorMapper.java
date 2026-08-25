@@ -42,6 +42,7 @@ public class VisitorMapper {
         return new VisitorResponse(
                 visitor.getId(),
                 visitor.getPolicyId(),
+                visitor.getInsurerId(),
                 visitor.getFullName(),
                 visitor.getPassportNumber(),
                 visitor.getDateOfBirth(),

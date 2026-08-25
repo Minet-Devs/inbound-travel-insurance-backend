@@ -546,7 +546,14 @@ Policy
   `ServiceProvider` has no equivalent fields, so `SERVICE_PROVIDER`
   organizations don't carry any of this.
 - A **Visitor** is an insured traveler behind a policy. It carries a
-  `policyId` (ID-only reference — one policy may cover many visitors) plus the
+  `policyId` (ID-only reference — one policy may cover many visitors) and a
+  denormalized `insurerId` (non-nullable `UUID`, mirroring `Claim.insurerId`),
+  resolved from `policy.getInsurerId()` on the already-fetched `Policy` in
+  `VisitorServiceImpl.create`/`update` — not client-supplied (absent from
+  `VisitorRequest`) and re-resolved fresh on every update in case the
+  visitor's `policyId` changes to a policy under a different insurer. This
+  denormalization lets visitors be scoped/queried by insurer without joining
+  through `policies`, the same rationale as `Claim.insurerId`. Plus the
   passport-based basic KYC attributes captured at onboarding: full name,
   passport number (unique), date of birth, gender, nationality, address,
   email, phone number, date in / date out of the country, marital status,
