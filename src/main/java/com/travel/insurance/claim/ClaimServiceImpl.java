@@ -29,6 +29,7 @@ import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -48,6 +49,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class ClaimServiceImpl implements ClaimService {
 
     private static final Set<ClaimStatus> DECISION_STATUSES = EnumSet.of(
@@ -372,6 +374,7 @@ public class ClaimServiceImpl implements ClaimService {
         try {
             return icd11CodeService.getById(id);
         } catch (ResourceNotFoundException e) {
+            log.warn("ICD-11 code {} not found for claim, skipping", id);
             return null;
         }
     }
@@ -380,6 +383,7 @@ public class ClaimServiceImpl implements ClaimService {
         try {
             return procedureService.getById(id);
         } catch (ResourceNotFoundException e) {
+            log.warn("Procedure {} not found for claim, skipping", id);
             return null;
         }
     }
