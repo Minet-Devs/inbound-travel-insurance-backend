@@ -78,6 +78,12 @@ public class ClaimServiceImpl implements ClaimService {
     public ClaimResponse create(ClaimRequest request) {
         UUID insurerId = validateReferences(request);
         Claim claim = claimMapper.toEntity(request);
+        if (claim.getDiagnosisIds().isEmpty()) {
+            throw new IllegalArgumentException("diagnosisIds is required when no preauthorization is provided");
+        }
+        if (claim.getProcedureIds().isEmpty()) {
+            throw new IllegalArgumentException("procedureIds are required");
+        }
         claim.setStatus(ClaimStatus.OPEN);
         claim.setInsurerId(insurerId);
         applyBaseConversion(claim);
@@ -98,6 +104,12 @@ public class ClaimServiceImpl implements ClaimService {
         }
         UUID insurerId = validateReferences(request);
         claimMapper.updateEntity(claim, request);
+        if (claim.getDiagnosisIds().isEmpty()) {
+            throw new IllegalArgumentException("diagnosisIds is required when no preauthorization is provided");
+        }
+        if (claim.getProcedureIds().isEmpty()) {
+            throw new IllegalArgumentException("procedureIds are required");
+        }
         claim.setInsurerId(insurerId);
         applyBaseConversion(claim);
         return toResponse(claimRepository.save(claim));
@@ -213,6 +225,12 @@ public class ClaimServiceImpl implements ClaimService {
             }
         }
 
+        if (request.diagnosisIds() != null) {
+            request.diagnosisIds().forEach(icd11CodeService::getEntityById);
+        }
+        if (request.procedureIds() != null) {
+            request.procedureIds().forEach(procedureService::getById);
+        }
         if (request.invoiceIds() != null) {
             request.invoiceIds().forEach(invoiceService::getEntityById);
         }
