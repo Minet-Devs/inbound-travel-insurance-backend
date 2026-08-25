@@ -110,6 +110,7 @@ public class ClaimServiceImpl implements ClaimService {
             throw new IllegalStateException("Claim is not open for attaching invoices: " + claim.getStatus());
         }
         invoiceService.getEntityById(request.invoiceId());
+        invoiceService.attachToClaim(request.invoiceId(), claim.getId());
         claim.getInvoiceIds().add(request.invoiceId());
         applyBaseConversion(claim);
         claim.setStatus(ClaimStatus.SUBMITTED);
@@ -297,9 +298,7 @@ public class ClaimServiceImpl implements ClaimService {
         InsurerResponse insurer = claim.getInsurerId() != null
                 ? insurerService.getById(claim.getInsurerId())
                 : null;
-        List<InvoiceResponse> invoices = claim.getInvoiceIds().stream()
-                .map(invoiceService::getById)
-                .toList();
+        List<InvoiceResponse> invoices = invoiceService.listByClaimId(claim.getId());
         List<Icd11CodeResponse> diagnoses = claim.getDiagnosisIds().stream()
                 .map(this::resolveDiagnosis)
                 .filter(Objects::nonNull)
