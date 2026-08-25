@@ -79,8 +79,11 @@ public class VisitorServiceImpl implements VisitorService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<VisitorResponse> list(Pageable pageable) {
-        return visitorRepository.findAll(pageable).map(visitorMapper::toResponse);
+    public Page<VisitorResponse> list(UUID insurerId, Pageable pageable) {
+        Page<Visitor> visitors = insurerId == null
+                ? visitorRepository.findAll(pageable)
+                : visitorRepository.findByInsurerId(insurerId, pageable);
+        return visitors.map(visitorMapper::toResponse);
     }
 
     @Override

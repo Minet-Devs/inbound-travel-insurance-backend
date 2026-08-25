@@ -58,8 +58,9 @@ public class VisitorController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<VisitorResponse>> list(Pageable pageable) {
-        return ResponseEntity.ok(visitorService.list(pageable));
+    public ResponseEntity<Page<VisitorResponse>> list(
+            @RequestParam(required = false) UUID insurerId, Pageable pageable) {
+        return ResponseEntity.ok(visitorService.list(insurerId, pageable));
     }
 
     @PutMapping("/{id}")

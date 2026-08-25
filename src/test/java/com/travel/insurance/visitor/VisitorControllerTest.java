@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -175,6 +176,18 @@ class VisitorControllerTest {
                         .content("{\"entryTimestamp\":\"2026-08-01T10:00:00Z\","
                                 + "\"exitTimestamp\":\"2026-08-10T10:00:00Z\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listFiltersByInsurerId() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(visitorService.list(eq(insurerId), any()))
+                .thenReturn(new PageImpl<>(List.of(sampleVisitor())));
+
+        mockMvc.perform(get("/api/v1/visitors").param("insurerId", insurerId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(visitorId.toString()));
     }
 
     @Test
