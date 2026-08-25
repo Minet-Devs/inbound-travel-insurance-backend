@@ -20,6 +20,7 @@ import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.preauthorization.Preauthorization;
 import com.travel.insurance.preauthorization.PreauthorizationService;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
@@ -78,6 +79,12 @@ public class ClaimServiceImpl implements ClaimService {
     public ClaimResponse create(ClaimRequest request) {
         UUID insurerId = validateReferences(request);
         Claim claim = claimMapper.toEntity(request);
+        if (request.preauthorizationId() != null && claim.getDiagnosisIds().isEmpty()) {
+            Preauthorization preauth = preauthorizationService.getEntityById(request.preauthorizationId());
+            if (preauth.getIcd11CodeId() != null) {
+                claim.getDiagnosisIds().add(preauth.getIcd11CodeId());
+            }
+        }
         if (claim.getDiagnosisIds().isEmpty()) {
             throw new IllegalArgumentException("diagnosisIds is required when no preauthorization is provided");
         }
@@ -104,6 +111,12 @@ public class ClaimServiceImpl implements ClaimService {
         }
         UUID insurerId = validateReferences(request);
         claimMapper.updateEntity(claim, request);
+        if (request.preauthorizationId() != null && claim.getDiagnosisIds().isEmpty()) {
+            Preauthorization preauth = preauthorizationService.getEntityById(request.preauthorizationId());
+            if (preauth.getIcd11CodeId() != null) {
+                claim.getDiagnosisIds().add(preauth.getIcd11CodeId());
+            }
+        }
         if (claim.getDiagnosisIds().isEmpty()) {
             throw new IllegalArgumentException("diagnosisIds is required when no preauthorization is provided");
         }
