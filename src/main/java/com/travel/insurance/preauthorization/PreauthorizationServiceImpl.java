@@ -83,8 +83,8 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<PreauthorizationResponse> list(Pageable pageable) {
-        return findScoped(pageable).map(this::enrich);
+    public Page<PreauthorizationResponse> list(UUID insurerId, Pageable pageable) {
+        return findScoped(insurerId, pageable).map(this::enrich);
     }
 
     @Override
@@ -189,7 +189,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         visitorService.getEntityById(visitorId);
     }
 
-    private Page<Preauthorization> findScoped(Pageable pageable) {
+    private Page<Preauthorization> findScoped(UUID insurerId, Pageable pageable) {
         AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
         if (user != null && "PROVIDER_USER".equals(user.role())) {
             UUID serviceProviderId = serviceProviderService.findIdByOrganizationId(user.organizationId())
@@ -197,9 +197,14 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
             if (serviceProviderId == null) {
                 return Page.empty(pageable);
             }
-            return preauthorizationRepository.findAllByServiceProviderId(serviceProviderId, pageable);
+            return insurerId == null
+                    ? preauthorizationRepository.findAllByServiceProviderId(serviceProviderId, pageable)
+                    : preauthorizationRepository.findAllByServiceProviderIdAndInsurerId(
+                            serviceProviderId, insurerId, pageable);
         }
-        return preauthorizationRepository.findAll(pageable);
+        return insurerId == null
+                ? preauthorizationRepository.findAll(pageable)
+                : preauthorizationRepository.findAllByInsurerId(insurerId, pageable);
     }
 
     private void publishDecided(Preauthorization preauthorization) {

@@ -639,7 +639,15 @@ Policy
   client-supplied (absent from `PreauthorizationRequest`) and exposed on
   `PreauthorizationResponse`. There is no `update` endpoint for
   `Preauthorization`, so unlike `Visitor.insurerId` it is only ever resolved
-  once, at create time. Create
+  once, at create time. `GET /api/v1/preauthorizations` takes an optional
+  `insurerId` query param, the same optional-filter shape as
+  `GET /api/v1/visitors?insurerId=…`/`GET /api/v1/organizations?organizationType=…`
+  — applied inside `PreauthorizationServiceImpl.findScoped` alongside the
+  existing `PROVIDER_USER` auto-scoping (a `PROVIDER_USER` is always
+  restricted to their own `serviceProviderId`; supplying `insurerId` narrows
+  that further via `findAllByServiceProviderIdAndInsurerId` rather than
+  bypassing the scope, while any other role filters the full table via
+  `findAllByInsurerId`). Create
   requires the diagnosis (`icd11CodeId`, validated via `Icd11CodeService`),
   the patient (`visitorId`, validated via `VisitorService`, existence only —
   not checked against the request's `policyId`), the accessed hospital
