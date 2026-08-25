@@ -58,7 +58,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
 
     @Override
     public PreauthorizationResponse create(PreauthorizationRequest request) {
-        validatePolicyActive(request.policyId());
+        Policy policy = validatePolicyActive(request.policyId());
         validateVisitorExists(request.visitorId());
         validateBenefitExists(request.benefitId());
         icd11CodeService.getEntityById(request.icd11CodeId());
@@ -66,7 +66,9 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         if (request.medicalServiceId() != null) {
             medicalServiceService.getById(request.medicalServiceId());
         }
-        Preauthorization saved = preauthorizationRepository.save(preauthorizationMapper.toEntity(request));
+        Preauthorization preauthorization = preauthorizationMapper.toEntity(request);
+        preauthorization.setInsurerId(policy.getInsurerId());
+        Preauthorization saved = preauthorizationRepository.save(preauthorization);
         PreauthorizationEnhancement enhancement = preauthorizationEnhancementRepository.save(
                 preauthorizationMapper.toEnhancement(saved.getId(), request));
         saveItems(enhancement.getId(), request.preauthorizationItems());
@@ -171,11 +173,12 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         preauthorization.setApprovedAmount(approved);
     }
 
-    private void validatePolicyActive(UUID policyId) {
+    private Policy validatePolicyActive(UUID policyId) {
         Policy policy = policyService.getEntityById(policyId);
         if (policy.getStatus() != PolicyStatus.ACTIVE) {
             throw new IllegalStateException("Policy is not active: " + policyId);
         }
+        return policy;
     }
 
     private void validateBenefitExists(UUID benefitId) {

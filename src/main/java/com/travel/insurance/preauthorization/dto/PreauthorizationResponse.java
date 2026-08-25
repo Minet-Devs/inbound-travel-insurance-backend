@@ -10,6 +10,7 @@ import java.util.UUID;
 public record PreauthorizationResponse(
         UUID id,
         UUID policyId,
+        UUID insurerId,
         UUID visitorId,
         String visitorName,
         UUID icd11CodeId,

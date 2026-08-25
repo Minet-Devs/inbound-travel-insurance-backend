@@ -88,6 +88,7 @@ class PreauthorizationServiceImplTest {
     private PreauthorizationServiceImpl preauthorizationService;
 
     private final UUID policyId = UUID.randomUUID();
+    private final UUID insurerId = UUID.randomUUID();
     private final UUID visitorId = UUID.randomUUID();
     private final UUID icd11CodeId = UUID.randomUUID();
     private final UUID benefitId = UUID.randomUUID();
@@ -127,6 +128,7 @@ class PreauthorizationServiceImplTest {
         Policy policy = new Policy();
         policy.setId(policyId);
         policy.setStatus(PolicyStatus.ACTIVE);
+        policy.setInsurerId(insurerId);
         return policy;
     }
 
@@ -174,6 +176,7 @@ class PreauthorizationServiceImplTest {
         Preauthorization preauthorization = new Preauthorization();
         preauthorization.setId(UUID.randomUUID());
         preauthorization.setPolicyId(policyId);
+        preauthorization.setInsurerId(insurerId);
         preauthorization.setVisitorId(visitorId);
         preauthorization.setIcd11CodeId(icd11CodeId);
         preauthorization.setBenefitId(benefitId);
@@ -251,6 +254,7 @@ class PreauthorizationServiceImplTest {
         PreauthorizationResponse response = preauthorizationService.create(validRequest());
 
         assertThat(response.status()).isEqualTo(PreauthorizationStatus.PENDING);
+        assertThat(response.insurerId()).isEqualTo(insurerId);
         assertThat(response.visitorId()).isEqualTo(visitorId);
         assertThat(response.visitorName()).isEqualTo("Jane Traveler");
         assertThat(response.icd11Code()).isEqualTo("1A00");

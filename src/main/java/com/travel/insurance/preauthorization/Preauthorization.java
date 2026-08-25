@@ -30,6 +30,9 @@ public class Preauthorization extends BaseEntity {
     private UUID policyId;
 
     @Column(nullable = false)
+    private UUID insurerId;
+
+    @Column(nullable = false)
     private UUID visitorId;
 
     @Column(name = "icd11_code_id", nullable = false)

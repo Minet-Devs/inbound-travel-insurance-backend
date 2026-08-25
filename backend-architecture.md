@@ -201,7 +201,8 @@ com.travel.insurance/
 │   ├── PreauthorizationRepository.java
 │   ├── PreauthorizationEnhancementRepository.java
 │   ├── PreauthorizationItemRepository.java
-│   ├── Preauthorization.java               # policyId, visitorId, icd11CodeId, benefitId,
+│   ├── Preauthorization.java               # policyId, insurerId (denormalized from Policy),
+│   │                                       # visitorId, icd11CodeId, benefitId,
 │   │                                       # serviceProviderId, requestedAmount,
 │   │                                       # approvedAmount — the raw ask, decided via
 │   │                                       # PENDING/APPROVED/PARTIALLY_APPROVED/REJECTED
@@ -630,7 +631,15 @@ Policy
   `GET /api/v1/visitors` never embeds `visitorBenefits` at all (see above),
   so it is unaffected regardless of claim volume.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
-  service and is decided by an `INSURER_USER` (or a admin agent). Create
+  service and is decided by an `INSURER_USER` (or a admin agent). It also
+  carries a denormalized `insurerId` (non-nullable `UUID`, same rationale and
+  pattern as `Visitor.insurerId`/`Claim.insurerId`), resolved from
+  `policy.getInsurerId()` on the `Policy` already fetched by
+  `validatePolicyActive` in `PreauthorizationServiceImpl.create` — not
+  client-supplied (absent from `PreauthorizationRequest`) and exposed on
+  `PreauthorizationResponse`. There is no `update` endpoint for
+  `Preauthorization`, so unlike `Visitor.insurerId` it is only ever resolved
+  once, at create time. Create
   requires the diagnosis (`icd11CodeId`, validated via `Icd11CodeService`),
   the patient (`visitorId`, validated via `VisitorService`, existence only —
   not checked against the request's `policyId`), the accessed hospital
