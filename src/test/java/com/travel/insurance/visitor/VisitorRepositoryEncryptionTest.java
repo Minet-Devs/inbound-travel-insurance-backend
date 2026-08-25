@@ -45,6 +45,7 @@ class VisitorRepositoryEncryptionTest {
     private Visitor newVisitor(String passportNumber) {
         Visitor visitor = new Visitor();
         visitor.setPolicyId(UUID.randomUUID());
+        visitor.setInsurerId(UUID.randomUUID());
         visitor.setFullName("Jane Traveler");
         visitor.setPassportNumber(passportNumber);
         visitor.setPassportNumberHash(blindIndexService.hmac(passportNumber));
