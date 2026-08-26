@@ -1,7 +1,6 @@
 package com.travel.insurance.notification;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
-import com.travel.insurance.notification.PolicyDocumentData.BenefitLine;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.context.Context;
@@ -58,9 +57,6 @@ public class PolicyDocumentRenderer {
         context.setVariable("coverDays",
                 data.dateIn() != null && data.dateOut() != null
                         ? ChronoUnit.DAYS.between(data.dateIn(), data.dateOut()) + 1 : 0);
-        context.setVariable("cumulativeLimit", data.benefits().stream()
-                .map(BenefitLine::limitAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add));
         context.setVariable("benefitLines", data.benefits().stream()
                 .map(line -> new BenefitLineView(line.benefitName(), line.limitAmount()))
                 .toList());
