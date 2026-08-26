@@ -139,6 +139,18 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
+    void omitsCumulativeBenefitLimitRow() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")),
+                new BenefitLine("Emergency Evacuation", new BigDecimal("30000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).doesNotContain("Cumulative benefit limit");
+    }
+
+    @Test
     void rendersPlaceholderWhenNoBenefitsAssigned() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of());
