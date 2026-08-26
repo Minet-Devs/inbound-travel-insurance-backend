@@ -77,6 +77,18 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
+    void rendersGovernmentLogoAsInlineDataUri() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("class=\"gok-logo-img\"");
+        assertThat(html).contains("src=\"data:image/png;base64,");
+    }
+
+    @Test
     void rendersUnderwriterLogoWhenUrlProvided() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(

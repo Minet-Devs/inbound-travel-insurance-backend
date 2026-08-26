@@ -1112,7 +1112,12 @@ emails them a personalized policy certificate as a PDF attachment:
   any logo stored before this was added).
 - `PolicyDocumentRenderer` has no dependency on any other feature's service —
   it only knows how to render `templates/policy-certificate.html` (Thymeleaf) to
-  HTML, then converts that HTML to PDF bytes via `openhtmltopdf`. The
+  HTML, then converts that HTML to PDF bytes via `openhtmltopdf`. The masthead
+  also carries the Government of Kenya logo, a static asset bundled at
+  `static/images/gok-logo.png` and loaded from the classpath once per renderer
+  instance, inlined as a base64 `data:` URI (`governmentLogoDataUri`) rather
+  than referenced by path — `renderPdf` gives `openhtmltopdf` a `null` base
+  URI, so a classpath-relative `<img src>` wouldn't otherwise resolve. The
   template deliberately excludes `Visitor.underlyingConditions`: none of the
   real insurer certificates this template is modeled on embed a free-text
   medical-conditions field, and there's no reason to widen PII exposure over
