@@ -45,8 +45,8 @@ class UssdControllerTest {
         when(sessionManager.findOrCreateSession(anyString(), any())).thenReturn(session);
         when(sessionManager.extractAndTrackInput(any(), any())).thenReturn("");
         when(ussdService.processSessionStep(any(), anyString()))
-                .thenReturn(new UssdResponse("Welcome to Inbound Travel Medical Insurance.\n1. Find Hospital\n2. Feedback", "CON"));
-        when(sessionManager.formatWireText(any())).thenReturn("CON Welcome to Inbound Travel Medical Insurance.\n1. Find Hospital\n2. Feedback");
+                .thenReturn(new UssdResponse("Welcome to Inbound Travel Health Insurance.\n1. Find Hospital\n2. Feedback", "CON"));
+        when(sessionManager.formatWireText(any())).thenReturn("CON Welcome to Inbound Travel Health Insurance.\n1. Find Hospital\n2. Feedback");
 
         mockMvc.perform(post("/api/v1/ussd/handle")
                         .with(csrf())
@@ -56,7 +56,7 @@ class UssdControllerTest {
                         .param("text", "")
                         .param("serviceCode", "*384#"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("CON Welcome to Inbound Travel Medical Insurance.\n1. Find Hospital\n2. Feedback"));
+                .andExpect(content().string("CON Welcome to Inbound Travel Health Insurance.\n1. Find Hospital\n2. Feedback"));
     }
 
     @Test
