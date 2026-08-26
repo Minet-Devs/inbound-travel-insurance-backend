@@ -17,9 +17,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -116,6 +121,7 @@ class VisitorServiceImplTest {
 
         assertThat(response.fullName()).isEqualTo("Jane Traveler");
         assertThat(response.policyId()).isEqualTo(policyId);
+        assertThat(response.insurerId()).isEqualTo(insurerId);
         assertThat(response.visitorStatus()).isEqualTo(VisitorStatus.ACTIVE);
         verify(visitorRepository).save(any(Visitor.class));
         verify(eventPublisher).publishEvent(any(VisitorCreatedEvent.class));
@@ -276,6 +282,50 @@ class VisitorServiceImplTest {
         VisitorResponse response = visitorService.update(id, request);
 
         assertThat(response.passportNumber()).isEqualTo("P1234567");
+    }
+
+    @Test
+    void listWithoutFilterReturnsAllVisitors() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Visitor existing = visitorMapper.toEntity(request);
+        existing.setInsurerId(insurerId);
+        when(visitorRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(existing)));
+
+        Page<VisitorResponse> result = visitorService.list(null, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(visitorRepository, never()).findByInsurerId(any(), any());
+    }
+
+    @Test
+    void listFiltersByInsurerId() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Visitor existing = visitorMapper.toEntity(request);
+        existing.setInsurerId(insurerId);
+        when(visitorRepository.findByInsurerId(insurerId, pageable)).thenReturn(new PageImpl<>(List.of(existing)));
+
+        Page<VisitorResponse> result = visitorService.list(insurerId, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).insurerId()).isEqualTo(insurerId);
+        verify(visitorRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void updateResolvesInsurerIdFromPolicy() {
+        UUID id = UUID.randomUUID();
+        Visitor existing = visitorMapper.toEntity(request);
+        existing.setInsurerId(insurerId);
+        UUID newInsurerId = UUID.randomUUID();
+        Policy newPolicy = new Policy();
+        newPolicy.setInsurerId(newInsurerId);
+        when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(policyService.getEntityById(policyId)).thenReturn(newPolicy);
+        when(visitorRepository.existsByPassportNumberHashAndIdNot(hashOf("P1234567"), id)).thenReturn(false);
+
+        VisitorResponse response = visitorService.update(id, request);
+
+        assertThat(response.insurerId()).isEqualTo(newInsurerId);
     }
 
     @Test

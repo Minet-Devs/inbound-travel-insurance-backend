@@ -14,7 +14,7 @@ public interface PreauthorizationService {
 
     PreauthorizationResponse getById(UUID id);
 
-    Page<PreauthorizationResponse> list(Pageable pageable);
+    Page<PreauthorizationResponse> list(UUID insurerId, Pageable pageable);
 
     PreauthorizationResponse decide(UUID id, PreauthorizationDecisionRequest request);
 

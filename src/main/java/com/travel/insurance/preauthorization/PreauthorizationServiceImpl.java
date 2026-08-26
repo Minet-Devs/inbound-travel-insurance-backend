@@ -58,7 +58,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
 
     @Override
     public PreauthorizationResponse create(PreauthorizationRequest request) {
-        validatePolicyActive(request.policyId());
+        Policy policy = validatePolicyActive(request.policyId());
         validateVisitorExists(request.visitorId());
         validateBenefitExists(request.benefitId());
         icd11CodeService.getEntityById(request.icd11CodeId());
@@ -66,7 +66,9 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         if (request.medicalServiceId() != null) {
             medicalServiceService.getById(request.medicalServiceId());
         }
-        Preauthorization saved = preauthorizationRepository.save(preauthorizationMapper.toEntity(request));
+        Preauthorization preauthorization = preauthorizationMapper.toEntity(request);
+        preauthorization.setInsurerId(policy.getInsurerId());
+        Preauthorization saved = preauthorizationRepository.save(preauthorization);
         PreauthorizationEnhancement enhancement = preauthorizationEnhancementRepository.save(
                 preauthorizationMapper.toEnhancement(saved.getId(), request));
         saveItems(enhancement.getId(), request.preauthorizationItems());
@@ -81,8 +83,8 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<PreauthorizationResponse> list(Pageable pageable) {
-        return findScoped(pageable).map(this::enrich);
+    public Page<PreauthorizationResponse> list(UUID insurerId, Pageable pageable) {
+        return findScoped(insurerId, pageable).map(this::enrich);
     }
 
     @Override
@@ -171,11 +173,12 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         preauthorization.setApprovedAmount(approved);
     }
 
-    private void validatePolicyActive(UUID policyId) {
+    private Policy validatePolicyActive(UUID policyId) {
         Policy policy = policyService.getEntityById(policyId);
         if (policy.getStatus() != PolicyStatus.ACTIVE) {
             throw new IllegalStateException("Policy is not active: " + policyId);
         }
+        return policy;
     }
 
     private void validateBenefitExists(UUID benefitId) {
@@ -186,7 +189,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         visitorService.getEntityById(visitorId);
     }
 
-    private Page<Preauthorization> findScoped(Pageable pageable) {
+    private Page<Preauthorization> findScoped(UUID insurerId, Pageable pageable) {
         AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
         if (user != null && "PROVIDER_USER".equals(user.role())) {
             UUID serviceProviderId = serviceProviderService.findIdByOrganizationId(user.organizationId())
@@ -194,9 +197,14 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
             if (serviceProviderId == null) {
                 return Page.empty(pageable);
             }
-            return preauthorizationRepository.findAllByServiceProviderId(serviceProviderId, pageable);
+            return insurerId == null
+                    ? preauthorizationRepository.findAllByServiceProviderId(serviceProviderId, pageable)
+                    : preauthorizationRepository.findAllByServiceProviderIdAndInsurerId(
+                            serviceProviderId, insurerId, pageable);
         }
-        return preauthorizationRepository.findAll(pageable);
+        return insurerId == null
+                ? preauthorizationRepository.findAll(pageable)
+                : preauthorizationRepository.findAllByInsurerId(insurerId, pageable);
     }
 
     private void publishDecided(Preauthorization preauthorization) {

@@ -201,7 +201,8 @@ com.travel.insurance/
 │   ├── PreauthorizationRepository.java
 │   ├── PreauthorizationEnhancementRepository.java
 │   ├── PreauthorizationItemRepository.java
-│   ├── Preauthorization.java               # policyId, visitorId, icd11CodeId, benefitId,
+│   ├── Preauthorization.java               # policyId, insurerId (denormalized from Policy),
+│   │                                       # visitorId, icd11CodeId, benefitId,
 │   │                                       # serviceProviderId, requestedAmount,
 │   │                                       # approvedAmount — the raw ask, decided via
 │   │                                       # PENDING/APPROVED/PARTIALLY_APPROVED/REJECTED
@@ -546,7 +547,14 @@ Policy
   `ServiceProvider` has no equivalent fields, so `SERVICE_PROVIDER`
   organizations don't carry any of this.
 - A **Visitor** is an insured traveler behind a policy. It carries a
-  `policyId` (ID-only reference — one policy may cover many visitors) plus the
+  `policyId` (ID-only reference — one policy may cover many visitors) and a
+  denormalized `insurerId` (non-nullable `UUID`, mirroring `Claim.insurerId`),
+  resolved from `policy.getInsurerId()` on the already-fetched `Policy` in
+  `VisitorServiceImpl.create`/`update` — not client-supplied (absent from
+  `VisitorRequest`) and re-resolved fresh on every update in case the
+  visitor's `policyId` changes to a policy under a different insurer. This
+  denormalization lets visitors be scoped/queried by insurer without joining
+  through `policies`, the same rationale as `Claim.insurerId`. Plus the
   passport-based basic KYC attributes captured at onboarding: full name,
   passport number (unique), date of birth, gender, nationality, address,
   email, phone number, date in / date out of the country, marital status,
@@ -571,6 +579,12 @@ Policy
   separate border events. This endpoint is separate from the general
   `update`/`create` flow since these values are typically recorded later,
   by a border-control integration rather than at KYC onboarding.
+  `GET /api/v1/visitors` (the paged list) takes an optional `insurerId` query
+  param — omitted, it returns all visitors (`VisitorRepository.findAll`);
+  provided, it filters to that insurer's visitors
+  (`VisitorRepository.findByInsurerId`) using the denormalized `insurerId`
+  column directly, the same optional-filter shape as
+  `GET /api/v1/organizations?organizationType=…`.
   `GET /api/v1/visitors/{id}` and
   `GET /api/v1/visitors/by-passport?passportNumber=…` return a
   `VisitorDetailResponse` that embeds the visitor's assigned benefits
@@ -617,7 +631,23 @@ Policy
   `GET /api/v1/visitors` never embeds `visitorBenefits` at all (see above),
   so it is unaffected regardless of claim volume.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
-  service and is decided by an `INSURER_USER` (or a admin agent). Create
+  service and is decided by an `INSURER_USER` (or a admin agent). It also
+  carries a denormalized `insurerId` (non-nullable `UUID`, same rationale and
+  pattern as `Visitor.insurerId`/`Claim.insurerId`), resolved from
+  `policy.getInsurerId()` on the `Policy` already fetched by
+  `validatePolicyActive` in `PreauthorizationServiceImpl.create` — not
+  client-supplied (absent from `PreauthorizationRequest`) and exposed on
+  `PreauthorizationResponse`. There is no `update` endpoint for
+  `Preauthorization`, so unlike `Visitor.insurerId` it is only ever resolved
+  once, at create time. `GET /api/v1/preauthorizations` takes an optional
+  `insurerId` query param, the same optional-filter shape as
+  `GET /api/v1/visitors?insurerId=…`/`GET /api/v1/organizations?organizationType=…`
+  — applied inside `PreauthorizationServiceImpl.findScoped` alongside the
+  existing `PROVIDER_USER` auto-scoping (a `PROVIDER_USER` is always
+  restricted to their own `serviceProviderId`; supplying `insurerId` narrows
+  that further via `findAllByServiceProviderIdAndInsurerId` rather than
+  bypassing the scope, while any other role filters the full table via
+  `findAllByInsurerId`). Create
   requires the diagnosis (`icd11CodeId`, validated via `Icd11CodeService`),
   the patient (`visitorId`, validated via `VisitorService`, existence only —
   not checked against the request's `policyId`), the accessed hospital

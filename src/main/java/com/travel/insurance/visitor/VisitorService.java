@@ -20,7 +20,7 @@ public interface VisitorService {
 
     VisitorResponse getByPassportNumber(String passportNumber);
 
-    Page<VisitorResponse> list(Pageable pageable);
+    Page<VisitorResponse> list(UUID insurerId, Pageable pageable);
 
     VisitorResponse update(UUID id, VisitorRequest request);
 

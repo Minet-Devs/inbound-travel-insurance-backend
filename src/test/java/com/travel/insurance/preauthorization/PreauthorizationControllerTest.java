@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -52,7 +53,7 @@ class PreauthorizationControllerTest {
 
     private PreauthorizationResponse sampleResponse(PreauthorizationStatus status) {
         return new PreauthorizationResponse(
-                preauthorizationId, policyId, visitorId, "Jane Traveler",
+                preauthorizationId, policyId, UUID.randomUUID(), visitorId, "Jane Traveler",
                 icd11CodeId, "1A00", "Cholera", benefitId, "Medical Expenses",
                 serviceProviderId, "Aga Khan Hospital", null, null,
                 new BigDecimal("500.00"), null, "X-ray", null, status,
@@ -128,6 +129,18 @@ class PreauthorizationControllerTest {
         mockMvc.perform(delete("/api/v1/preauthorizations/{id}", preauthorizationId)
                         .with(csrf()))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listFiltersByInsurerId() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(preauthorizationService.list(eq(insurerId), any()))
+                .thenReturn(new PageImpl<>(List.of(sampleResponse(PreauthorizationStatus.PENDING))));
+
+        mockMvc.perform(get("/api/v1/preauthorizations").param("insurerId", insurerId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(preauthorizationId.toString()));
     }
 
     @Test

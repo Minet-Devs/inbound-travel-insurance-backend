@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -55,7 +56,7 @@ class VisitorControllerTest {
     private final UUID benefitId = UUID.randomUUID();
 
     private VisitorResponse sampleVisitor() {
-        return new VisitorResponse(visitorId, policyId, "Jane Traveler", "P1234567",
+        return new VisitorResponse(visitorId, policyId, UUID.randomUUID(), "Jane Traveler", "P1234567",
                 LocalDate.of(1990, 5, 12), Gender.FEMALE, "Germany", "12 Example Street, Berlin",
                 "jane.traveler@example.com", "+254700000000",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
@@ -175,6 +176,18 @@ class VisitorControllerTest {
                         .content("{\"entryTimestamp\":\"2026-08-01T10:00:00Z\","
                                 + "\"exitTimestamp\":\"2026-08-10T10:00:00Z\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listFiltersByInsurerId() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(visitorService.list(eq(insurerId), any()))
+                .thenReturn(new PageImpl<>(List.of(sampleVisitor())));
+
+        mockMvc.perform(get("/api/v1/visitors").param("insurerId", insurerId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(visitorId.toString()));
     }
 
     @Test
