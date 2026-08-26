@@ -59,6 +59,12 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<InvoiceResponse> listByClaimId(UUID claimId) {
+        return invoiceRepository.findAllByClaimId(claimId).stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<InvoiceResponse> list(UUID claimId, Pageable pageable) {
         Page<Invoice> page = claimId != null
                 ? invoiceRepository.findAllByClaimId(claimId, pageable)
@@ -87,6 +93,13 @@ public class InvoiceServiceImpl implements InvoiceService {
     public Invoice getEntityById(UUID id) {
         return invoiceRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Invoice", id));
+    }
+
+    @Override
+    public void attachToClaim(UUID invoiceId, UUID claimId) {
+        Invoice invoice = getEntityById(invoiceId);
+        invoice.setClaimId(claimId);
+        invoiceRepository.save(invoice);
     }
 
     private void validateReferences(InvoiceRequest request) {

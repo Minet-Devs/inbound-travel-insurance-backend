@@ -695,22 +695,30 @@ Policy
   reimbursement (no pre-authorization). Decisions are made by the insurer;
   `PAID` is the terminal status. Since the augmentation, a claim may also
   carry a `visitorId` (must belong to the claim's policy), a `prescription`,
-  and four optional UUID sets — `diagnosisIds` (ICD-11 codes), `procedureIds`
-  (procedure catalog), `invoiceIds` (must reference existing invoices, validated
-  through `InvoiceService`), and `documentIds` (a placeholder for a
-  future upload service; the `claim_documents` join table persists them but no
-  documents feature exists yet). Existing invoices can only be attached to a claim whose
+  and four UUID sets — `diagnosisIds` (ICD-11 codes, required unless
+  auto-populated from a preauthorization), `procedureIds` (procedure catalog,
+  always required), `invoiceIds` (validated through `InvoiceService`), and
+  `documentIds` (a placeholder for a future upload service; the
+  `claim_documents` join table persists them but no documents feature exists
+  yet). When a claim is created with a `preauthorizationId` and no
+  `diagnosisIds` are supplied, the diagnosis is auto-populated from the
+  preauthorization's `icd11CodeId`. `procedureIds` are always required — the
+  preauthorization feature does not carry procedure references.
+  Existing invoices can only be attached to a claim whose
   status is `OPEN` via `PUT /api/v1/claims/{id}/invoice` (`AttachInvoiceRequest`); attaching
-  transitions the claim to `SUBMITTED`. Attaching to any other status returns 409 Conflict
-  (`IllegalStateException`). The claim's `insurerId` is **not** accepted
+  transitions the claim to `SUBMITTED` and syncs both the `claim_invoices` join table
+  and the `invoices.claim_id` FK on the Invoice entity. Attaching to any other status returns
+  409 Conflict (`IllegalStateException`). The claim's `insurerId` is **not** accepted
   on the request: it is derived server-side from the policy's single
   `insurerId`. `ClaimResponse` embeds the full
   `visitor`, `insurer`, `invoices`, `diagnoses` and `procedures` objects —
   `diagnoses` resolved through `Icd11CodeService`, `procedures` through
-  `ProcedureService`, `invoices` through `InvoiceService` — alongside the raw
-  IDs, so consumers never have to display a raw UUID. A referenced diagnosis or
-  procedure that is no longer in its catalog is silently omitted from the
-  response (stale/free-form references never fail the claim read).
+  `ProcedureService`, `invoices` read from `invoices.claim_id` FK (source of
+  truth) — alongside the raw IDs, so consumers never have to display a raw
+  UUID. A referenced diagnosis or
+  procedure that is no longer in its catalog is omitted from the response with
+  a logged warning (stale references never fail the claim read, but are now
+  visible in logs for debugging).
 - **Currency (base-equivalent) snapshotting.** Frontend amounts arrive in KES
   and are stored raw and unmodified. At every save the claim also persists a
   USD base equivalent of the claimed amount (`claimedAmountBase`), the
@@ -1231,11 +1239,11 @@ Composed entirely from existing feature services (`VisitorService`,
   the benefit summary's `utilizedAmount` — both are sums of
   `claim.claimedAmount` over the same claims (see
   [VisitorBenefit](#core-insurance-flow)). Invoices were deliberately left
-  out: `Invoice.claimId` and `Claim.invoiceIds` are two independent links
-  (the latter populated only via `PUT /api/v1/claims/{id}/invoice`, which
-  also flips the claim to `SUBMITTED`) that aren't kept in sync, so an
-  invoice-sourced transaction list could silently miss claims whose invoice
-  was created but never explicitly attached. On export, rows are filtered to
+  out: `Invoice.claimId` and `Claim.invoiceIds` are kept in sync by
+  `attachInvoice()` (which updates both the FK and the join table), and
+  `ClaimResponse` reads invoices from `invoices.claim_id` (source of truth).
+  The transaction list uses claim-level `claimedAmount` for simplicity and
+  consistency with the benefit summary's `utilizedAmount`. On export, rows are filtered to
   `transactionDate` within `[fromDate, toDate]` inclusive.
 - `ServiceProviderService.namesByIds(Collection<UUID>)` was added (mirroring
   `BenefitService.namesByIds`) so provider names resolve in one batched call

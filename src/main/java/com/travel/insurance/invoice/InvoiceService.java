@@ -17,6 +17,8 @@ public interface InvoiceService {
 
     List<InvoiceResponse> getByIds(Collection<UUID> ids);
 
+    List<InvoiceResponse> listByClaimId(UUID claimId);
+
     Page<InvoiceResponse> list(UUID claimId, Pageable pageable);
 
     InvoiceResponse update(UUID id, InvoiceRequest request);
@@ -24,4 +26,6 @@ public interface InvoiceService {
     void delete(UUID id);
 
     Invoice getEntityById(UUID id);
+
+    void attachToClaim(UUID invoiceId, UUID claimId);
 }

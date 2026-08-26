@@ -18,6 +18,7 @@ import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.preauthorization.Preauthorization;
 import com.travel.insurance.preauthorization.PreauthorizationService;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
@@ -147,7 +148,8 @@ class ClaimServiceImplTest {
     private ClaimRequest baseRequest() {
         return new ClaimRequest(
                 policyId, benefitId, null, null, null,
-                new BigDecimal("50000.00"), null, null, null, null, null, null);
+                new BigDecimal("50000.00"), null, null,
+                Set.of(diagnosisId1), Set.of(procedureId1), null, null);
     }
 
     private ClaimRequest fullRequest() {
@@ -207,14 +209,16 @@ class ClaimServiceImplTest {
         when(visitorService.getEntityById(visitorId)).thenReturn(visitorOnPolicy());
         when(insurerService.exists(insurerId)).thenReturn(true);
         when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
-        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
-        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(visitorService.getById(visitorId)).thenReturn(visitorResponse());
-        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
-        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
+        when(icd11CodeService.getEntityById(diagnosisId1)).thenReturn(null);
+        when(icd11CodeService.getEntityById(diagnosisId2)).thenReturn(null);
         when(icd11CodeService.getById(diagnosisId1)).thenReturn(icd11Response(diagnosisId1));
         when(icd11CodeService.getById(diagnosisId2)).thenReturn(icd11Response(diagnosisId2));
         when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of(invoiceResponse()));
+        when(visitorService.getById(visitorId)).thenReturn(visitorResponse());
+        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
 
         ClaimResponse response = claimService.create(fullRequest());
 
@@ -243,9 +247,12 @@ class ClaimServiceImplTest {
         when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
         when(benefitService.getEntityById(benefitId)).thenReturn(null);
         when(insurerService.exists(insurerId)).thenReturn(true);
+        when(icd11CodeService.getEntityById(diagnosisId1)).thenReturn(null);
+        when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
         when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of());
 
         ClaimResponse response = claimService.create(baseRequest());
 
@@ -258,23 +265,70 @@ class ClaimServiceImplTest {
     }
 
     @Test
-    void createSavesClaimWithNewFieldsAbsent() {
+    void createRejectsEmptyDiagnosisIds() {
+        ClaimRequest request = new ClaimRequest(
+                policyId, benefitId, null, null, null,
+                new BigDecimal("50000.00"), null, null,
+                null, Set.of(procedureId1), null, null);
+
         when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
         when(benefitService.getEntityById(benefitId)).thenReturn(null);
         when(insurerService.exists(insurerId)).thenReturn(true);
+        when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
+
+        assertThatThrownBy(() -> claimService.create(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("diagnosisIds");
+        verify(claimRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsEmptyProcedureIds() {
+        ClaimRequest request = new ClaimRequest(
+                policyId, benefitId, null, null, null,
+                new BigDecimal("50000.00"), null, null,
+                Set.of(diagnosisId1), null, null, null);
+
+        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(benefitService.getEntityById(benefitId)).thenReturn(null);
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(icd11CodeService.getEntityById(diagnosisId1)).thenReturn(null);
+
+        assertThatThrownBy(() -> claimService.create(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("procedureIds");
+        verify(claimRepository, never()).save(any());
+    }
+
+    @Test
+    void createAutoPopulatesDiagnosisFromPreauthorization() {
+        UUID preauthId = UUID.randomUUID();
+        UUID icd11Id = UUID.randomUUID();
+        ClaimRequest request = new ClaimRequest(
+                policyId, benefitId, null, preauthId, null,
+                new BigDecimal("50000.00"), null, null,
+                null, Set.of(procedureId1), null, null);
+
+        Preauthorization preauth = new Preauthorization();
+        preauth.setId(preauthId);
+        preauth.setIcd11CodeId(icd11Id);
+
+        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(benefitService.getEntityById(benefitId)).thenReturn(null);
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
+        when(preauthorizationService.getEntityById(preauthId)).thenReturn(preauth);
         when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+        when(icd11CodeService.getById(icd11Id)).thenReturn(icd11Response(icd11Id));
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of());
 
-        ClaimResponse response = claimService.create(baseRequest());
+        ClaimResponse response = claimService.create(request);
 
-        assertThat(response.visitorId()).isNull();
-        assertThat(response.insurerId()).isEqualTo(insurerId);
-        assertThat(response.prescription()).isNull();
-        assertThat(response.diagnoses()).isEmpty();
-        assertThat(response.procedures()).isEmpty();
-        assertThat(response.invoices()).isEmpty();
-        assertThat(response.documentIds()).isEmpty();
+        assertThat(response.diagnoses()).hasSize(1);
+        assertThat(response.diagnoses().getFirst().id()).isEqualTo(icd11Id);
+        verify(preauthorizationService).getEntityById(preauthId);
     }
 
     @Test
@@ -312,8 +366,38 @@ class ClaimServiceImplTest {
         when(insurerService.exists(insurerId)).thenReturn(true);
         when(invoiceService.getEntityById(invoiceId))
                 .thenThrow(new ResourceNotFoundException("Invoice", invoiceId));
+        when(icd11CodeService.getEntityById(diagnosisId1)).thenReturn(null);
+        when(icd11CodeService.getEntityById(diagnosisId2)).thenReturn(null);
+        when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
 
         assertThatThrownBy(() -> claimService.create(fullRequest()))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(claimRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsUnknownDiagnosis() {
+        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(benefitService.getEntityById(benefitId)).thenReturn(null);
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(icd11CodeService.getEntityById(diagnosisId1))
+                .thenThrow(new ResourceNotFoundException("Icd11Code", diagnosisId1));
+
+        assertThatThrownBy(() -> claimService.create(baseRequest()))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(claimRepository, never()).save(any());
+    }
+
+    @Test
+    void createRejectsUnknownProcedure() {
+        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(benefitService.getEntityById(benefitId)).thenReturn(null);
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(icd11CodeService.getEntityById(diagnosisId1)).thenReturn(null);
+        when(procedureService.getById(procedureId1))
+                .thenThrow(new ResourceNotFoundException("Procedure", procedureId1));
+
+        assertThatThrownBy(() -> claimService.create(baseRequest()))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(claimRepository, never()).save(any());
     }
@@ -324,6 +408,7 @@ class ClaimServiceImplTest {
         Claim claim = claimMapper.toEntity(baseRequest());
         claim.setId(id);
         when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of());
 
         ClaimResponse response = claimService.getById(id);
 
@@ -338,6 +423,7 @@ class ClaimServiceImplTest {
         claim.setVisitorId(visitorId);
         when(claimRepository.findAllByVisitorId(visitorId)).thenReturn(List.of(claim));
         when(visitorService.getById(visitorId)).thenReturn(visitorResponse());
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of());
 
         List<ClaimResponse> responses = claimService.listByVisitor(visitorId);
 
@@ -356,6 +442,7 @@ class ClaimServiceImplTest {
         Pageable pageable = PageRequest.of(0, 10);
         when(claimRepository.findAllByServiceProviderId(serviceProviderId, pageable))
                 .thenReturn(new PageImpl<>(List.of(claim)));
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of());
 
         Page<ClaimResponse> result = claimService.list(pageable);
 
@@ -382,6 +469,7 @@ class ClaimServiceImplTest {
         when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of());
 
         ClaimResponse response = claimService.decide(id,
                 new ClaimDecisionRequest(ClaimStatus.APPROVED, new BigDecimal("40000.00"), "Approved"));
@@ -429,7 +517,7 @@ class ClaimServiceImplTest {
         when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
         when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
+        when(invoiceService.listByClaimId(claimId)).thenReturn(List.of(invoiceResponse()));
 
         ClaimResponse response = claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId));
 
@@ -439,6 +527,7 @@ class ClaimServiceImplTest {
                 .containsExactly("INV-2026-001");
         assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
         verify(claimRepository).save(claim);
+        verify(invoiceService).attachToClaim(invoiceId, claimId);
     }
 
     @Test
@@ -455,12 +544,12 @@ class ClaimServiceImplTest {
         when(invoiceService.getEntityById(secondInvoiceId)).thenReturn(invoiceWithBaseTotal("250.00"));
         when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
-        when(invoiceService.getById(secondInvoiceId)).thenReturn(invoiceResponse());
+        when(invoiceService.listByClaimId(claimId)).thenReturn(List.of(invoiceResponse()));
 
         ClaimResponse response = claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId));
 
         assertThat(response.claimedAmountBase()).isEqualByComparingTo("350.00");
+        verify(invoiceService).attachToClaim(invoiceId, claimId);
     }
 
     @Test
@@ -475,10 +564,13 @@ class ClaimServiceImplTest {
         when(visitorService.getEntityById(visitorId)).thenReturn(visitorOnPolicy());
         when(insurerService.exists(insurerId)).thenReturn(true);
         when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
+        when(icd11CodeService.getEntityById(diagnosisId1)).thenReturn(null);
+        when(icd11CodeService.getEntityById(diagnosisId2)).thenReturn(null);
+        when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
         when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
-        when(invoiceService.getById(invoiceId)).thenReturn(invoiceResponse());
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of(invoiceResponse()));
 
         ClaimResponse response = claimService.update(id, fullRequest());
 

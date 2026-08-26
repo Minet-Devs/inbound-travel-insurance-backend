@@ -20,6 +20,7 @@ import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.preauthorization.Preauthorization;
 import com.travel.insurance.preauthorization.PreauthorizationService;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
@@ -28,6 +29,7 @@ import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -47,6 +49,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class ClaimServiceImpl implements ClaimService {
 
     private static final Set<ClaimStatus> DECISION_STATUSES = EnumSet.of(
@@ -78,6 +81,18 @@ public class ClaimServiceImpl implements ClaimService {
     public ClaimResponse create(ClaimRequest request) {
         UUID insurerId = validateReferences(request);
         Claim claim = claimMapper.toEntity(request);
+        if (request.preauthorizationId() != null && claim.getDiagnosisIds().isEmpty()) {
+            Preauthorization preauth = preauthorizationService.getEntityById(request.preauthorizationId());
+            if (preauth.getIcd11CodeId() != null) {
+                claim.getDiagnosisIds().add(preauth.getIcd11CodeId());
+            }
+        }
+        if (claim.getDiagnosisIds().isEmpty()) {
+            throw new IllegalArgumentException("diagnosisIds is required when no preauthorization is provided");
+        }
+        if (claim.getProcedureIds().isEmpty()) {
+            throw new IllegalArgumentException("procedureIds are required");
+        }
         claim.setStatus(ClaimStatus.OPEN);
         claim.setInsurerId(insurerId);
         applyBaseConversion(claim);
@@ -98,6 +113,18 @@ public class ClaimServiceImpl implements ClaimService {
         }
         UUID insurerId = validateReferences(request);
         claimMapper.updateEntity(claim, request);
+        if (request.preauthorizationId() != null && claim.getDiagnosisIds().isEmpty()) {
+            Preauthorization preauth = preauthorizationService.getEntityById(request.preauthorizationId());
+            if (preauth.getIcd11CodeId() != null) {
+                claim.getDiagnosisIds().add(preauth.getIcd11CodeId());
+            }
+        }
+        if (claim.getDiagnosisIds().isEmpty()) {
+            throw new IllegalArgumentException("diagnosisIds is required when no preauthorization is provided");
+        }
+        if (claim.getProcedureIds().isEmpty()) {
+            throw new IllegalArgumentException("procedureIds are required");
+        }
         claim.setInsurerId(insurerId);
         applyBaseConversion(claim);
         return toResponse(claimRepository.save(claim));
@@ -110,6 +137,7 @@ public class ClaimServiceImpl implements ClaimService {
             throw new IllegalStateException("Claim is not open for attaching invoices: " + claim.getStatus());
         }
         invoiceService.getEntityById(request.invoiceId());
+        invoiceService.attachToClaim(request.invoiceId(), claim.getId());
         claim.getInvoiceIds().add(request.invoiceId());
         applyBaseConversion(claim);
         claim.setStatus(ClaimStatus.SUBMITTED);
@@ -212,6 +240,12 @@ public class ClaimServiceImpl implements ClaimService {
             }
         }
 
+        if (request.diagnosisIds() != null) {
+            request.diagnosisIds().forEach(icd11CodeService::getEntityById);
+        }
+        if (request.procedureIds() != null) {
+            request.procedureIds().forEach(procedureService::getById);
+        }
         if (request.invoiceIds() != null) {
             request.invoiceIds().forEach(invoiceService::getEntityById);
         }
@@ -297,9 +331,7 @@ public class ClaimServiceImpl implements ClaimService {
         InsurerResponse insurer = claim.getInsurerId() != null
                 ? insurerService.getById(claim.getInsurerId())
                 : null;
-        List<InvoiceResponse> invoices = claim.getInvoiceIds().stream()
-                .map(invoiceService::getById)
-                .toList();
+        List<InvoiceResponse> invoices = invoiceService.listByClaimId(claim.getId());
         List<Icd11CodeResponse> diagnoses = claim.getDiagnosisIds().stream()
                 .map(this::resolveDiagnosis)
                 .filter(Objects::nonNull)
@@ -342,6 +374,7 @@ public class ClaimServiceImpl implements ClaimService {
         try {
             return icd11CodeService.getById(id);
         } catch (ResourceNotFoundException e) {
+            log.warn("ICD-11 code {} not found for claim, skipping", id);
             return null;
         }
     }
@@ -350,6 +383,7 @@ public class ClaimServiceImpl implements ClaimService {
         try {
             return procedureService.getById(id);
         } catch (ResourceNotFoundException e) {
+            log.warn("Procedure {} not found for claim, skipping", id);
             return null;
         }
     }
