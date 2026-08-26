@@ -16,7 +16,7 @@ public class UssdProperties {
     @Getter
     @Setter
     public static class Feedback {
-        private String defaultSchemeName = "Inbound Travel Medical Insurance";
+        private String defaultSchemeName = "Inbound Travel Health Insurance";
 
         @NestedConfigurationProperty
         private Email email = new Email();
