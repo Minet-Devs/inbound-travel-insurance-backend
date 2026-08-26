@@ -17,7 +17,9 @@
         /* Masthead */
         .masthead { width: 100%; border-collapse: collapse; }
         .masthead td { vertical-align: middle; padding: 0; }
-        .ministry { line-height: 1.35; }
+        .ministry { line-height: 1.35; text-align: center; }
+        .gok-logo-cell { width: 130pt; }
+        .gok-logo-img { max-width: 60pt; max-height: 46pt; }
         .ministry .country { font-size: 12pt; font-weight: bold; letter-spacing: 1pt; color: #0b6b3a; }
         .ministry .moh { font-size: 10.5pt; font-weight: bold; letter-spacing: 0.5pt; }
         .ministry .prog { font-size: 9pt; letter-spacing: 3pt; color: #555555; }
@@ -66,7 +68,6 @@
         }
         .benefits th.amt, .benefits td.amt { text-align: right; }
         .benefits td { border-bottom: 0.5pt solid #d8d8d8; padding: 5pt 8pt; font-size: 9.5pt; }
-        .benefits tr.total td { border-top: 1pt solid #0b6b3a; border-bottom: none; font-weight: bold; background-color: #f4f9f6; }
         .empty { color: #777777; font-style: italic; }
 
         /* Covers list */
@@ -91,6 +92,9 @@
 
     <table class="masthead">
         <tr>
+            <td class="gok-logo-cell">
+                <img th:if="${!#strings.isEmpty(governmentLogoDataUri)}" class="gok-logo-img" th:src="${governmentLogoDataUri}" alt="Government of Kenya logo"/>
+            </td>
             <td class="ministry">
                 <div class="country">REPUBLIC OF KENYA</div>
                 <div class="moh">MINISTRY OF HEALTH</div>
@@ -169,10 +173,6 @@
             </tr>
             <tr th:if="${#lists.isEmpty(benefitLines)}">
                 <td colspan="2" class="empty">No benefits assigned yet.</td>
-            </tr>
-            <tr class="total" th:unless="${#lists.isEmpty(benefitLines)}">
-                <td>Cumulative benefit limit</td>
-                <td class="amt" th:text="${#numbers.formatDecimal(cumulativeLimit, 1, 'COMMA', 0, 'POINT')}">50,000</td>
             </tr>
         </table>
     </div>
