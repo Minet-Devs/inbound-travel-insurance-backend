@@ -3,6 +3,7 @@ package com.travel.insurance.ussd.service;
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.config.UssdProperties;
+import com.travel.insurance.ussd.domain.ProviderPanelEntry;
 import com.travel.insurance.ussd.domain.UssdSession;
 import com.travel.insurance.ussd.dto.UssdResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -40,19 +42,24 @@ public class UssdServiceImpl implements UssdService {
     private static final String MSG_COMING_SOON =
             "This option is coming soon.\n";
 
+    private static final int USSD_MAX_RESULTS = 5;
+
     private static final DateTimeFormatter TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final EmailService emailService;
     private final MailProperties mailProperties;
     private final UssdProperties ussdProperties;
+    private final ProviderPanelService providerPanelService;
 
     public UssdServiceImpl(EmailService emailService,
                            MailProperties mailProperties,
-                           UssdProperties ussdProperties) {
+                           UssdProperties ussdProperties,
+                           ProviderPanelService providerPanelService) {
         this.emailService = emailService;
         this.mailProperties = mailProperties;
         this.ussdProperties = ussdProperties;
+        this.providerPanelService = providerPanelService;
     }
 
     @Override
@@ -65,10 +72,8 @@ public class UssdServiceImpl implements UssdService {
             case "HOSPITAL_SUB_MENU" -> handleHospitalSubMenu(session, rawInput);
             case "PROMPT_COUNTY_NAME" -> handlePromptCountyName(session, rawInput);
             case "PROMPT_TOWN_NAME" -> handlePromptTownName(session, rawInput);
-            case "COUNTY_PLACEHOLDER" -> handleCountyPlaceholder(session);
-            case "TOWN_PLACEHOLDER" -> handleTownPlaceholder(session);
-            case "BORDER_POINT_PLACEHOLDER" -> handleBorderPointPlaceholder(session);
-            case "TOURIST_ATTRACTION_PLACEHOLDER" -> handleTouristAttractionPlaceholder(session);
+            case "COUNTY_RESULTS" -> handleCountyResults(session, rawInput);
+            case "TOWN_RESULTS" -> handleTownResults(session, rawInput);
             case "FEEDBACK_MESSAGE" -> handleFeedbackMessage(session, rawInput);
             default -> {
                 log.warn("Unknown step: {} for session {}", step, session.getSessionId());
@@ -166,11 +171,16 @@ public class UssdServiceImpl implements UssdService {
             return new UssdResponse("County name cannot be empty.\n" + PROMPT_COUNTY_NAME, "CON");
         }
 
-        session.getCollectedData().put("pendingLocationType", "COUNTY");
-        session.getCollectedData().put("pendingLocationValue", countyName);
-        session.setCurrentStep("MAIN_MENU");
-        session.setMenuMap(buildMenuMap());
-        return new UssdResponse("County search is not live yet for '" + countyName + "'.\n" + buildMenuText(), "CON");
+        List<ProviderPanelEntry> results = providerPanelService.searchByCounty(countyName);
+
+        if (results.isEmpty()) {
+            session.setCurrentStep("HOSPITAL_SUB_MENU");
+            return new UssdResponse("No providers found for '" + countyName + "'.\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
+        }
+
+        session.getCollectedData().put("countyQuery", countyName);
+        session.getCollectedData().put("countyResultPage", "0");
+        return formatCountyResults(session, results, 0);
     }
 
     private UssdResponse handlePromptTownName(UssdSession session, String rawInput) {
@@ -179,43 +189,140 @@ public class UssdServiceImpl implements UssdService {
             return new UssdResponse("Town name cannot be empty.\n" + PROMPT_TOWN_NAME, "CON");
         }
 
-        session.getCollectedData().put("pendingLocationType", "TOWN");
-        session.getCollectedData().put("pendingLocationValue", townName);
-        session.setCurrentStep("MAIN_MENU");
-        session.setMenuMap(buildMenuMap());
-        return new UssdResponse("Town search is not live yet for '" + townName + "'.\n" + buildMenuText(), "CON");
-    }
+        List<ProviderPanelEntry> results = providerPanelService.searchByTown(townName);
 
-    private UssdResponse handleCountyPlaceholder(UssdSession session) {
-        session.setCurrentStep("MAIN_MENU");
-        session.setMenuMap(buildMenuMap());
-        return new UssdResponse(buildPlaceholderText("County", session) + buildMenuText(), "CON");
-    }
-
-    private UssdResponse handleTownPlaceholder(UssdSession session) {
-        session.setCurrentStep("MAIN_MENU");
-        session.setMenuMap(buildMenuMap());
-        return new UssdResponse(buildPlaceholderText("Town", session) + buildMenuText(), "CON");
-    }
-
-    private UssdResponse handleBorderPointPlaceholder(UssdSession session) {
-        session.setCurrentStep("MAIN_MENU");
-        session.setMenuMap(buildMenuMap());
-        return new UssdResponse(MSG_COMING_SOON + buildMenuText(), "CON");
-    }
-
-    private UssdResponse handleTouristAttractionPlaceholder(UssdSession session) {
-        session.setCurrentStep("MAIN_MENU");
-        session.setMenuMap(buildMenuMap());
-        return new UssdResponse(MSG_COMING_SOON + buildMenuText(), "CON");
-    }
-
-    private String buildPlaceholderText(String locationType, UssdSession session) {
-        String value = session.getCollectedData().getOrDefault("pendingLocationValue", "");
-        if (value.isBlank()) {
-            return locationType + " search is not live yet.\n";
+        if (results.isEmpty()) {
+            session.setCurrentStep("HOSPITAL_SUB_MENU");
+            return new UssdResponse("No providers found for '" + townName + "'.\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
         }
-        return locationType + " search is not live yet for '" + value + "'.\n";
+
+        session.getCollectedData().put("townQuery", townName);
+        session.getCollectedData().put("townResults", serializeResults(results));
+        session.getCollectedData().put("townResultPage", "0");
+        return formatTownResults(session, results, 0);
+    }
+
+    private UssdResponse handleCountyResults(UssdSession session, String rawInput) {
+        String choice = rawInput != null ? rawInput.trim() : "";
+
+        if ("0".equals(choice)) {
+            session.setCurrentStep("HOSPITAL_SUB_MENU");
+            return new UssdResponse(PROMPT_HOSPITAL_SUB_MENU, "CON");
+        }
+
+        String query = session.getCollectedData().getOrDefault("countyQuery", "");
+        int page = Integer.parseInt(session.getCollectedData().getOrDefault("countyResultPage", "0"));
+        List<ProviderPanelEntry> results = providerPanelService.searchByCounty(query);
+
+        if ("9".equals(choice)) {
+            int nextPage = page + 1;
+            int maxPage = (results.size() - 1) / USSD_MAX_RESULTS;
+            if (nextPage > maxPage) {
+                nextPage = 0;
+            }
+            return formatCountyResults(session, results, nextPage);
+        }
+
+        return new UssdResponse("Enter number to view details, 0 for Menu, or 9 for Next:\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
+    }
+
+    private UssdResponse handleTownResults(UssdSession session, String rawInput) {
+        String choice = rawInput != null ? rawInput.trim() : "";
+
+        if ("0".equals(choice)) {
+            session.setCurrentStep("HOSPITAL_SUB_MENU");
+            return new UssdResponse(PROMPT_HOSPITAL_SUB_MENU, "CON");
+        }
+
+        String query = session.getCollectedData().getOrDefault("townQuery", "");
+        int page = Integer.parseInt(session.getCollectedData().getOrDefault("townResultPage", "0"));
+        List<ProviderPanelEntry> results = providerPanelService.searchByTown(query);
+
+        if ("9".equals(choice)) {
+            int nextPage = page + 1;
+            int maxPage = (results.size() - 1) / USSD_MAX_RESULTS;
+            if (nextPage > maxPage) {
+                nextPage = 0;
+            }
+            return formatTownResults(session, results, nextPage);
+        }
+
+        return new UssdResponse("Enter number to view details, 0 for Menu, or 9 for Next:\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
+    }
+
+    private UssdResponse formatCountyResults(UssdSession session, List<ProviderPanelEntry> results, int page) {
+        session.setCurrentStep("COUNTY_RESULTS");
+        session.getCollectedData().put("countyResultPage", String.valueOf(page));
+
+        int start = page * USSD_MAX_RESULTS;
+        int end = Math.min(start + USSD_MAX_RESULTS, results.size());
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Providers (").append(start + 1).append("-").append(end)
+                .append(" of ").append(results.size()).append("):\n");
+
+        for (int i = start; i < end; i++) {
+            ProviderPanelEntry e = results.get(i);
+            sb.append(i + 1).append(". ").append(truncate(e.getProviderName(), 30));
+            if (e.getServices() != null && !e.getServices().isBlank()) {
+                sb.append(" - ").append(truncate(e.getServices(), 25));
+            }
+            sb.append("\n");
+        }
+
+        if (end < results.size()) {
+            sb.append("9. Next page\n");
+        }
+        sb.append("0. Back");
+
+        return new UssdResponse(sb.toString(), "CON");
+    }
+
+    private UssdResponse formatTownResults(UssdSession session, List<ProviderPanelEntry> results, int page) {
+        session.setCurrentStep("TOWN_RESULTS");
+        session.getCollectedData().put("townResultPage", String.valueOf(page));
+
+        int start = page * USSD_MAX_RESULTS;
+        int end = Math.min(start + USSD_MAX_RESULTS, results.size());
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Providers (").append(start + 1).append("-").append(end)
+                .append(" of ").append(results.size()).append("):\n");
+
+        for (int i = start; i < end; i++) {
+            ProviderPanelEntry e = results.get(i);
+            sb.append(i + 1).append(". ").append(truncate(e.getProviderName(), 30));
+            if (e.getServices() != null && !e.getServices().isBlank()) {
+                sb.append(" - ").append(truncate(e.getServices(), 25));
+            }
+            sb.append("\n");
+        }
+
+        if (end < results.size()) {
+            sb.append("9. Next page\n");
+        }
+        sb.append("0. Back");
+
+        return new UssdResponse(sb.toString(), "CON");
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null) {
+            return "";
+        }
+        return value.length() <= maxLength ? value : value.substring(0, maxLength - 1) + "~";
+    }
+
+    private String serializeResults(List<ProviderPanelEntry> results) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < results.size(); i++) {
+            ProviderPanelEntry e = results.get(i);
+            sb.append(i).append("|").append(e.getProviderName())
+                    .append("|").append(e.getAddress())
+                    .append("|").append(e.getServices())
+                    .append(";");
+        }
+        return sb.toString();
     }
 
     private Map<String, String> buildMenuMap() {
@@ -239,7 +346,7 @@ public class UssdServiceImpl implements UssdService {
         String msisdn = session.getMsisdn();
 
         try {
-            String subject = "Inbound Travel Medical Insurance - Feedback";
+            String subject = "Inbound Travel Health Insurance - Feedback";
             String body = "<p>Feedback received via USSD:</p>"
                     + "<ul>"
                     + "<li><strong>MSISDN:</strong> " + (msisdn != null ? msisdn : "N/A") + "</li>"
@@ -262,7 +369,7 @@ public class UssdServiceImpl implements UssdService {
                 && ussdProperties.getFeedback().getDefaultSchemeName() != null) {
             return ussdProperties.getFeedback().getDefaultSchemeName();
         }
-        return "Inbound Travel Medical Insurance";
+        return "Inbound Travel Health Insurance";
     }
 
     private String getFeedbackRecipient() {

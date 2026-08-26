@@ -102,7 +102,7 @@ procedure:
 
 ussd:
   feedback:
-    default-scheme-name: ${USSD_SCHEME_NAME:Inbound Travel Medical Insurance}
+    default-scheme-name: ${USSD_SCHEME_NAME:Inbound Travel Health Insurance}
     email:
       to: ${USSD_FEEDBACK_EMAIL_TO:inbound.travel@minet.co.ke}
 
