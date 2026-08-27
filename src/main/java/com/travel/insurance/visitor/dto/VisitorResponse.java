@@ -34,6 +34,7 @@ public record VisitorResponse(
         Instant entryTimestamp,
         Instant exitTimestamp,
         String portOfEntry,
+        String certificateSerialNumber,
         Instant createdDate,
         Instant updatedDate
 ) {

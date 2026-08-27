@@ -17,6 +17,7 @@ import java.util.List;
 record PolicyDocumentData(
         String visitorFullName,
         String passportNumber,
+        String certificateSerialNumber,
         LocalDate dateOfBirth,
         Gender gender,
         String nationality,

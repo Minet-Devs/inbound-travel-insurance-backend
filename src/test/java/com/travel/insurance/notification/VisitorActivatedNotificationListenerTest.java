@@ -87,6 +87,7 @@ class VisitorActivatedNotificationListenerTest {
         visitor.setPolicyId(policyId);
         visitor.setFullName("Jane Traveler");
         visitor.setPassportNumber("P1234567");
+        visitor.setCertificateSerialNumber("ACME-2026-000123");
         visitor.setDateOfBirth(LocalDate.of(1990, 5, 12));
         visitor.setGender(Gender.FEMALE);
         visitor.setNationality("Germany");
@@ -142,6 +143,7 @@ class VisitorActivatedNotificationListenerTest {
         ArgumentCaptor<PolicyDocumentData> dataCaptor = ArgumentCaptor.forClass(PolicyDocumentData.class);
         verify(renderer).renderPdf(dataCaptor.capture());
         assertThat(dataCaptor.getValue().visitorFullName()).isEqualTo("Jane Traveler");
+        assertThat(dataCaptor.getValue().certificateSerialNumber()).isEqualTo("ACME-2026-000123");
         assertThat(dataCaptor.getValue().insurerNames()).containsExactly("Acme Insurance");
         assertThat(dataCaptor.getValue().underwriterLogoUrl()).isEqualTo("https://cdn.example/acme.png");
         assertThat(dataCaptor.getValue().esignatureUrl()).isNull();

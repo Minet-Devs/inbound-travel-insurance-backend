@@ -65,6 +65,7 @@ public class VisitorMapper {
                 visitor.getEntryTimestamp(),
                 visitor.getExitTimestamp(),
                 visitor.getPortOfEntry(),
+                visitor.getCertificateSerialNumber(),
                 visitor.getCreatedDate(),
                 visitor.getUpdatedDate()
         );

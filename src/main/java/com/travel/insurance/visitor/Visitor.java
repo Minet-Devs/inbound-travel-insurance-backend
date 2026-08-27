@@ -110,4 +110,6 @@ public class Visitor extends BaseEntity {
     private Instant exitTimestamp;
 
     private String portOfEntry;
+
+    private String certificateSerialNumber;
 }

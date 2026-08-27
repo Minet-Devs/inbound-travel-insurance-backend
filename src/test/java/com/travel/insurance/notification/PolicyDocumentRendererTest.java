@@ -40,6 +40,7 @@ class PolicyDocumentRendererTest {
         return new PolicyDocumentData(
                 "Jane Traveler",
                 "P1234567",
+                "ACME-2026-000123",
                 LocalDate.of(1990, 5, 12),
                 Gender.FEMALE,
                 "Germany",
@@ -75,6 +76,21 @@ class PolicyDocumentRendererTest {
         assertThat(html).doesNotContain("CERTIFICATE OF INSURANCE");
         assertThat(html).contains("Female");
         assertThat(html).doesNotContain("underlyingConditions");
+    }
+
+    @Test
+    void rendersCertificateSerialNumberAndFixesVerificationCopy() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("Certificate No.");
+        assertThat(html).contains("ACME-2026-000123");
+        assertThat(html).contains("using the Certificate Serial Number above");
+        assertThat(html).doesNotContain("Policy Number above");
+        assertThat(html).doesNotContain("scanning the QR code");
     }
 
     @Test

@@ -99,6 +99,10 @@
                 <div class="v" th:text="${issueDate}">08 August 2026</div>
             </td>
             <td>
+                <div class="k">Certificate No.</div>
+                <div class="v" th:text="${data.certificateSerialNumber}">ACME-2026-000123</div>
+            </td>
+            <td>
                 <div class="verify-box">
                     Scan to verify<br/>
                     kenyacares.go.ke/verify
@@ -178,7 +182,7 @@
                 <span class="lbl">Email:</span>
                 <span th:text="${data.emergencyAssistanceEmail}">assist@underwriter.co.ke</span>
             </div>
-            <div>Verify this certificate at kenyacares.go.ke/verify using the Policy Number above, or by scanning the QR code.</div>
+            <div>Verify this certificate at kenyacares.go.ke/verify using the Certificate Serial Number above.</div>
         </div>
     </div>
 

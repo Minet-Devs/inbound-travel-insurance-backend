@@ -35,12 +35,13 @@ public class VisitorServiceImpl implements VisitorService {
     private final InsurerRepository insurerRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final BlindIndexService blindIndexService;
+    private final CertificateSerialNumberGenerator certificateSerialNumberGenerator;
 
     @Override
     public VisitorResponse create(VisitorRequest request) {
         Policy policy = policyService.getEntityById(request.policyId());
         validateCoverPeriod(request);
-        validatePolicyQuota(policy);
+        Insurer insurer = requireInsurerWithQuota(policy);
         String passportNumberHash = blindIndexService.hmac(request.passportNumber());
         if (visitorRepository.existsByPassportNumberHash(passportNumberHash)) {
             throw new IllegalStateException(
@@ -49,6 +50,9 @@ public class VisitorServiceImpl implements VisitorService {
         Visitor visitor = visitorMapper.toEntity(request);
         visitor.setInsurerId(policy.getInsurerId());
         visitor.setPassportNumberHash(passportNumberHash);
+        if (visitor.getVisitorStatus() == VisitorStatus.ACTIVE) {
+            visitor.setCertificateSerialNumber(certificateSerialNumberGenerator.next(insurer.getName()));
+        }
         visitor = visitorRepository.save(visitor);
         eventPublisher.publishEvent(new VisitorCreatedEvent(visitor.getId(), visitor.getPolicyId()));
         return visitorMapper.toResponse(visitor);
@@ -165,13 +169,13 @@ public class VisitorServiceImpl implements VisitorService {
     }
 
     /**
-     * Validates that the policy's backing insurer has available policy tokens.
-     * Prevents visitor creation if the insurer has exhausted their quota.
+     * Validates that the policy's backing insurer has available policy tokens
+     * and returns it, so callers don't have to re-fetch it.
      *
      * @param policy the policy to validate
      * @throws IllegalStateException if the backing insurer has no available policies
      */
-    private void validatePolicyQuota(Policy policy) {
+    private Insurer requireInsurerWithQuota(Policy policy) {
         Insurer insurer = insurerRepository.findById(policy.getInsurerId())
                 .orElseThrow(() -> new IllegalStateException(
                         "Insurer not found: " + policy.getInsurerId()));
@@ -180,6 +184,7 @@ public class VisitorServiceImpl implements VisitorService {
             throw new IllegalStateException(
                     "Insurer '" + insurer.getName() + "' has no available policies left");
         }
+        return insurer;
     }
 
     private VisitorResponse applyStatusUpdate(Visitor visitor, VisitorStatusUpdate visitorStatusUpdate) {
@@ -190,6 +195,12 @@ public class VisitorServiceImpl implements VisitorService {
                     "Cannot change visitor status from " + current + " to " + target);
         }
         visitor.setVisitorStatus(target);
+        if (target == VisitorStatus.ACTIVE && visitor.getCertificateSerialNumber() == null) {
+            Insurer insurer = insurerRepository.findById(visitor.getInsurerId())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Insurer not found: " + visitor.getInsurerId()));
+            visitor.setCertificateSerialNumber(certificateSerialNumberGenerator.next(insurer.getName()));
+        }
         eventPublisher.publishEvent(new VisitorStatusChangedEvent(visitor.getId(), target));
         return visitorMapper.toResponse(visitor);
     }

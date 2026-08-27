@@ -3,6 +3,7 @@ package com.travel.insurance.visitor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,4 +20,7 @@ public interface VisitorRepository extends JpaRepository<Visitor, UUID> {
     boolean existsByPassportNumberHash(String passportNumberHash);
 
     boolean existsByPassportNumberHashAndIdNot(String passportNumberHash, UUID id);
+
+    @Query(value = "select nextval('certificate_serial_seq')", nativeQuery = true)
+    long nextCertificateSerialValue();
 }
