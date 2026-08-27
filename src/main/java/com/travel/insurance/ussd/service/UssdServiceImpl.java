@@ -42,7 +42,7 @@ public class UssdServiceImpl implements UssdService {
     private static final String MSG_COMING_SOON =
             "This option is coming soon.\n";
 
-    private static final int USSD_MAX_RESULTS = 5;
+    private static final int USSD_MAX_RESULTS = 3;
 
     private static final DateTimeFormatter TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
@@ -322,22 +322,22 @@ public class UssdServiceImpl implements UssdService {
         int end = Math.min(start + USSD_MAX_RESULTS, results.size());
 
         StringBuilder sb = new StringBuilder();
-        sb.append("Providers (").append(start + 1).append("-").append(end)
-                .append(" of ").append(results.size()).append("):\n");
+        sb.append(start + 1).append("-").append(end)
+                .append("/").append(results.size()).append(":\n");
 
         for (int i = start; i < end; i++) {
             ProviderPanelEntry e = results.get(i);
             sb.append(i + 1).append(". ").append(truncate(e.getProviderName(), 30));
             if (e.getServices() != null && !e.getServices().isBlank()) {
-                sb.append(" - ").append(truncate(e.getServices(), 25));
+                sb.append(" - ").append(truncate(e.getServices(), 20));
             }
             sb.append("\n");
         }
 
         if (end < results.size()) {
-            sb.append("9. Next page\n");
+            sb.append("9.Next");
         }
-        sb.append("0. Back");
+        sb.append(" 0.Back");
 
         return new UssdResponse(sb.toString(), "CON");
     }
@@ -350,22 +350,22 @@ public class UssdServiceImpl implements UssdService {
         int end = Math.min(start + USSD_MAX_RESULTS, results.size());
 
         StringBuilder sb = new StringBuilder();
-        sb.append("Providers (").append(start + 1).append("-").append(end)
-                .append(" of ").append(results.size()).append("):\n");
+        sb.append(start + 1).append("-").append(end)
+                .append("/").append(results.size()).append(":\n");
 
         for (int i = start; i < end; i++) {
             ProviderPanelEntry e = results.get(i);
             sb.append(i + 1).append(". ").append(truncate(e.getProviderName(), 30));
             if (e.getServices() != null && !e.getServices().isBlank()) {
-                sb.append(" - ").append(truncate(e.getServices(), 25));
+                sb.append(" - ").append(truncate(e.getServices(), 20));
             }
             sb.append("\n");
         }
 
         if (end < results.size()) {
-            sb.append("9. Next page\n");
+            sb.append("9.Next");
         }
-        sb.append("0. Back");
+        sb.append(" 0.Back");
 
         return new UssdResponse(sb.toString(), "CON");
     }

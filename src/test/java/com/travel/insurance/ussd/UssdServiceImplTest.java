@@ -105,7 +105,7 @@ class UssdServiceImplTest {
         UssdResponse response = ussdService.processSessionStep(session, "Nairobi");
 
         assertThat(response.getType()).isEqualTo("CON");
-        assertThat(response.getText()).contains("Providers (1-2 of 2)");
+        assertThat(response.getText()).contains("1-2/2:");
         assertThat(response.getText()).contains("Karen Hospital");
         assertThat(response.getText()).contains("Nairobi Hospital");
         assertThat(session.getCurrentStep()).isEqualTo("COUNTY_RESULTS");
@@ -146,7 +146,7 @@ class UssdServiceImplTest {
         UssdResponse response = ussdService.processSessionStep(session, "Karen");
 
         assertThat(response.getType()).isEqualTo("CON");
-        assertThat(response.getText()).contains("Providers (1-1 of 1)");
+        assertThat(response.getText()).contains("1-1/1:");
         assertThat(response.getText()).contains("Karen Hospital");
         assertThat(session.getCurrentStep()).isEqualTo("TOWN_RESULTS");
         assertThat(session.getCollectedData().get("townQuery")).isEqualTo("Karen");
@@ -197,9 +197,10 @@ class UssdServiceImplTest {
         UssdResponse response = ussdService.processSessionStep(session, "9");
 
         assertThat(response.getType()).isEqualTo("CON");
-        assertThat(response.getText()).contains("Providers (6-7 of 7)");
+        assertThat(response.getText()).contains("4-6/7:");
+        assertThat(response.getText()).contains("P4");
+        assertThat(response.getText()).contains("P5");
         assertThat(response.getText()).contains("P6");
-        assertThat(response.getText()).contains("P7");
         assertThat(session.getCollectedData().get("countyResultPage")).isEqualTo("1");
     }
 
@@ -288,7 +289,7 @@ class UssdServiceImplTest {
         UssdResponse response = ussdService.processSessionStep(session, "0");
 
         assertThat(response.getType()).isEqualTo("CON");
-        assertThat(response.getText()).contains("Providers (1-2 of 2)");
+        assertThat(response.getText()).contains("1-2/2:");
         assertThat(session.getCurrentStep()).isEqualTo("COUNTY_RESULTS");
     }
 
