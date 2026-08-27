@@ -71,7 +71,8 @@ class PolicyDocumentRendererTest {
         assertThat(html).contains("Medical Expenses");
         assertThat(html).contains("20,000");
         assertThat(html).contains("Acme Insurance");
-        assertThat(html).contains("CERTIFICATE OF INSURANCE");
+        assertThat(html).contains("Mandatory Inbound Travel Health Insurance");
+        assertThat(html).doesNotContain("CERTIFICATE OF INSURANCE");
         assertThat(html).contains("Female");
         assertThat(html).doesNotContain("underlyingConditions");
     }
