@@ -80,7 +80,7 @@ app:
     from: ${SMTP_USERNAME}
     emergency-assistance:
       phone: ${EMERGENCY_ASSISTANCE_PHONE:}
-      email: ${EMERGENCY_ASSISTANCE_EMAIL:}
+      email: ${EMERGENCY_ASSISTANCE_EMAIL:inbound.travel@minet.co.ke}
   ekyc:
     client-id: ${EKYC_CLIENT_ID:}
     client-secret: ${EKYC_CLIENT_SECRET:}
