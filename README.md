@@ -1,4 +1,4 @@
-# Inbound Travel Medical Insurance — Backend
+# Inbound Travel Health Insurance — Backend
 
 Spring Boot 3 / Java 21 backend for travel insurance policies, benefits,
 pre-authorizations and claims. The architecture is documented in
