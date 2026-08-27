@@ -34,7 +34,7 @@ public class ProviderPanelLoader {
             loadUpcountrySheet(workbook, loaded);
 
         } catch (Exception e) {
-            log.error("Failed to load provider panel from {}: {}", EXCEL_FILE, e.getMessage(), e);
+            log.warn("Provider panel file not found at {} — search will return empty results", EXCEL_FILE);
         }
 
         entries = List.copyOf(loaded);

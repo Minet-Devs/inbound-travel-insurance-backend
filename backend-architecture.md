@@ -1,6 +1,6 @@
 # Travel Insurance — Backend Architecture
 
-This document describes the architecture of the Inbound Travel Medical Insurance backend.
+This document describes the architecture of the Inbound Travel Health Insurance backend.
 It is the reference for how the codebase is organized, how the domain model fits
 together, and the conventions every contribution is expected to follow. Read it
 before writing your first feature.
@@ -364,13 +364,16 @@ com.travel.insurance/
 │   ├── 📁 controller/
 │   │   └── UssdController.java             # POST /ussd/handle (form-encoded & JSON)
 │   ├── 📁 domain/
-│   │   └── UssdSession.java                # Redis-backed session state model
+│   │   ├── UssdSession.java                # Redis-backed session state model
+│   │   └── ProviderPanelEntry.java         # POJO: area, town, county, providerName, address, services
 │   ├── 📁 dto/
 │   │   ├── UssdRequest.java                # Gateway request payload
 │   │   └── UssdResponse.java               # CON / END response text
 │   ├── 📁 service/
 │   │   ├── UssdService.java                # Interface
-│   │   └── UssdServiceImpl.java            # State machine (Find Hospital, Feedback)
+│   │   ├── UssdServiceImpl.java            # State machine (Find Hospital, Feedback)
+│   │   ├── ProviderPanelLoader.java        # Parses provider-panel.xlsx on startup (Apache POI)
+│   │   └── ProviderPanelService.java       # In-memory search by county/town
 │   └── 📁 utils/
 │       └── UssdSessionManager.java         # Redis session TTL (180s) & input tracker
 │
@@ -1262,10 +1265,75 @@ Composed entirely from existing feature services (`VisitorService`,
   (`templates/member-statement.html`), decoupled the same way — the renderer
   only lays out data it's handed, all fan-in happens in
   `MemberStatementServiceImpl`.
-- The masthead text "MINET KENYA INSURANCE BROKERS" is a fixed constant in
+  - The masthead text "MINET KENYA INSURANCE BROKERS" is a fixed constant in
   both renderers, not resolved per-insurer — Minet is the broker operating
   this system for every member regardless of which insurer underwrites their
   policy, so this is a masthead, not a per-member field.
+
+## USSD Provider Panel (Find Hospital)
+
+The USSD "Find Hospital" feature lets travellers search for in-network
+healthcare providers by **county** or **town/area**. Provider data is sourced
+from an Excel spreadsheet (`provider-panel.xlsx`, bundled in
+`src/main/resources/`) and loaded into memory at application startup — no
+database table backs this feature.
+
+**Data source:**
+
+- `provider-panel.xlsx` contains two sheets:
+  - **NAIROBI COUNTY** — providers keyed by area/neighborhood (e.g. Karen,
+    Westlands, Upperhill). Columns: Area Name, Provider Name, Physical
+    Address, Services. The area doubles as the town; county is always
+    `NAIROBI`.
+  - **upcountry** — providers keyed by town and county. Columns: Town,
+    County, Provider Name, Physical Location, Services.
+- Apache POI parses both sheets on startup (`ProviderPanelLoader`,
+  `@PostConstruct`), producing a `List<ProviderPanelEntry>` held in memory.
+  Currently ~739 entries.
+
+**Architecture:**
+
+```
+provider-panel.xlsx (classpath)
+        │
+        ▼
+ProviderPanelLoader        ← @PostConstruct, POI → List<ProviderPanelEntry>
+        │
+        ▼
+ProviderPanelService       ← searchByCounty(q), searchByTown(q)
+        │                   case-insensitive partial match (ILIKE-style)
+        ▼
+UssdServiceImpl            ← wired into handlePromptCountyName / handlePromptTownName
+                            results paginated 5 per USSD screen
+```
+
+**USSD flow:**
+
+```
+Main Menu → 1. Find Hospital
+  → 1. County → "Enter county name:" → user types query
+    → ProviderPanelService.searchByCounty(query)
+    → Paginated results (5 per screen), 9 = next page, 0 = back
+  → 2. Town → "Enter town name:" → user types query
+    → ProviderPanelService.searchByTown(query)
+    → Same paginated display
+  → 3. Border Point (Coming Soon)
+  → 4. Nearest Tourist Attraction (Coming Soon)
+  → 0. Main Menu
+```
+
+**Key design decisions:**
+
+- **In-memory, not DB:** provider panel data changes infrequently; an
+  in-memory list avoids a DB table and keeps the USSD response latency
+  sub-millisecond after startup. To update providers, replace the Excel file
+  and restart.
+- **Search behaviour:** case-insensitive substring match on county/town name.
+  Partial matches are intentional — a user typing "Momb" finds Mombasa.
+- **Pagination:** 5 results per USSD screen (160-char limit). "9. Next page"
+  cycles through results; "0. Back" returns to the hospital sub-menu.
+- **No results:** returns to the sub-menu with "No providers found for
+  '{query}'."
 
 ## API Documentation (Swagger)
 
