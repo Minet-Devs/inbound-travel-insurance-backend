@@ -105,7 +105,7 @@ class UssdServiceImplTest {
         UssdResponse response = ussdService.processSessionStep(session, "Nairobi");
 
         assertThat(response.getType()).isEqualTo("CON");
-        assertThat(response.getText()).contains("Providers (1-2 of 2)");
+        assertThat(response.getText()).contains("1-2/2:");
         assertThat(response.getText()).contains("Karen Hospital");
         assertThat(response.getText()).contains("Nairobi Hospital");
         assertThat(session.getCurrentStep()).isEqualTo("COUNTY_RESULTS");
@@ -146,7 +146,7 @@ class UssdServiceImplTest {
         UssdResponse response = ussdService.processSessionStep(session, "Karen");
 
         assertThat(response.getType()).isEqualTo("CON");
-        assertThat(response.getText()).contains("Providers (1-1 of 1)");
+        assertThat(response.getText()).contains("1-1/1:");
         assertThat(response.getText()).contains("Karen Hospital");
         assertThat(session.getCurrentStep()).isEqualTo("TOWN_RESULTS");
         assertThat(session.getCollectedData().get("townQuery")).isEqualTo("Karen");
@@ -197,9 +197,10 @@ class UssdServiceImplTest {
         UssdResponse response = ussdService.processSessionStep(session, "9");
 
         assertThat(response.getType()).isEqualTo("CON");
-        assertThat(response.getText()).contains("Providers (6-7 of 7)");
+        assertThat(response.getText()).contains("4-6/7:");
+        assertThat(response.getText()).contains("P4");
+        assertThat(response.getText()).contains("P5");
         assertThat(response.getText()).contains("P6");
-        assertThat(response.getText()).contains("P7");
         assertThat(session.getCollectedData().get("countyResultPage")).isEqualTo("1");
     }
 
@@ -248,5 +249,78 @@ class UssdServiceImplTest {
         assertThat(response.getType()).isEqualTo("CON");
         assertThat(response.getText()).contains("Feedback cannot be empty");
         assertThat(session.getCurrentStep()).isEqualTo("FEEDBACK_MESSAGE");
+    }
+
+    @Test
+    void countyResultSelectShowsProviderDetail() {
+        UssdSession session = createSession("COUNTY_RESULTS");
+        session.getCollectedData().put("countyQuery", "Nairobi");
+        session.getCollectedData().put("countyResultPage", "0");
+
+        List<ProviderPanelEntry> results = List.of(
+                new ProviderPanelEntry("KAREN", "KAREN", "NAIROBI", "Karen Hospital", "Karen Road", "Outpatient, Inpatient"),
+                new ProviderPanelEntry("WESTLANDS", "WESTLANDS", "NAIROBI", "Nairobi Hospital", "Westlands", "Inpatient, Pharmacy")
+        );
+        when(providerPanelService.searchByCounty("Nairobi")).thenReturn(results);
+
+        UssdResponse response = ussdService.processSessionStep(session, "1");
+
+        assertThat(response.getType()).isEqualTo("CON");
+        assertThat(response.getText()).contains("Karen Hospital");
+        assertThat(response.getText()).contains("Address: Karen Road");
+        assertThat(response.getText()).contains("Services: Outpatient, Inpatient");
+        assertThat(response.getText()).contains("0. Back to results");
+        assertThat(session.getCurrentStep()).isEqualTo("PROVIDER_DETAIL");
+    }
+
+    @Test
+    void providerDetailBackReturnsToResults() {
+        UssdSession session = createSession("PROVIDER_DETAIL");
+        session.getCollectedData().put("detailReturnStep", "COUNTY_RESULTS");
+        session.getCollectedData().put("countyQuery", "Nairobi");
+        session.getCollectedData().put("countyResultPage", "0");
+
+        List<ProviderPanelEntry> results = List.of(
+                new ProviderPanelEntry("KAREN", "KAREN", "NAIROBI", "Karen Hospital", "Karen Road", "Outpatient"),
+                new ProviderPanelEntry("WESTLANDS", "WESTLANDS", "NAIROBI", "Nairobi Hospital", "Westlands", "Inpatient")
+        );
+        when(providerPanelService.searchByCounty("Nairobi")).thenReturn(results);
+
+        UssdResponse response = ussdService.processSessionStep(session, "0");
+
+        assertThat(response.getType()).isEqualTo("CON");
+        assertThat(response.getText()).contains("1-2/2:");
+        assertThat(session.getCurrentStep()).isEqualTo("COUNTY_RESULTS");
+    }
+
+    @Test
+    void townResultSelectShowsProviderDetail() {
+        UssdSession session = createSession("TOWN_RESULTS");
+        session.getCollectedData().put("townQuery", "Karen");
+        session.getCollectedData().put("townResultPage", "0");
+
+        List<ProviderPanelEntry> results = List.of(
+                new ProviderPanelEntry("KAREN", "KAREN", "NAIROBI", "Karen Hospital", "Karen Road", "Outpatient")
+        );
+        when(providerPanelService.searchByTown("Karen")).thenReturn(results);
+
+        UssdResponse response = ussdService.processSessionStep(session, "1");
+
+        assertThat(response.getType()).isEqualTo("CON");
+        assertThat(response.getText()).contains("Karen Hospital");
+        assertThat(response.getText()).contains("Address: Karen Road");
+        assertThat(session.getCurrentStep()).isEqualTo("PROVIDER_DETAIL");
+    }
+
+    @Test
+    void providerDetailInvalidInputRePrompts() {
+        UssdSession session = createSession("PROVIDER_DETAIL");
+        session.getCollectedData().put("detailReturnStep", "COUNTY_RESULTS");
+
+        UssdResponse response = ussdService.processSessionStep(session, "abc");
+
+        assertThat(response.getType()).isEqualTo("CON");
+        assertThat(response.getText()).contains("0. Back to results");
+        assertThat(session.getCurrentStep()).isEqualTo("PROVIDER_DETAIL");
     }
 }
