@@ -77,15 +77,18 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
-    void rendersGovernmentLogoAsInlineDataUri() {
+    void omitsGovernmentBrandingFromMasthead() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of(
                 new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
 
         String html = renderer.renderHtml(data);
 
-        assertThat(html).contains("class=\"gok-logo-img\"");
-        assertThat(html).contains("src=\"data:image/png;base64,");
+        assertThat(html).doesNotContain("gok-logo");
+        assertThat(html).doesNotContain("REPUBLIC OF KENYA");
+        assertThat(html).doesNotContain("MINISTRY OF HEALTH");
+        assertThat(html).doesNotContain("KENYA CARES</div>");
+        assertThat(html).contains("class=\"masthead\"");
     }
 
     @Test
