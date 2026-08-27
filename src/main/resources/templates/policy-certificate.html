@@ -32,10 +32,9 @@
 
         /* Meta strip */
         .meta { width: 100%; border-collapse: collapse; margin-top: 12pt; }
-        .meta td { vertical-align: top; padding: 0 6pt; width: 33%; }
+        .meta td { vertical-align: top; padding: 0 6pt; width: 50%; }
         .meta .k { font-size: 7pt; letter-spacing: 1pt; color: #777777; text-transform: uppercase; }
         .meta .v { font-size: 10.5pt; font-weight: bold; color: #111111; }
-        .verify-box { border: 0.75pt dashed #9a9a9a; text-align: center; color: #6a6a6a; font-size: 7pt; padding: 8pt 4pt; }
 
         /* Section headers */
         .section { margin-top: 14pt; }
@@ -101,12 +100,6 @@
             <td>
                 <div class="k">Certificate No.</div>
                 <div class="v" th:text="${data.certificateSerialNumber}">ACME-2026-000123</div>
-            </td>
-            <td>
-                <div class="verify-box">
-                    Scan to verify<br/>
-                    kenyacares.go.ke/verify
-                </div>
             </td>
         </tr>
     </table>
