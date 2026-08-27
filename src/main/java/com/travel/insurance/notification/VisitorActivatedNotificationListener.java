@@ -118,6 +118,7 @@ public class VisitorActivatedNotificationListener {
                 visitor.getPhoneNumber(),
                 visitor.getDateIn(),
                 visitor.getDateOut(),
+                visitor.getPolicyExpiryDate(),
                 visitor.getReasonForTravel(),
                 insurerNames,
                 underwriterLogoUrl,

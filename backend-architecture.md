@@ -569,7 +569,14 @@ Policy
   period actually gets enforced: `VisitorServiceImpl` fetches the visitor's
   policy and rejects a create/update where `dateOut` is before `dateIn`, or
   where the day span between them falls outside the allowed 1-to-365-day
-  range — `IllegalArgumentException` (→ 400) either way. It also carries a
+  range — `IllegalArgumentException` (→ 400) either way. `Visitor.getPolicyExpiryDate()`
+  is a derived, non-persisted (`@Transient`) property — always `dateIn` plus
+  365 days, computed on read rather than stored, so it can never drift from
+  `dateIn`. It's exposed on `VisitorResponse` and threaded through
+  `PolicyDocumentData` so the certificate's "Cover Period" shows `dateIn` to
+  `policyExpiryDate` (not `dateOut`, which remains the visitor's own declared
+  travel end date, used for the 1-to-365-day validation above and reporting —
+  the two dates serve different purposes and are allowed to differ). It also carries a
   set of nullable border/payment-tracking attributes populated after
   onboarding: `paymentReference`, `etaReference` (eTA/authorization
   reference), `portOfEntry`, and `entryTimestamp`/`exitTimestamp` (actual

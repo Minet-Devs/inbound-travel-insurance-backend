@@ -49,6 +49,7 @@ class PolicyDocumentRendererTest {
                 "+254700000000",
                 LocalDate.of(2026, 8, 1),
                 LocalDate.of(2026, 11, 1),
+                LocalDate.of(2027, 8, 1),
                 "Tourism",
                 List.of("Acme Insurance"),
                 underwriterLogoUrl,
@@ -68,14 +69,26 @@ class PolicyDocumentRendererTest {
 
         assertThat(html).contains("Jane Traveler");
         assertThat(html).contains("P1234567");
-        assertThat(html).contains("Kenya CARES Inbound Cover");
         assertThat(html).contains("Medical Expenses");
         assertThat(html).contains("20,000");
         assertThat(html).contains("Acme Insurance");
         assertThat(html).contains("Mandatory Inbound Travel Health Insurance");
         assertThat(html).doesNotContain("CERTIFICATE OF INSURANCE");
+        assertThat(html).doesNotContain("Kenya CARES Inbound Cover");
         assertThat(html).contains("Female");
         assertThat(html).doesNotContain("underlyingConditions");
+    }
+
+    @Test
+    void coverPeriodRunsFromDateInToPolicyExpiryDate() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("01 Aug 2026 — 01 Aug 2027 (365 days)");
+        assertThat(html).doesNotContain("01 Nov 2026");
     }
 
     @Test

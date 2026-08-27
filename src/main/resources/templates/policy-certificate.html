@@ -32,10 +32,9 @@
 
         /* Meta strip */
         .meta { width: 100%; border-collapse: collapse; margin-top: 12pt; }
-        .meta td { vertical-align: top; padding: 0 6pt; width: 33%; }
+        .meta td { vertical-align: top; padding: 0 6pt; width: 50%; }
         .meta .k { font-size: 7pt; letter-spacing: 1pt; color: #777777; text-transform: uppercase; }
         .meta .v { font-size: 10.5pt; font-weight: bold; color: #111111; }
-        .verify-box { border: 0.75pt dashed #9a9a9a; text-align: center; color: #6a6a6a; font-size: 7pt; padding: 8pt 4pt; }
 
         /* Section headers */
         .section { margin-top: 14pt; }
@@ -102,12 +101,6 @@
                 <div class="k">Certificate No.</div>
                 <div class="v" th:text="${data.certificateSerialNumber}">ACME-2026-000123</div>
             </td>
-            <td>
-                <div class="verify-box">
-                    Scan to verify<br/>
-                    kenyacares.go.ke/verify
-                </div>
-            </td>
         </tr>
     </table>
 
@@ -133,8 +126,7 @@
         <div class="section-title">COVER DETAILS</div>
         <table class="fields">
             <tr>
-                <td><span class="k">Underwriter</span><span class="v" th:text="${#strings.isEmpty(underwriterName)} ? '—' : ${underwriterName}">Acme Insurance</span></td>
-                <td><span class="k">Product</span><span class="v">Kenya CARES Inbound Cover</span></td>
+                <td colspan="2"><span class="k">Underwriter</span><span class="v" th:text="${#strings.isEmpty(underwriterName)} ? '—' : ${underwriterName}">Acme Insurance</span></td>
             </tr>
             <tr>
                 <td><span class="k">Cover Period</span><span class="v" th:text="|${coverStart} — ${coverEnd} (${coverDays} days)|">08 Aug 2026 — 06 Sep 2026 (30 days)</span></td>

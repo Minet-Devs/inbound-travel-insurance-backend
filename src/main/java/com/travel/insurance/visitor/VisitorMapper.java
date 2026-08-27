@@ -53,6 +53,7 @@ public class VisitorMapper {
                 visitor.getPhoneNumber(),
                 visitor.getDateIn(),
                 visitor.getDateOut(),
+                visitor.getPolicyExpiryDate(),
                 visitor.getMaritalStatus(),
                 visitor.getReasonForTravel(),
                 visitor.getFacePhotoUrl(),
