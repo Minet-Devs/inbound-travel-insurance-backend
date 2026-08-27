@@ -92,7 +92,7 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
-    void rendersCertificateSerialNumberAndFixesVerificationCopy() {
+    void rendersCertificateSerialNumberAndOmitsVerificationCopy() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of(
                 new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
@@ -101,7 +101,7 @@ class PolicyDocumentRendererTest {
 
         assertThat(html).contains("Certificate No.");
         assertThat(html).contains("ACME-2026-000123");
-        assertThat(html).contains("using the Certificate Serial Number above");
+        assertThat(html).doesNotContain("Verify this certificate");
         assertThat(html).doesNotContain("Policy Number above");
         assertThat(html).doesNotContain("scanning the QR code");
     }
