@@ -2,11 +2,14 @@ package com.travel.insurance.notification;
 
 import com.travel.insurance.notification.PolicyDocumentData.BenefitLine;
 import com.travel.insurance.visitor.Gender;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
 import org.junit.jupiter.api.Test;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 import org.thymeleaf.templatemode.TemplateMode;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -203,5 +206,22 @@ class PolicyDocumentRendererTest {
 
         assertThat(pdf.length).isGreaterThan(4);
         assertThat(new String(pdf, 0, 4, StandardCharsets.US_ASCII)).isEqualTo("%PDF");
+    }
+
+    @Test
+    void rendersAsSinglePageForARealisticBenefitSchedule() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")),
+                new BenefitLine("Emergency Medical Transportation/Evacuation", new BigDecimal("25000.00")),
+                new BenefitLine("Prescribed Medicines", new BigDecimal("300.00")),
+                new BenefitLine("Mental Illness", new BigDecimal("1000.00")),
+                new BenefitLine("Repatriation of Mortal Remains", new BigDecimal("5000.00"))));
+
+        byte[] pdf = renderer.renderPdf(data);
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            assertThat(document.getNumberOfPages()).isEqualTo(1);
+        }
     }
 }
