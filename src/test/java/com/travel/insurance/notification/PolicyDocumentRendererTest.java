@@ -68,12 +68,12 @@ class PolicyDocumentRendererTest {
 
         assertThat(html).contains("Jane Traveler");
         assertThat(html).contains("P1234567");
-        assertThat(html).contains("Kenya CARES Inbound Cover");
         assertThat(html).contains("Medical Expenses");
         assertThat(html).contains("20,000");
         assertThat(html).contains("Acme Insurance");
         assertThat(html).contains("Mandatory Inbound Travel Health Insurance");
         assertThat(html).doesNotContain("CERTIFICATE OF INSURANCE");
+        assertThat(html).doesNotContain("Kenya CARES Inbound Cover");
         assertThat(html).contains("Female");
         assertThat(html).doesNotContain("underlyingConditions");
     }
