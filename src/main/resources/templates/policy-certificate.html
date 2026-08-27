@@ -172,9 +172,8 @@
             </div>
             <div th:if="${not #strings.isEmpty(data.emergencyAssistanceEmail)}">
                 <span class="lbl">Email:</span>
-                <span th:text="${data.emergencyAssistanceEmail}">assist@underwriter.co.ke</span>
+                <span th:text="${data.emergencyAssistanceEmail}">inbound.travel@minet.co.ke</span>
             </div>
-            <div>Verify this certificate at kenyacares.go.ke/verify using the Certificate Serial Number above.</div>
         </div>
     </div>
 
@@ -189,8 +188,6 @@
                 </div>
             </td>
             <td class="sysgen">
-                Kenya CARES Secretariat — System Generated<br/>
-                <span th:if="${#strings.isEmpty(esignatureUrl)}">No wet signature required</span>
                 <span th:unless="${#strings.isEmpty(esignatureUrl)}">Digitally signed by the underwriter</span>
             </td>
         </tr>
