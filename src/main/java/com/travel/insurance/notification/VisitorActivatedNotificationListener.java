@@ -109,6 +109,7 @@ public class VisitorActivatedNotificationListener {
         PolicyDocumentData data = new PolicyDocumentData(
                 visitor.getFullName(),
                 visitor.getPassportNumber(),
+                visitor.getCertificateSerialNumber(),
                 visitor.getDateOfBirth(),
                 visitor.getGender(),
                 visitor.getNationality(),

@@ -62,7 +62,7 @@ class VisitorControllerTest {
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
                 MaritalStatus.SINGLE, "Tourism", "https://storage.example.com/photos/jane.jpg", null,
                 VisitorStatus.PENDING, "John Traveler", "+254711111111",
-                null, null, null, null, null,
+                null, null, null, null, null, null,
                 Instant.now(), Instant.now());
     }
 

@@ -1037,7 +1037,7 @@ The system enforces **per-insurer policy quotas** to prevent insurers from overs
 |-----------|-----------------|
 | `PolicyConsumptionListener` | Listens to `VisitorCreatedEvent`; decrements `policyToken` for the backing insurer |
 | `PolicyRestorationListener` | Listens to `VisitorDeletedEvent`; restores `policyToken` for the backing insurer |
-| `VisitorServiceImpl.validatePolicyQuota()` | Pre-creation validation; checks the backing insurer has available policies |
+| `VisitorServiceImpl.requireInsurerWithQuota()` | Pre-creation validation; checks the backing insurer has available policies, returns it |
 | `VisitorServiceImpl.delete()` | Publishes `VisitorDeletedEvent` after soft-delete |
 | `InsurerResponse.availablePolicies` | Exposes quota count in API responses for admin monitoring |
 
@@ -1132,6 +1132,21 @@ emails them a personalized policy certificate as a PDF attachment:
   medical-conditions field, and there's no reason to widen PII exposure over
   email with it (see `policy-document-analysis.md` for the full reference
   analysis).
+- Each visitor's certificate carries a `Visitor.certificateSerialNumber`
+  (`<INSURER-PREFIX>-<YEAR>-<6-digit sequence>`, e.g. `ACME-2026-000123`),
+  minted by `CertificateSerialNumberGenerator` (mirrors
+  `procedure.ProcedureCodeGenerator`'s shape: a Postgres sequence,
+  `certificate_serial_seq`, `nextval()`'d via `VisitorRepository`, formatted
+  with the first word of the issuing insurer's name uppercased as prefix and
+  the mint-time calendar year as a label — the sequence itself is global and
+  never resets). `VisitorServiceImpl` mints it once, the first time a visitor
+  transitions to `ACTIVE` (either at `create()` or via `applyStatusUpdate()`),
+  and persists it on `Visitor`; it's left untouched on any later
+  `SUSPENDED → ACTIVE` reactivation, so one visitor keeps the same serial for
+  the life of their cover even though the certificate email itself is
+  re-sent. It's rendered in the certificate's `.meta` strip and referenced by
+  the verification copy ("Verify this certificate at kenyacares.go.ke/verify
+  using the Certificate Serial Number above").
 - The activation email carries two attachments: the personalized
   `policy-certificate-<passportNumber>.pdf` (rendered per visitor) and the static
   policy wording `templates/Policy_Document_July_2026.pdf`, loaded once from the

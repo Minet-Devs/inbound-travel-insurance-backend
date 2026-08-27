@@ -47,6 +47,9 @@ class VisitorQuotaValidationTest {
     @Mock
     private BlindIndexService blindIndexService;
 
+    @Mock
+    private CertificateSerialNumberGenerator certificateSerialNumberGenerator;
+
     private final VisitorMapper visitorMapper = new VisitorMapper();
 
     private VisitorServiceImpl visitorService;
@@ -59,7 +62,8 @@ class VisitorQuotaValidationTest {
     @BeforeEach
     void setUp() {
         visitorService = new VisitorServiceImpl(
-                visitorRepository, visitorMapper, policyService, insurerRepository, eventPublisher, blindIndexService);
+                visitorRepository, visitorMapper, policyService, insurerRepository, eventPublisher,
+                blindIndexService, certificateSerialNumberGenerator);
         lenient().when(blindIndexService.hmac(anyString())).thenAnswer(invocation -> "HASH:" + invocation.getArgument(0));
 
         visitorRequest = new VisitorRequest(
