@@ -22,6 +22,7 @@ public record VisitorResponse(
         String phoneNumber,
         LocalDate dateIn,
         LocalDate dateOut,
+        LocalDate policyExpiryDate,
         MaritalStatus maritalStatus,
         String reasonForTravel,
         String facePhotoUrl,

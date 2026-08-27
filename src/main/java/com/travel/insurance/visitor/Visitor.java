@@ -9,6 +9,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -74,6 +75,11 @@ public class Visitor extends BaseEntity {
 
     @Column(nullable = false)
     private LocalDate dateOut;
+
+    @Transient
+    public LocalDate getPolicyExpiryDate() {
+        return dateIn != null ? dateIn.plusDays(365) : null;
+    }
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

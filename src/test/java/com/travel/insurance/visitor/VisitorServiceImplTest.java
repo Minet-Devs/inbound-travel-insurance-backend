@@ -127,6 +127,7 @@ class VisitorServiceImplTest {
         assertThat(response.policyId()).isEqualTo(policyId);
         assertThat(response.insurerId()).isEqualTo(insurerId);
         assertThat(response.visitorStatus()).isEqualTo(VisitorStatus.ACTIVE);
+        assertThat(response.policyExpiryDate()).isEqualTo(response.dateIn().plusDays(365));
         verify(visitorRepository).save(any(Visitor.class));
         verify(eventPublisher).publishEvent(any(VisitorCreatedEvent.class));
     }

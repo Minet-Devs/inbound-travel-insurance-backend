@@ -47,10 +47,10 @@ public class PolicyDocumentRenderer {
         context.setVariable("coverStart",
                 data.dateIn() != null ? data.dateIn().format(SHORT_DATE) : "");
         context.setVariable("coverEnd",
-                data.dateOut() != null ? data.dateOut().format(SHORT_DATE) : "");
+                data.policyExpiryDate() != null ? data.policyExpiryDate().format(SHORT_DATE) : "");
         context.setVariable("coverDays",
-                data.dateIn() != null && data.dateOut() != null
-                        ? ChronoUnit.DAYS.between(data.dateIn(), data.dateOut()) + 1 : 0);
+                data.dateIn() != null && data.policyExpiryDate() != null
+                        ? ChronoUnit.DAYS.between(data.dateIn(), data.policyExpiryDate()) : 0);
         context.setVariable("benefitLines", data.benefits().stream()
                 .map(line -> new BenefitLineView(line.benefitName(), line.limitAmount()))
                 .toList());

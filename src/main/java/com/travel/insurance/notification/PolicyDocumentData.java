@@ -26,6 +26,7 @@ record PolicyDocumentData(
         String phoneNumber,
         LocalDate dateIn,
         LocalDate dateOut,
+        LocalDate policyExpiryDate,
         String reasonForTravel,
         List<String> insurerNames,
         String underwriterLogoUrl,
