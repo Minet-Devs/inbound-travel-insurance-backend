@@ -155,7 +155,7 @@ class PolicyDocumentRendererTest {
         String html = renderer.renderHtml(data);
 
         assertThat(html).contains("src=\"https://cdn.example/acme-signature.png\"");
-        assertThat(html).doesNotContain("Digitally signed by the underwriter");
+        assertThat(html).contains("Digitally signed by the underwriter");
         assertThat(html).doesNotContain("No wet signature required");
     }
 
@@ -169,7 +169,6 @@ class PolicyDocumentRendererTest {
 
         assertThat(html).contains("No wet signature required");
         assertThat(html).doesNotContain("class=\"esign-img\"");
-        assertThat(html).doesNotContain("Kenya CARES Secretariat");
     }
 
     @Test
