@@ -1,7 +1,6 @@
 package com.travel.insurance.notification;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
@@ -12,7 +11,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.Base64;
 import java.util.Locale;
 
 /**
@@ -28,14 +26,11 @@ public class PolicyDocumentRenderer {
             DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter SHORT_DATE =
             DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
-    private static final String GOVERNMENT_LOGO_RESOURCE = "static/images/gok-logo.png";
 
     private final SpringTemplateEngine templateEngine;
-    private final String governmentLogoDataUri;
 
     public PolicyDocumentRenderer(SpringTemplateEngine templateEngine) {
         this.templateEngine = templateEngine;
-        this.governmentLogoDataUri = loadGovernmentLogoDataUri();
     }
 
     String renderHtml(PolicyDocumentData data) {
@@ -44,7 +39,6 @@ public class PolicyDocumentRenderer {
         context.setVariable("underwriterName", String.join(", ", data.insurerNames()));
         context.setVariable("underwriterLogoUrl", data.underwriterLogoUrl());
         context.setVariable("esignatureUrl", data.esignatureUrl());
-        context.setVariable("governmentLogoDataUri", governmentLogoDataUri);
         context.setVariable("genderLabel",
                 data.gender() != null ? displayName(data.gender().name()) : "");
         context.setVariable("issueDate", LocalDate.now().format(LONG_DATE));
@@ -75,22 +69,6 @@ public class PolicyDocumentRenderer {
             throw new IllegalStateException("Failed to render policy document PDF", ex);
         }
         return out.toByteArray();
-    }
-
-    /**
-     * The Government of Kenya crest is a bundled static asset, not insurer
-     * data, so it's loaded once from the classpath and inlined as a base64
-     * data URI: openhtmltopdf is given a null base URI ({@link #renderPdf}),
-     * so a classpath-relative {@code img src} wouldn't otherwise resolve.
-     */
-    private static String loadGovernmentLogoDataUri() {
-        try {
-            byte[] bytes = new ClassPathResource(GOVERNMENT_LOGO_RESOURCE).getInputStream().readAllBytes();
-            return "data:image/png;base64," + Base64.getEncoder().encodeToString(bytes);
-        } catch (IOException ex) {
-            throw new IllegalStateException(
-                    "Could not load bundled government logo " + GOVERNMENT_LOGO_RESOURCE, ex);
-        }
     }
 
     static String displayName(String enumName) {

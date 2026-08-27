@@ -15,16 +15,9 @@
         .cert { border: 1.5pt solid #0b6b3a; padding: 16pt; }
 
         /* Masthead */
-        .masthead { width: 100%; border-collapse: collapse; }
-        .masthead td { vertical-align: middle; padding: 0; }
-        .ministry { line-height: 1.35; text-align: center; }
-        .gok-logo-cell { width: 130pt; }
-        .gok-logo-img { max-width: 60pt; max-height: 46pt; }
-        .ministry .country { font-size: 12pt; font-weight: bold; letter-spacing: 1pt; color: #0b6b3a; }
-        .ministry .moh { font-size: 10.5pt; font-weight: bold; letter-spacing: 0.5pt; }
-        .ministry .prog { font-size: 9pt; letter-spacing: 3pt; color: #555555; }
+        .masthead { width: 100%; text-align: center; }
         .logo-box {
-            width: 130pt; height: 46pt;
+            width: 130pt; height: 46pt; margin: 0 auto;
             border: 0.75pt dashed #9a9a9a; color: #9a9a9a;
             text-align: center; font-size: 7.5pt; letter-spacing: 1pt;
         }
@@ -90,22 +83,10 @@
 <body>
 <div class="cert">
 
-    <table class="masthead">
-        <tr>
-            <td class="gok-logo-cell">
-                <img th:if="${!#strings.isEmpty(governmentLogoDataUri)}" class="gok-logo-img" th:src="${governmentLogoDataUri}" alt="Government of Kenya logo"/>
-            </td>
-            <td class="ministry">
-                <div class="country">REPUBLIC OF KENYA</div>
-                <div class="moh">MINISTRY OF HEALTH</div>
-                <div class="prog">KENYA CARES</div>
-            </td>
-            <td style="text-align: right;">
-                <img th:if="${!#strings.isEmpty(underwriterLogoUrl)}" class="logo-img" th:src="${underwriterLogoUrl}" alt="Underwriter logo"/>
-                <div th:unless="${!#strings.isEmpty(underwriterLogoUrl)}" class="logo-box"><div>[ UNDERWRITER LOGO ]</div></div>
-            </td>
-        </tr>
-    </table>
+    <div class="masthead">
+        <img th:if="${!#strings.isEmpty(underwriterLogoUrl)}" class="logo-img" th:src="${underwriterLogoUrl}" alt="Underwriter logo"/>
+        <div th:unless="${!#strings.isEmpty(underwriterLogoUrl)}" class="logo-box"><div>[ UNDERWRITER LOGO ]</div></div>
+    </div>
 
     <div class="title-band">
         <div class="t1">CERTIFICATE OF INSURANCE</div>
