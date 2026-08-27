@@ -74,6 +74,7 @@ public class UssdServiceImpl implements UssdService {
             case "PROMPT_TOWN_NAME" -> handlePromptTownName(session, rawInput);
             case "COUNTY_RESULTS" -> handleCountyResults(session, rawInput);
             case "TOWN_RESULTS" -> handleTownResults(session, rawInput);
+            case "PROVIDER_DETAIL" -> handleProviderDetail(session, rawInput);
             case "FEEDBACK_MESSAGE" -> handleFeedbackMessage(session, rawInput);
             default -> {
                 log.warn("Unknown step: {} for session {}", step, session.getSessionId());
@@ -223,7 +224,16 @@ public class UssdServiceImpl implements UssdService {
             return formatCountyResults(session, results, nextPage);
         }
 
-        return new UssdResponse("Enter number to view details, 0 for Menu, or 9 for Next:\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
+        try {
+            int selected = Integer.parseInt(choice);
+            int index = (page * USSD_MAX_RESULTS) + (selected - 1);
+            if (index >= 0 && index < results.size()) {
+                return showProviderDetail(session, results.get(index), "COUNTY_RESULTS");
+            }
+        } catch (NumberFormatException ignored) {
+        }
+
+        return new UssdResponse("Enter 1-5 to view details, 9 for Next, or 0 for Menu:\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
     }
 
     private UssdResponse handleTownResults(UssdSession session, String rawInput) {
@@ -247,7 +257,61 @@ public class UssdServiceImpl implements UssdService {
             return formatTownResults(session, results, nextPage);
         }
 
-        return new UssdResponse("Enter number to view details, 0 for Menu, or 9 for Next:\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
+        try {
+            int selected = Integer.parseInt(choice);
+            int index = (page * USSD_MAX_RESULTS) + (selected - 1);
+            if (index >= 0 && index < results.size()) {
+                return showProviderDetail(session, results.get(index), "TOWN_RESULTS");
+            }
+        } catch (NumberFormatException ignored) {
+        }
+
+        return new UssdResponse("Enter 1-5 to view details, 9 for Next, or 0 for Menu:\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
+    }
+
+    private UssdResponse showProviderDetail(UssdSession session, ProviderPanelEntry entry, String returnStep) {
+        session.setCurrentStep("PROVIDER_DETAIL");
+        session.getCollectedData().put("detailReturnStep", returnStep);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("--- ").append(entry.getProviderName()).append(" ---\n");
+        if (entry.getAddress() != null && !entry.getAddress().isBlank()) {
+            sb.append("Address: ").append(entry.getAddress()).append("\n");
+        }
+        if (entry.getServices() != null && !entry.getServices().isBlank()) {
+            sb.append("Services: ").append(entry.getServices()).append("\n");
+        }
+        if (entry.getArea() != null && !entry.getArea().isBlank()
+                && !entry.getArea().equalsIgnoreCase(entry.getTown())) {
+            sb.append("Area: ").append(entry.getArea()).append("\n");
+        }
+        sb.append("0. Back to results");
+
+        return new UssdResponse(sb.toString(), "CON");
+    }
+
+    private UssdResponse handleProviderDetail(UssdSession session, String rawInput) {
+        String choice = rawInput != null ? rawInput.trim() : "";
+
+        if ("0".equals(choice)) {
+            String returnStep = session.getCollectedData().getOrDefault("detailReturnStep", "COUNTY_RESULTS");
+            String query;
+            int page;
+
+            if ("TOWN_RESULTS".equals(returnStep)) {
+                query = session.getCollectedData().getOrDefault("townQuery", "");
+                page = Integer.parseInt(session.getCollectedData().getOrDefault("townResultPage", "0"));
+                List<ProviderPanelEntry> results = providerPanelService.searchByTown(query);
+                return formatTownResults(session, results, page);
+            } else {
+                query = session.getCollectedData().getOrDefault("countyQuery", "");
+                page = Integer.parseInt(session.getCollectedData().getOrDefault("countyResultPage", "0"));
+                List<ProviderPanelEntry> results = providerPanelService.searchByCounty(query);
+                return formatCountyResults(session, results, page);
+            }
+        }
+
+        return new UssdResponse("0. Back to results", "CON");
     }
 
     private UssdResponse formatCountyResults(UssdSession session, List<ProviderPanelEntry> results, int page) {
