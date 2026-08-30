@@ -24,6 +24,7 @@ summary and the full requirement-vs-codebase gap analysis.
   - [REST Resources](#rest-resources)
   - [Messaging (RabbitMQ)](#messaging-rabbitmq)
   - [Notifications (Policy Document Email)](#notifications-policy-document-email)
+  - [OTP (Point-of-Service Verification)](#otp-point-of-service-verification)
   - [Member Statement Report](#member-statement-report)
   - [API Documentation (Swagger)](#api-documentation-swagger)
   - [Security](#security)
@@ -1003,6 +1004,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Department        | `/api/v1/departments`         | `departments`       |
 | Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
 | Organization      | `/api/v1/organizations`       | `organizations`     |
+| OTP               | `/api/v1/otps`                | `otps`               |
 | Reports           | `/api/v1/reports`             | (reads from existing tables) |
 | Member Statement  | `/api/v1/member-statements`   | — (computed, see [Member Statement Report](#member-statement-report)) |
 
@@ -1171,6 +1173,62 @@ emails them a personalized policy certificate as a PDF attachment:
   every reference insurer hardcodes it too).
 - No "document sent" tracking column exists — a resend on re-activation is
   desired behavior, not a defect.
+
+## OTP (Point-of-Service Verification)
+
+The `otp` package issues six-digit email codes used to confirm a visitor's
+identity at the point of service (e.g. at a hospital reception), via two
+endpoints:
+
+- `POST /api/v1/otps/send` (`SendOtpRequest`: `email`, `serviceProviderId`) —
+  generates a code and emails it. Returns `202 Accepted`.
+- `POST /api/v1/otps/verify` (`VerifyOtpRequest`: `email`, `serviceProviderId`,
+  `otp`) — checks the code. Returns `200 OK` on success.
+
+Design notes:
+- `Otp` extends `BaseEntity` and is **deliberately standalone** — no FK to
+  `Visitor`/`User`. Columns are `otp` (stored **unhashed** — the code is
+  low-entropy and short-lived, so hashing adds little), `expiryTime`, `email`,
+  and `serviceProviderId` (validated against `ServiceProviderService.exists`,
+  but not otherwise related to the entity).
+- Codes expire 10 minutes after generation; verifying a code past that returns
+  a distinct `"Otp expired"` message. A wrong code or no matching record both
+  return a generic `"Invalid otp"` message, so a caller can't distinguish
+  "no OTP was ever sent" from "you guessed wrong" (both `409`, via
+  `IllegalStateException`, same as the rest of the API's conflict cases).
+- **Invalidation reuses the existing soft-delete convention** rather than a
+  new status column: a successfully verified OTP, and any OTP superseded by a
+  resend for the same `(email, serviceProviderId)` pair, is deleted via
+  `OtpRepository.delete(...)`, which — like every other entity in this
+  codebase — triggers `@SQLDelete` (`deleted = true`) instead of a hard
+  delete, so `@SQLRestriction("deleted = false")` makes it invisible to
+  subsequent lookups.
+- Lookups (both invalidating a prior code on resend, and matching a code on
+  verify) are scoped to `(email, serviceProviderId)` together, not `email`
+  alone — a visitor could plausibly have a live code at two different service
+  providers at once, and codes shouldn't cross between them.
+- **Sending follows the `AFTER_COMMIT` event pattern** used by
+  `VisitorActivatedNotificationListener`: `OtpServiceImpl.send()` persists the
+  `Otp` row and publishes `OtpGeneratedEvent`; `OtpNotificationListener`
+  (`@TransactionalEventListener(phase = AFTER_COMMIT)`) sends the email via
+  `EmailService` afterward, so a slow/unreachable mail server can never roll
+  back the OTP row. Failures are caught and logged, never propagated.
+- The sending mailbox is **not** derived from the visitor/policy (the `Otp`
+  entity has no path to an `Insurer`). It's resolved from a fixed organization
+  id (`OtpNotificationListener.OTP_SENDER_ORGANIZATION_ID`), reusing the same
+  "insurer mailbox if fully configured, else the global `MailProperties`
+  fallback" logic as `VisitorActivatedNotificationListener.resolveMailSettings`.
+  This id is hardcoded in source rather than externalized to configuration —
+  a known tradeoff, accepted for now, that ties this behavior to whichever
+  environment's database has a matching organization/insurer row.
+- No rate limiting or max-attempts/lockout policy exists yet (no such
+  infrastructure — no Bucket4j/Resilience4j, no `@Scheduled` jobs — exists
+  anywhere else in this codebase either); this was explicitly deferred rather
+  than added speculatively.
+- Expired rows are not purged by a scheduled job; they're simply excluded from
+  matches by the expiry-time check in `OtpServiceImpl.verify` and superseded
+  by later resends, and accumulate in the table over time (same tradeoff as
+  every other soft-deleted entity in this codebase).
 
 ## Claims Reports
 
