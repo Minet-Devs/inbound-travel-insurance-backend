@@ -1,6 +1,7 @@
 package com.travel.insurance.organization;
 
 import com.travel.insurance.common.util.LogoUrlNormalizer;
+import com.travel.insurance.organization.dto.OrganizationPatchRequest;
 import com.travel.insurance.organization.dto.OrganizationRequest;
 import com.travel.insurance.organization.dto.OrganizationResponse;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,48 @@ public class OrganizationMapper {
         organization.setHost(request.host());
         organization.setPort(request.port());
         organization.setEsignature(request.esignature());
+    }
+
+    public void patchEntity(Organization organization, OrganizationPatchRequest request) {
+        if (request.name() != null) {
+            organization.setName(request.name());
+        }
+        if (request.organizationType() != null) {
+            organization.setOrganizationType(request.organizationType());
+        }
+        if (request.email() != null) {
+            organization.setEmail(request.email());
+        }
+        if (request.phoneNumber() != null) {
+            organization.setPhoneNumber(request.phoneNumber());
+        }
+        if (request.address() != null) {
+            organization.setAddress(request.address());
+        }
+        if (request.city() != null) {
+            organization.setCity(request.city());
+        }
+        if (request.logoUrl() != null) {
+            organization.setLogoUrl(LogoUrlNormalizer.normalize(request.logoUrl()));
+        }
+        if (request.policyToken() != null) {
+            organization.setPolicyToken(request.policyToken());
+        }
+        if (request.notificationEmail() != null) {
+            organization.setNotificationEmail(request.notificationEmail());
+        }
+        if (request.notificationEmailPassword() != null) {
+            organization.setNotificationEmailPassword(request.notificationEmailPassword());
+        }
+        if (request.host() != null) {
+            organization.setHost(request.host());
+        }
+        if (request.port() != null) {
+            organization.setPort(request.port());
+        }
+        if (request.esignature() != null) {
+            organization.setEsignature(request.esignature());
+        }
     }
 
     public OrganizationResponse toResponse(Organization organization) {

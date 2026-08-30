@@ -979,6 +979,13 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
   non-ISO date, an unparsable UUID, an unknown enum constant) → 400. Without
   the last of these, a malformed query param falls through to the catch-all
   `Exception` handler and reports a misleading 500 instead of a 400.
+- `PATCH` endpoints are partial updates: every field on the patch DTO is
+  optional, and only fields present (non-null) in the request are applied —
+  unlike `PUT`, which requires the full resource and replaces every field.
+  (`OrganizationController.patch`/`OrganizationPatchRequest` is the reference
+  implementation; other `PATCH` endpoints in this codebase, e.g. `Visitor`'s
+  `/status` and `/entry-exit`, are narrower single-purpose actions rather than
+  general partial updates.)
 - Database schema changes ship as Flyway migrations
   (`src/main/resources/db/migration/`); Hibernate `ddl-auto` is never used to
   manage the schema. See [Database Migrations (Flyway)](#database-migrations-flyway)
