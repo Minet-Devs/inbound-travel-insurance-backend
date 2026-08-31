@@ -1216,9 +1216,13 @@ emails them a personalized policy certificate as a PDF attachment:
   receipt (perforated top/bottom edges, dashed dividers, a decorative
   barcode) rather than the boxed A4 layout used by the certificate/claim
   receipt templates, to match a reference mockup. The levy fields
-  (`pcfLevy`, `insurancePremiumLevy`, `trainingLevy`, each a fraction) and
-  `stampDuty` (a flat amount) are shown as their own line items, but the
-  bottom `TOTAL PREMIUM (USD)` row simply echoes `totalPremium` unchanged — it is
+  (`pcfLevy`, `insurancePremiumLevy`, `trainingLevy`, each a fraction) are
+  shown as their own line items with both the rate and a computed amount
+  column (`totalPremium * rate`, rounded to 2dp — `PolicyDocumentRenderer`
+  computes `pcfLevyAmount`/`insurancePremiumLevyAmount`/`trainingLevyAmount`
+  and passes them into the template alongside `receipt`); `stampDuty` (a
+  flat amount) is shown as its own line item with no rate. The bottom
+  `TOTAL PREMIUM (USD)` row simply echoes `totalPremium` unchanged — it is
   not a sum of the line items above it.
 - `common/email/EmailService` is a thin, domain-agnostic wrapper over
   `JavaMailSender` (mirrors `common/messaging/EventPublisher`'s catch-and-log

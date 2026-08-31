@@ -248,6 +248,22 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
+    void showsLevyAmountsComputedFromTotalPremium() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PremiumReceiptData data = new PremiumReceiptData(
+                "Jane Traveler", "P1234567", "Acme Insurance",
+                new BigDecimal("100"), new BigDecimal("0.0025"),
+                new BigDecimal("0.01"), new BigDecimal("40"), new BigDecimal("0.002"));
+
+        String html = renderer.renderPremiumReceiptHtml(data);
+
+        // 100 * 0.0025 = 0.25, 100 * 0.01 = 1.00, 100 * 0.002 = 0.20
+        assertThat(html).contains("0.25");
+        assertThat(html).contains("1.00");
+        assertThat(html).contains("0.20");
+    }
+
+    @Test
     void rendersPremiumReceiptPdfStartingWithPdfMagicHeader() {
         PolicyDocumentRenderer renderer = newRenderer();
 
