@@ -160,6 +160,7 @@ class OrganizationServiceImplTest {
         assertThat(response.name()).isEqualTo("Acme Ltd");
         assertThat(response.email()).isEqualTo("contact@acme.com");
         verify(organizationRepository, never()).existsByNameAndIdNot(any(), any());
+        verify(eventPublisher).publishEvent(any(OrganizationUpdatedEvent.class));
     }
 
     @Test
