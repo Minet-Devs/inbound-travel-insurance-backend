@@ -1255,13 +1255,21 @@ Design notes:
   `EmailService` afterward, so a slow/unreachable mail server can never roll
   back the OTP row. Failures are caught and logged, never propagated.
 - The sending mailbox is **not** derived from the visitor/policy (the `Otp`
-  entity has no path to an `Insurer`). It's resolved from a fixed organization
-  id (`OtpNotificationListener.OTP_SENDER_ORGANIZATION_ID`), reusing the same
-  "insurer mailbox if fully configured, else the global `MailProperties`
-  fallback" logic as `VisitorActivatedNotificationListener.resolveMailSettings`.
-  This id is hardcoded in source rather than externalized to configuration —
-  a known tradeoff, accepted for now, that ties this behavior to whichever
-  environment's database has a matching organization/insurer row.
+  entity has no path to an `Insurer`). It's resolved via
+  `OrganizationService.getEntityById` from a fixed organization id
+  (`OtpNotificationListener.OTP_SENDER_ORGANIZATION_ID`) — `Organization`
+  carries `host`/`port`/`notificationEmail`/`notificationEmailPassword`
+  directly, so this reads the mailbox straight off that entity rather than
+  hopping through `Insurer` (unlike
+  `VisitorActivatedNotificationListener.resolveMailSettings`, which is handed
+  an `Insurer` already resolved from the visitor's policy and has no
+  organization id to look up). Falls back to the global `MailProperties`
+  mailbox when the organization's SMTP fields aren't fully configured, or
+  when no organization matches the id (`ResourceNotFoundException` from
+  `getEntityById` is caught, not propagated). The id is hardcoded in source
+  rather than externalized to configuration — a known tradeoff, accepted for
+  now, that ties this behavior to whichever environment's database has a
+  matching organization row.
 - No rate limiting or max-attempts/lockout policy exists yet (no such
   infrastructure — no Bucket4j/Resilience4j, no `@Scheduled` jobs — exists
   anywhere else in this codebase either); this was explicitly deferred rather
