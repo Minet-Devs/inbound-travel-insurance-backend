@@ -1,6 +1,7 @@
 package com.travel.insurance.organization;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.organization.dto.OrganizationPatchRequest;
 import com.travel.insurance.organization.dto.OrganizationRequest;
 import com.travel.insurance.organization.dto.OrganizationResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -140,6 +141,49 @@ class OrganizationServiceImplTest {
                         null, null, null, null, null, null, null, null, null, null)))
                 .isInstanceOf(IllegalStateException.class);
         verify(organizationRepository, never()).save(any());
+    }
+
+    @Test
+    void patchAppliesOnlyProvidedFields() {
+        UUID id = UUID.randomUUID();
+        Organization existing = organizationMapper.toEntity(request);
+        when(organizationRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(organizationRepository.save(any(Organization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        OrganizationPatchRequest patchRequest = new OrganizationPatchRequest(
+                null, null, null, null, null, "Kisumu", null, null, null, null, null, null, null);
+
+        OrganizationResponse response = organizationService.patch(id, patchRequest);
+
+        assertThat(response.city()).isEqualTo("Kisumu");
+        assertThat(response.name()).isEqualTo("Acme Ltd");
+        assertThat(response.email()).isEqualTo("contact@acme.com");
+        verify(organizationRepository, never()).existsByNameAndIdNot(any(), any());
+    }
+
+    @Test
+    void patchRejectsNameAlreadyUsedByAnotherOrganization() {
+        UUID id = UUID.randomUUID();
+        Organization existing = organizationMapper.toEntity(request);
+        when(organizationRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(organizationRepository.existsByNameAndIdNot("Beta Ltd", id)).thenReturn(true);
+        OrganizationPatchRequest patchRequest = new OrganizationPatchRequest(
+                "Beta Ltd", null, null, null, null, null, null, null, null, null, null, null, null);
+
+        assertThatThrownBy(() -> organizationService.patch(id, patchRequest))
+                .isInstanceOf(IllegalStateException.class);
+        verify(organizationRepository, never()).save(any());
+    }
+
+    @Test
+    void patchThrowsWhenMissing() {
+        UUID id = UUID.randomUUID();
+        when(organizationRepository.findById(id)).thenReturn(Optional.empty());
+        OrganizationPatchRequest patchRequest = new OrganizationPatchRequest(
+                null, null, null, null, null, "Kisumu", null, null, null, null, null, null, null);
+
+        assertThatThrownBy(() -> organizationService.patch(id, patchRequest))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test

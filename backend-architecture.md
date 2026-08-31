@@ -25,6 +25,7 @@ summary and the full requirement-vs-codebase gap analysis.
   - [Messaging (RabbitMQ)](#messaging-rabbitmq)
   - [Notifications (Policy Document Email)](#notifications-policy-document-email)
   - [OTP (Point-of-Service Verification)](#otp-point-of-service-verification)
+  - [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)
   - [Member Statement Report](#member-statement-report)
   - [API Documentation (Swagger)](#api-documentation-swagger)
   - [Security](#security)
@@ -377,6 +378,18 @@ com.travel.insurance/
 │   │   └── ProviderPanelService.java       # In-memory search by county/town
 │   └── 📁 utils/
 │       └── UssdSessionManager.java         # Redis session TTL (180s) & input tracker
+│
+├── 📁 premiumreceipt/                      # Feature: Premium Receipt (singleton levy rates)
+│   ├── PremiumReceiptController.java
+│   ├── PremiumReceiptService.java          # Interface
+│   ├── PremiumReceiptServiceImpl.java
+│   ├── PremiumReceiptRepository.java
+│   ├── PremiumReceipt.java                 # totalPremium, pcfLevy, insurancePremiumLevy,
+│   │                                        # stampDuty, trainingLevy — one fixed row, no create/delete
+│   ├── PremiumReceiptMapper.java
+│   └── 📁 dto/
+│       ├── PremiumReceiptPatchRequest.java
+│       └── PremiumReceiptResponse.java
 │
 └── TravelInsuranceApplication.java         # @SpringBootApplication entry point
 ```
@@ -979,6 +992,13 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
   non-ISO date, an unparsable UUID, an unknown enum constant) → 400. Without
   the last of these, a malformed query param falls through to the catch-all
   `Exception` handler and reports a misleading 500 instead of a 400.
+- `PATCH` endpoints are partial updates: every field on the patch DTO is
+  optional, and only fields present (non-null) in the request are applied —
+  unlike `PUT`, which requires the full resource and replaces every field.
+  (`OrganizationController.patch`/`OrganizationPatchRequest` is the reference
+  implementation; other `PATCH` endpoints in this codebase, e.g. `Visitor`'s
+  `/status` and `/entry-exit`, are narrower single-purpose actions rather than
+  general partial updates.)
 - Database schema changes ship as Flyway migrations
   (`src/main/resources/db/migration/`); Hibernate `ddl-auto` is never used to
   manage the schema. See [Database Migrations (Flyway)](#database-migrations-flyway)
@@ -1229,6 +1249,35 @@ Design notes:
   matches by the expiry-time check in `OtpServiceImpl.verify` and superseded
   by later resends, and accumulate in the table over time (same tradeoff as
   every other soft-deleted entity in this codebase).
+
+## Premium Receipt (Singleton Levy Rates)
+
+The `premiumreceipt` package holds the levy rates applied when computing a
+policy's premium: `totalPremium` (base rate, `BigDecimal`), `pcfLevy`,
+`insurancePremiumLevy`, `trainingLevy` (percentages expressed as `0`–`1`
+fractions), and `stampDuty` (a flat `BigDecimal` amount, not a percentage).
+Two endpoints, both under `/api/v1/premium-receipts` (no `{id}` path
+variable):
+
+- `GET /api/v1/premium-receipts` — any authenticated user.
+- `PATCH /api/v1/premium-receipts` — `ADMIN` only (`@PreAuthorize`), partial
+  update: only non-null fields in `PremiumReceiptPatchRequest` are applied,
+  matching the `Organization` PATCH convention.
+
+Design notes:
+- **Exactly one row ever exists, and there is no `POST`/`DELETE` endpoint.**
+  A Flyway migration (`V202608302028__create_premium_receipts.sql`) creates
+  the table together with a unique expression index
+  (`CREATE UNIQUE INDEX one_row_only ON premium_receipts ((true))`), so a
+  second row can never be inserted even by future/manual SQL. A second
+  migration (`V202608302029__seed_premium_receipt.sql`) inserts the single
+  row with a hardcoded UUID
+  (`PremiumReceiptServiceImpl.SINGLETON_ID = 00000000-0000-0000-0000-000000000001`)
+  instead of relying on `BaseEntity`'s `@UuidGenerator`. GET/PATCH always
+  fetch by that fixed constant — no create-or-lookup branching needed.
+- Percentage fields are validated with `@DecimalMin("0")`/`@DecimalMax("1")`;
+  `totalPremium`/`stampDuty` with `@DecimalMin("0")` only, since they're
+  amounts, not fractions.
 
 ## Claims Reports
 

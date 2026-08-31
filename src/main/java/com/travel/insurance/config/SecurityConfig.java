@@ -53,6 +53,7 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/icd11-codes/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.PUT, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**").hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.PATCH, "/api/v1/organizations/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.DELETE, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**").hasRole("ADMIN");
                     auth.anyRequest().authenticated();
                 })

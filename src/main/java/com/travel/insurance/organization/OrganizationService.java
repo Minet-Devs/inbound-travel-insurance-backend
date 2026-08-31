@@ -1,5 +1,6 @@
 package com.travel.insurance.organization;
 
+import com.travel.insurance.organization.dto.OrganizationPatchRequest;
 import com.travel.insurance.organization.dto.OrganizationRequest;
 import com.travel.insurance.organization.dto.OrganizationResponse;
 import org.springframework.data.domain.Page;
@@ -18,6 +19,8 @@ public interface OrganizationService {
     Page<OrganizationResponse> list(OrganizationType organizationType, Pageable pageable);
 
     OrganizationResponse update(UUID id, OrganizationRequest request);
+
+    OrganizationResponse patch(UUID id, OrganizationPatchRequest request);
 
     void delete(UUID id);
 

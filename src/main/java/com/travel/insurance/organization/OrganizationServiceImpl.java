@@ -1,6 +1,7 @@
 package com.travel.insurance.organization;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.organization.dto.OrganizationPatchRequest;
 import com.travel.insurance.organization.dto.OrganizationRequest;
 import com.travel.insurance.organization.dto.OrganizationResponse;
 import lombok.RequiredArgsConstructor;
@@ -56,6 +57,16 @@ public class OrganizationServiceImpl implements OrganizationService {
             throw new IllegalStateException("Organization already exists: " + request.name());
         }
         organizationMapper.updateEntity(organization, request);
+        return organizationMapper.toResponse(organizationRepository.save(organization));
+    }
+
+    @Override
+    public OrganizationResponse patch(UUID id, OrganizationPatchRequest request) {
+        Organization organization = getEntityById(id);
+        if (request.name() != null && organizationRepository.existsByNameAndIdNot(request.name(), id)) {
+            throw new IllegalStateException("Organization already exists: " + request.name());
+        }
+        organizationMapper.patchEntity(organization, request);
         return organizationMapper.toResponse(organizationRepository.save(organization));
     }
 
