@@ -1197,11 +1197,11 @@ emails them a personalized policy certificate as a PDF attachment:
 - The template is styled as a narrow, monospace thermal cash-register
   receipt (perforated top/bottom edges, dashed dividers, a decorative
   barcode) rather than the boxed A4 layout used by the certificate/claim
-  receipt templates, to match a reference mockup. `PolicyDocumentRenderer`
-  computes the displayed `TOTAL (KES)` as
-  `totalPremium + totalPremium * (pcfLevy + insurancePremiumLevy + trainingLevy) + stampDuty`
-  — the three levy fields are fractions applied to `totalPremium`, and
-  `stampDuty` is added as a flat amount on top.
+  receipt templates, to match a reference mockup. The levy fields
+  (`pcfLevy`, `insurancePremiumLevy`, `trainingLevy`, each a fraction) and
+  `stampDuty` (a flat amount) are shown as their own line items, but the
+  bottom `TOTAL (USD)` row simply echoes `totalPremium` unchanged — it is
+  not a sum of the line items above it.
 - `common/email/EmailService` is a thin, domain-agnostic wrapper over
   `JavaMailSender` (mirrors `common/messaging/EventPublisher`'s catch-and-log
   style) — it never logs the email body or PDF bytes, only the outcome. It

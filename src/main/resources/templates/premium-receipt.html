@@ -73,8 +73,8 @@
     <div class="divider"></div>
     <table class="items total-row">
         <tr>
-            <td>TOTAL (KES)</td>
-            <td class="num" th:text="${#numbers.formatDecimal(totalPayable, 1, 2)}"></td>
+            <td>TOTAL (USD)</td>
+            <td class="num" th:text="${#numbers.formatDecimal(receipt.totalPremium, 1, 2)}"></td>
         </tr>
     </table>
     <div class="divider"></div>
