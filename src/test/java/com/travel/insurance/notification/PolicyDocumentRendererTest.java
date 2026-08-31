@@ -243,7 +243,7 @@ class PolicyDocumentRendererTest {
 
         String html = renderer.renderPremiumReceiptHtml(data);
 
-        assertThat(html).contains("TOTAL (USD)");
+        assertThat(html).contains("TOTAL PREMIUM (USD)");
         assertThat(html).contains("44.00");
     }
 
