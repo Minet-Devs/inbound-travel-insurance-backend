@@ -257,10 +257,11 @@ class PolicyDocumentRendererTest {
 
         String html = renderer.renderPremiumReceiptHtml(data);
 
-        // 100 * 0.0025 = 0.25, 100 * 0.01 = 1.00, 100 * 0.002 = 0.20
-        assertThat(html).contains("0.25");
-        assertThat(html).contains("1.00");
-        assertThat(html).contains("0.20");
+        // 100 * 0.0025 = 0.250, 100 * 0.01 = 1.000, 100 * 0.002 = 0.200
+        assertThat(html).contains("0.250");
+        assertThat(html).contains("1.000");
+        assertThat(html).contains("0.200");
+        assertThat(html).contains("0.308");
     }
 
     @Test

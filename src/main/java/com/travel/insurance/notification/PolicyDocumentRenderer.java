@@ -83,7 +83,7 @@ public class PolicyDocumentRenderer {
     }
 
     private static BigDecimal levyAmount(BigDecimal totalPremium, BigDecimal levyRate) {
-        return totalPremium.multiply(levyRate).setScale(2, RoundingMode.HALF_UP);
+        return totalPremium.multiply(levyRate).setScale(3, RoundingMode.HALF_UP);
     }
 
     byte[] renderPremiumReceiptPdf(PremiumReceiptData data) {

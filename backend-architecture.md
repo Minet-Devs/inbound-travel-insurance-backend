@@ -1218,10 +1218,12 @@ emails them a personalized policy certificate as a PDF attachment:
   receipt templates, to match a reference mockup. The levy fields
   (`pcfLevy`, `insurancePremiumLevy`, `trainingLevy`, each a fraction) are
   shown as their own line items with both the rate and a computed amount
-  column (`totalPremium * rate`, rounded to 2dp — `PolicyDocumentRenderer`
+  column (`totalPremium * rate`, rounded to 3dp — `PolicyDocumentRenderer`
   computes `pcfLevyAmount`/`insurancePremiumLevyAmount`/`trainingLevyAmount`
   and passes them into the template alongside `receipt`); `stampDuty` (a
-  flat amount) is shown as its own line item with no rate. The bottom
+  flat amount) is shown as its own line item with no rate, and its amount
+  column is a hardcoded `0.308` in the template rather than derived from
+  any `PremiumReceiptData` field. The bottom
   `TOTAL PREMIUM (USD)` row simply echoes `totalPremium` unchanged — it is
   not a sum of the line items above it.
 - `common/email/EmailService` is a thin, domain-agnostic wrapper over
