@@ -127,6 +127,7 @@ class OrganizationServiceImplTest {
 
         assertThat(response.name()).isEqualTo("Beta Ltd");
         assertThat(response.city()).isEqualTo("Mombasa");
+        verify(eventPublisher).publishEvent(any(OrganizationUpdatedEvent.class));
     }
 
     @Test
