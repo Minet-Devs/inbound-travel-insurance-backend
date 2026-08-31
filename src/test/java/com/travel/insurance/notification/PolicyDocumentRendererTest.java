@@ -208,6 +208,40 @@ class PolicyDocumentRendererTest {
         assertThat(new String(pdf, 0, 4, StandardCharsets.US_ASCII)).isEqualTo("%PDF");
     }
 
+    private PremiumReceiptData samplePremiumReceiptData() {
+        return new PremiumReceiptData(
+                "Jane Traveler",
+                "P1234567",
+                "Acme Insurance",
+                new BigDecimal("44"),
+                new BigDecimal("0.0001"),
+                new BigDecimal("0.0005"),
+                new BigDecimal("40"),
+                new BigDecimal("0.001"));
+    }
+
+    @Test
+    void rendersPremiumReceiptHtmlWithKeyFields() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        String html = renderer.renderPremiumReceiptHtml(samplePremiumReceiptData());
+
+        assertThat(html).contains("Jane Traveler");
+        assertThat(html).contains("P1234567");
+        assertThat(html).contains("Acme Insurance");
+        assertThat(html).contains("PREMIUM RECEIPT");
+    }
+
+    @Test
+    void rendersPremiumReceiptPdfStartingWithPdfMagicHeader() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        byte[] pdf = renderer.renderPremiumReceiptPdf(samplePremiumReceiptData());
+
+        assertThat(pdf.length).isGreaterThan(4);
+        assertThat(new String(pdf, 0, 4, StandardCharsets.US_ASCII)).isEqualTo("%PDF");
+    }
+
     @Test
     void rendersAsSinglePageForARealisticBenefitSchedule() throws IOException {
         PolicyDocumentRenderer renderer = newRenderer();

@@ -1176,11 +1176,24 @@ emails them a personalized policy certificate as a PDF attachment:
   re-sent. It's rendered in the certificate's `.meta` strip and referenced by
   the verification copy ("Verify this certificate at kenyacares.go.ke/verify
   using the Certificate Serial Number above").
-- The activation email carries two attachments: the personalized
-  `policy-certificate-<passportNumber>.pdf` (rendered per visitor) and the static
-  policy wording `templates/Policy_Document_July_2026.pdf`, loaded once from the
-  classpath and cached. If the bundled document can't be read it is logged and
-  skipped so the certificate still goes out.
+- The activation email carries up to three attachments: the personalized
+  `policy-certificate-<passportNumber>.pdf` (rendered per visitor), a
+  `premium-receipt-<passportNumber>.pdf` (rendered per visitor, see below),
+  and the static policy wording `templates/Policy_Document_July_2026.pdf`,
+  loaded once from the classpath and cached. If the bundled document can't be
+  read it is logged and skipped so the certificate still goes out.
+- The premium receipt is rendered the same way as the certificate —
+  `PolicyDocumentRenderer.renderPremiumReceiptPdf` processes
+  `templates/premium-receipt.html` (Thymeleaf) to HTML then to PDF via
+  `openhtmltopdf` — from a `PremiumReceiptData` holder (visitor full name,
+  passport number, insurer name, plus `totalPremium`, `pcfLevy`,
+  `insurancePremiumLevy`, `stampDuty`, `trainingLevy` fetched via
+  `PremiumReceiptService.get()`, the same singleton levy-rate config exposed
+  by `GET /api/v1/premium-receipts` — see
+  [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)).
+  Like the rest of this listener, a failure anywhere in this path (including
+  rendering) is caught by the same top-level try/catch and blocks the whole
+  activation email rather than partially sending it.
 - `common/email/EmailService` is a thin, domain-agnostic wrapper over
   `JavaMailSender` (mirrors `common/messaging/EventPublisher`'s catch-and-log
   style) — it never logs the email body or PDF bytes, only the outcome. It

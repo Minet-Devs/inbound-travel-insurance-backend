@@ -10,6 +10,8 @@ import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.notification.PolicyDocumentData.BenefitLine;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.premiumreceipt.PremiumReceiptService;
+import com.travel.insurance.premiumreceipt.dto.PremiumReceiptResponse;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorCreatedEvent;
 import com.travel.insurance.visitor.VisitorService;
@@ -60,6 +62,7 @@ public class VisitorActivatedNotificationListener {
     private final PolicyService policyService;
     private final VisitorBenefitService visitorBenefitService;
     private final InsurerService insurerService;
+    private final PremiumReceiptService premiumReceiptService;
     private final PolicyDocumentRenderer renderer;
     private final EmailService emailService;
     private final MailProperties mailProperties;
@@ -131,6 +134,21 @@ public class VisitorActivatedNotificationListener {
         List<EmailAttachment> attachments = new ArrayList<>();
         attachments.add(new EmailAttachment(
                 "policy-certificate-" + visitor.getPassportNumber() + ".pdf", pdf));
+
+        PremiumReceiptResponse premiumReceipt = premiumReceiptService.get();
+        PremiumReceiptData premiumReceiptData = new PremiumReceiptData(
+                visitor.getFullName(),
+                visitor.getPassportNumber(),
+                insurer.getName(),
+                premiumReceipt.totalPremium(),
+                premiumReceipt.pcfLevy(),
+                premiumReceipt.insurancePremiumLevy(),
+                premiumReceipt.stampDuty(),
+                premiumReceipt.trainingLevy());
+        byte[] premiumReceiptPdf = renderer.renderPremiumReceiptPdf(premiumReceiptData);
+        attachments.add(new EmailAttachment(
+                "premium-receipt-" + visitor.getPassportNumber() + ".pdf", premiumReceiptPdf));
+
         byte[] policyDocument = loadPolicyDocument();
         if (policyDocument != null) {
             attachments.add(new EmailAttachment(POLICY_DOCUMENT_ATTACHMENT_NAME, policyDocument));

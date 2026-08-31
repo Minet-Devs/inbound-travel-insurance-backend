@@ -71,6 +71,27 @@ public class PolicyDocumentRenderer {
         return out.toByteArray();
     }
 
+    String renderPremiumReceiptHtml(PremiumReceiptData data) {
+        Context context = new Context();
+        context.setVariable("receipt", data);
+        context.setVariable("generatedDate", LocalDate.now().format(SHORT_DATE));
+        return templateEngine.process("premium-receipt", context);
+    }
+
+    byte[] renderPremiumReceiptPdf(PremiumReceiptData data) {
+        String html = renderPremiumReceiptHtml(data);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            PdfRendererBuilder builder = new PdfRendererBuilder();
+            builder.withHtmlContent(html, null);
+            builder.toStream(out);
+            builder.run();
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to render premium receipt PDF", ex);
+        }
+        return out.toByteArray();
+    }
+
     static String displayName(String enumName) {
         String[] words = enumName.split("_");
         StringBuilder result = new StringBuilder();
