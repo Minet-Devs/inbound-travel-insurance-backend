@@ -51,18 +51,22 @@
         <tr>
             <td>PCF Levy</td>
             <td class="num" th:text="${#numbers.formatPercent(receipt.pcfLevy, 1, 2)}"></td>
+            <td class="num" th:text="${#numbers.formatDecimal(pcfLevyAmount, 1, 2)}"></td>
         </tr>
         <tr>
             <td>Insurance Premium Levy</td>
             <td class="num" th:text="${#numbers.formatPercent(receipt.insurancePremiumLevy, 1, 2)}"></td>
+            <td class="num" th:text="${#numbers.formatDecimal(insurancePremiumLevyAmount, 1, 2)}"></td>
         </tr>
         <tr>
             <td>Training Levy</td>
             <td class="num" th:text="${#numbers.formatPercent(receipt.trainingLevy, 1, 2)}"></td>
+            <td class="num" th:text="${#numbers.formatDecimal(trainingLevyAmount, 1, 2)}"></td>
         </tr>
         <tr>
             <td>Stamp Duty</td>
             <td class="num" th:text="${#numbers.formatDecimal(receipt.stampDuty, 1, 2)}"></td>
+            <td class="num"></td>
         </tr>
     </table>
 
