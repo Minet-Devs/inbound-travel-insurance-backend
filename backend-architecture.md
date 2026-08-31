@@ -1194,6 +1194,14 @@ emails them a personalized policy certificate as a PDF attachment:
   Like the rest of this listener, a failure anywhere in this path (including
   rendering) is caught by the same top-level try/catch and blocks the whole
   activation email rather than partially sending it.
+- The template is styled as a narrow, monospace thermal cash-register
+  receipt (perforated top/bottom edges, dashed dividers, a decorative
+  barcode) rather than the boxed A4 layout used by the certificate/claim
+  receipt templates, to match a reference mockup. `PolicyDocumentRenderer`
+  computes the displayed `TOTAL (KES)` as
+  `totalPremium + totalPremium * (pcfLevy + insurancePremiumLevy + trainingLevy) + stampDuty`
+  — the three levy fields are fractions applied to `totalPremium`, and
+  `stampDuty` is added as a flat amount on top.
 - `common/email/EmailService` is a thin, domain-agnostic wrapper over
   `JavaMailSender` (mirrors `common/messaging/EventPublisher`'s catch-and-log
   style) — it never logs the email body or PDF bytes, only the outcome. It

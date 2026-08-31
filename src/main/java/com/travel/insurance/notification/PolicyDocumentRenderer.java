@@ -8,6 +8,7 @@ import org.thymeleaf.spring6.SpringTemplateEngine;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -75,7 +76,19 @@ public class PolicyDocumentRenderer {
         Context context = new Context();
         context.setVariable("receipt", data);
         context.setVariable("generatedDate", LocalDate.now().format(SHORT_DATE));
+        context.setVariable("totalPayable", totalPayable(data));
         return templateEngine.process("premium-receipt", context);
+    }
+
+    /**
+     * {@code pcfLevy}/{@code insurancePremiumLevy}/{@code trainingLevy} are
+     * fractions of {@code totalPremium} (see {@code premiumreceipt.PremiumReceipt}
+     * docs); {@code stampDuty} is a flat amount added on top.
+     */
+    private static BigDecimal totalPayable(PremiumReceiptData data) {
+        BigDecimal levyRate = data.pcfLevy().add(data.insurancePremiumLevy()).add(data.trainingLevy());
+        BigDecimal levyAmount = data.totalPremium().multiply(levyRate);
+        return data.totalPremium().add(levyAmount).add(data.stampDuty()).setScale(2, RoundingMode.HALF_UP);
     }
 
     byte[] renderPremiumReceiptPdf(PremiumReceiptData data) {
