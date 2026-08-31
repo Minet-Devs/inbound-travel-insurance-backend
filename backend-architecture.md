@@ -1218,7 +1218,7 @@ emails them a personalized policy certificate as a PDF attachment:
   receipt templates, to match a reference mockup. The levy fields
   (`pcfLevy`, `insurancePremiumLevy`, `trainingLevy`, each a fraction) and
   `stampDuty` (a flat amount) are shown as their own line items, but the
-  bottom `TOTAL (USD)` row simply echoes `totalPremium` unchanged — it is
+  bottom `TOTAL PREMIUM (USD)` row simply echoes `totalPremium` unchanged — it is
   not a sum of the line items above it.
 - `common/email/EmailService` is a thin, domain-agnostic wrapper over
   `JavaMailSender` (mirrors `common/messaging/EventPublisher`'s catch-and-log
