@@ -312,6 +312,10 @@ com.travel.insurance/
 │   ├── OrganizationCreatedListener.java      # @EventListener — provisions the matching
 │   │                                         # Insurer/ServiceProvider for organizationType
 │   │                                         # INSURER/SERVICE_PROVIDER (ADMIN is a no-op)
+│   ├── OrganizationUpdatedEvent.java         # published on update; consumed below
+│   ├── OrganizationUpdatedListener.java      # @EventListener — mirrors the update into the
+│   │                                         # matching Insurer/ServiceProvider (found via
+│   │                                         # organizationId), if one exists; no-op otherwise
 │   └── 📁 dto/
 │       ├── OrganizationRequest.java
 │       └── OrganizationResponse.java
@@ -923,6 +927,16 @@ entities:
   `Insurer`/`ServiceProvider` name collision) rolls back the organization
   creation too. Creating an `Insurer`/`ServiceProvider` directly (with or
   without an `organizationId`) does **not** create an `Organization`.
+- `PUT /api/v1/organizations/{id}` mirrors edits the same way: after saving,
+  `OrganizationServiceImpl.update` publishes `OrganizationUpdatedEvent`, and
+  `organization.OrganizationUpdatedListener` looks up the matching
+  `Insurer`/`ServiceProvider` via `findIdByOrganizationId` and, if one is
+  found, calls its `update` with the fresh `Organization` fields (same field
+  mapping as the create-time listener). If no matching entity exists yet
+  (e.g. it predates this linkage, or `organizationType` is `ADMIN`), the
+  listener is a no-op — it never creates one. Directly updating an
+  `Insurer`/`ServiceProvider` does **not** update the `Organization` it's
+  linked to; propagation only runs `Organization` → `Insurer`/`ServiceProvider`.
 - Provisioning continues one hop further: `InsurerServiceImpl.create`
   publishes an in-process `InsurerCreatedEvent` (via `ApplicationEventPublisher`,
   synchronously within the same transaction) after saving.
