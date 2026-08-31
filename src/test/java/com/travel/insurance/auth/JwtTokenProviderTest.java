@@ -2,6 +2,7 @@ package com.travel.insurance.auth;
 
 import com.travel.insurance.user.Role;
 import com.travel.insurance.user.User;
+import com.travel.insurance.visitor.Visitor;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -61,5 +62,31 @@ class JwtTokenProviderTest {
         String token = jwtTokenProvider.createAccessToken(user, "Minet Insurance", null, UUID.randomUUID());
 
         assertThat(jwtTokenProvider.parse(token + "tampered")).isEmpty();
+    }
+
+    @Test
+    void visitorAccessTokenCarriesVisitorIdAndRole() {
+        Visitor visitor = new Visitor();
+        visitor.setId(UUID.randomUUID());
+
+        String token = jwtTokenProvider.createVisitorAccessToken(visitor);
+        Claims claims = jwtTokenProvider.parse(token).orElseThrow();
+
+        assertThat(claims.getSubject()).isEqualTo(visitor.getId().toString());
+        assertThat(claims.get(JwtTokenProvider.CLAIM_VISITOR_ID)).isEqualTo(visitor.getId().toString());
+        assertThat(claims.get(JwtTokenProvider.CLAIM_ROLE)).isEqualTo(JwtTokenProvider.ROLE_VISITOR);
+        assertThat(claims.get(JwtTokenProvider.CLAIM_TOKEN_TYPE)).isEqualTo(JwtTokenProvider.TOKEN_TYPE_ACCESS);
+        assertThat(claims.get(JwtTokenProvider.CLAIM_ORGANIZATION_ID)).isNull();
+    }
+
+    @Test
+    void visitorRefreshTokenCarriesRefreshTokenType() {
+        Visitor visitor = new Visitor();
+        visitor.setId(UUID.randomUUID());
+
+        String token = jwtTokenProvider.createVisitorRefreshToken(visitor);
+        Claims claims = jwtTokenProvider.parse(token).orElseThrow();
+
+        assertThat(claims.get(JwtTokenProvider.CLAIM_TOKEN_TYPE)).isEqualTo(JwtTokenProvider.TOKEN_TYPE_REFRESH);
     }
 }

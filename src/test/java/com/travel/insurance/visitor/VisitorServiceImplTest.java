@@ -133,6 +133,18 @@ class VisitorServiceImplTest {
     }
 
     @Test
+    void createSetsEmailHashForEmailLookup() {
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorRepository.existsByPassportNumberHash(hashOf("P1234567"))).thenReturn(false);
+        ArgumentCaptor<Visitor> captor = ArgumentCaptor.forClass(Visitor.class);
+        when(visitorRepository.save(captor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        visitorService.create(request);
+
+        assertThat(captor.getValue().getEmailHash()).isEqualTo(hashOf("jane.traveler@example.com"));
+    }
+
+    @Test
     void createMintsCertificateSerialNumberForActiveVisitor() {
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorRepository.existsByPassportNumberHash(hashOf("P1234567"))).thenReturn(false);
@@ -529,5 +541,25 @@ class VisitorServiceImplTest {
                 id, new VisitorStatusUpdate(VisitorStatus.ACTIVE)))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void findByEmailReturnsVisitorMatchingHash() {
+        Visitor visitor = new Visitor();
+        visitor.setId(UUID.randomUUID());
+        when(visitorRepository.findFirstByEmailHashOrderByCreatedDateDesc(hashOf("jane.traveler@example.com")))
+                .thenReturn(Optional.of(visitor));
+
+        Optional<Visitor> found = visitorService.findByEmail("jane.traveler@example.com");
+
+        assertThat(found).contains(visitor);
+    }
+
+    @Test
+    void findByEmailReturnsEmptyWhenUnknown() {
+        when(visitorRepository.findFirstByEmailHashOrderByCreatedDateDesc(hashOf("unknown@example.com")))
+                .thenReturn(Optional.empty());
+
+        assertThat(visitorService.findByEmail("unknown@example.com")).isEmpty();
     }
 }
