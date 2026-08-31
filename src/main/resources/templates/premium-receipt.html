@@ -50,15 +50,15 @@
     <table class="items">
         <tr>
             <td>PCF Levy</td>
-            <td class="num" th:text="${#numbers.formatPercent(receipt.pcfLevy, 1, 4)}"></td>
+            <td class="num" th:text="${#numbers.formatPercent(receipt.pcfLevy, 1, 2)}"></td>
         </tr>
         <tr>
             <td>Insurance Premium Levy</td>
-            <td class="num" th:text="${#numbers.formatPercent(receipt.insurancePremiumLevy, 1, 4)}"></td>
+            <td class="num" th:text="${#numbers.formatPercent(receipt.insurancePremiumLevy, 1, 2)}"></td>
         </tr>
         <tr>
             <td>Training Levy</td>
-            <td class="num" th:text="${#numbers.formatPercent(receipt.trainingLevy, 1, 4)}"></td>
+            <td class="num" th:text="${#numbers.formatPercent(receipt.trainingLevy, 1, 2)}"></td>
         </tr>
         <tr>
             <td>Stamp Duty</td>
