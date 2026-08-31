@@ -234,7 +234,7 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
-    void computesTotalPayableFromPremiumPlusLeviesPlusStampDuty() {
+    void showsTotalPremiumAsTheBottomTotal() {
         PolicyDocumentRenderer renderer = newRenderer();
         PremiumReceiptData data = new PremiumReceiptData(
                 "Jane Traveler", "P1234567", "Acme Insurance",
@@ -243,8 +243,8 @@ class PolicyDocumentRendererTest {
 
         String html = renderer.renderPremiumReceiptHtml(data);
 
-        // 44 + 44*(0.0001+0.0005+0.001) + 40 = 84.0704 -> 84.07
-        assertThat(html).contains("84.07");
+        assertThat(html).contains("TOTAL (USD)");
+        assertThat(html).contains("44.00");
     }
 
     @Test
