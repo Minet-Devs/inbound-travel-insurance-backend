@@ -54,6 +54,10 @@ public class EmailService {
     private void sendVia(SmtpCredentials credentials, String from, String to, String subject, String htmlBody,
                           List<EmailAttachment> attachments) {
         try {
+            if (credentials != null) {
+                log.info("Sending email via SMTP host [{}:{}] as user [{}]",
+                        credentials.host(), credentials.port(), credentials.username());
+            }
             JavaMailSender sender = credentials != null ? smtpSenderFactory.create(credentials) : mailSender;
             MimeMessage message = sender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");

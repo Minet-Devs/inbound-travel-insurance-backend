@@ -2,9 +2,10 @@ package com.travel.insurance.otp;
 
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.common.email.SmtpCredentials;
+import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.config.MailProperties;
-import com.travel.insurance.insurer.Insurer;
-import com.travel.insurance.insurer.InsurerService;
+import com.travel.insurance.organization.Organization;
+import com.travel.insurance.organization.OrganizationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -17,8 +18,8 @@ import java.util.UUID;
  * Sends the OTP email after the generating transaction commits, mirroring
  * {@code notification.VisitorActivatedNotificationListener}'s AFTER_COMMIT
  * pattern: an SMTP call must never be able to roll back the OTP row being
- * persisted. The insurer mailbox is resolved from a fixed organization id
- * rather than derived from the request, per the current spec.
+ * persisted. The mailbox is resolved from a fixed organization id rather
+ * than derived from the request, per the current spec.
  */
 @Component
 @RequiredArgsConstructor
@@ -28,7 +29,7 @@ public class OtpNotificationListener {
     private static final UUID OTP_SENDER_ORGANIZATION_ID = UUID.fromString("db705c1e-05e8-48c6-b0ea-62237256e7b3");
 
     private final OtpRepository otpRepository;
-    private final InsurerService insurerService;
+    private final OrganizationService organizationService;
     private final EmailService emailService;
     private final MailProperties mailProperties;
 
@@ -57,19 +58,21 @@ public class OtpNotificationListener {
     }
 
     private MailSettings resolveMailSettings() {
-        Insurer insurer = insurerService.findIdByOrganizationId(OTP_SENDER_ORGANIZATION_ID)
-                .map(insurerService::getEntityById)
-                .orElse(null);
-        boolean fullyConfigured = insurer != null
-                && isNotBlank(insurer.getHost())
-                && insurer.getPort() != null
-                && isNotBlank(insurer.getNotificationEmail())
-                && isNotBlank(insurer.getNotificationEmailPassword());
+        Organization organization;
+        try {
+            organization = organizationService.getEntityById(OTP_SENDER_ORGANIZATION_ID);
+        } catch (ResourceNotFoundException ex) {
+            return new MailSettings(mailProperties.getFrom(), null);
+        }
+        boolean fullyConfigured = isNotBlank(organization.getHost())
+                && organization.getPort() != null
+                && isNotBlank(organization.getNotificationEmail())
+                && isNotBlank(organization.getNotificationEmailPassword());
         if (fullyConfigured) {
             return new MailSettings(
-                    insurer.getNotificationEmail(),
-                    new SmtpCredentials(insurer.getHost(), insurer.getPort(),
-                            insurer.getNotificationEmail(), insurer.getNotificationEmailPassword()));
+                    organization.getNotificationEmail(),
+                    new SmtpCredentials(organization.getHost(), organization.getPort(),
+                            organization.getNotificationEmail(), organization.getNotificationEmailPassword()));
         }
         return new MailSettings(mailProperties.getFrom(), null);
     }
