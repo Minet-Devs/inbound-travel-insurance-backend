@@ -69,7 +69,9 @@ public class OrganizationServiceImpl implements OrganizationService {
             throw new IllegalStateException("Organization already exists: " + request.name());
         }
         organizationMapper.patchEntity(organization, request);
-        return organizationMapper.toResponse(organizationRepository.save(organization));
+        OrganizationResponse response = organizationMapper.toResponse(organizationRepository.save(organization));
+        eventPublisher.publishEvent(new OrganizationUpdatedEvent(id));
+        return response;
     }
 
     @Override

@@ -10,11 +10,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Mirrors an Organization update into its matching Insurer/ServiceProvider
- * (found via organizationId), the same way OrganizationCreatedListener
- * provisions them on create. If no matching entity exists yet — e.g. the
- * organization was created before this linkage, or is ADMIN-type — this is
- * a no-op.
+ * Mirrors an Organization update (PUT or PATCH — both publish this same
+ * event after saving) into its matching Insurer/ServiceProvider (found via
+ * organizationId), the same way OrganizationCreatedListener provisions them
+ * on create. If no matching entity exists yet — e.g. the organization was
+ * created before this linkage, or is ADMIN-type — this is a no-op.
  */
 @Component
 @RequiredArgsConstructor
