@@ -230,6 +230,21 @@ class PolicyDocumentRendererTest {
         assertThat(html).contains("P1234567");
         assertThat(html).contains("Acme Insurance");
         assertThat(html).contains("PREMIUM RECEIPT");
+        assertThat(html).contains("THANK YOU");
+    }
+
+    @Test
+    void computesTotalPayableFromPremiumPlusLeviesPlusStampDuty() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PremiumReceiptData data = new PremiumReceiptData(
+                "Jane Traveler", "P1234567", "Acme Insurance",
+                new BigDecimal("44"), new BigDecimal("0.0001"),
+                new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"));
+
+        String html = renderer.renderPremiumReceiptHtml(data);
+
+        // 44 + 44*(0.0001+0.0005+0.001) + 40 = 84.0704 -> 84.07
+        assertThat(html).contains("84.07");
     }
 
     @Test
