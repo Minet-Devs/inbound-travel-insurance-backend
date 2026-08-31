@@ -49,10 +49,6 @@
     <div class="divider"></div>
     <table class="items">
         <tr>
-            <td>Total Premium</td>
-            <td class="num" th:text="${#numbers.formatDecimal(receipt.totalPremium, 1, 2)}"></td>
-        </tr>
-        <tr>
             <td>PCF Levy</td>
             <td class="num" th:text="${#numbers.formatPercent(receipt.pcfLevy, 1, 4)}"></td>
         </tr>
