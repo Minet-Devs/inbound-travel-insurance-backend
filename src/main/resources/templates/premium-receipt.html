@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <style>
+        @page { size: A4; margin: 1.2cm; }
+        * { box-sizing: border-box; }
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #1a1a1a; margin: 0; padding: 0; }
+        .receipt { border: 1.5pt solid #0b6b3a; padding: 14pt; }
+        .header { text-align: center; border-bottom: 1pt solid #0b6b3a; padding-bottom: 8pt; margin-bottom: 10pt; }
+        .header h1 { margin: 0; font-size: 14pt; color: #0b6b3a; }
+        .header h2 { margin: 2pt 0 0 0; font-size: 10pt; color: #555; font-weight: normal; }
+        .section-header { background: #0b6b3a; color: #fff; font-weight: bold; font-size: 9pt; padding: 4pt 6pt; margin-top: 10pt; margin-bottom: 0; }
+        .section-content { border: 0.5pt solid #ccc; border-top: none; padding: 6pt; margin-bottom: 6pt; }
+        .fields { width: 100%; border-collapse: collapse; }
+        .fields td { padding: 2pt 6pt; font-size: 8.5pt; vertical-align: top; }
+        .fields .label { color: #666; width: 32%; }
+        table.amounts-table { width: 100%; border-collapse: collapse; margin-bottom: 4pt; font-size: 8.5pt; }
+        table.amounts-table th { background: #0b6b3a; color: #fff; padding: 3pt 6pt; text-align: left; font-weight: bold; }
+        table.amounts-table td { padding: 3pt 6pt; border-bottom: 0.5pt solid #ddd; }
+        table.amounts-table .num { text-align: right; }
+        .totals-row td { font-weight: bold; border-top: 1pt solid #0b6b3a; padding-top: 4pt; }
+        .footer { text-align: center; font-size: 7pt; color: #999; border-top: 0.5pt solid #ccc; padding-top: 6pt; margin-top: 12pt; }
+    </style>
+</head>
+<body>
+<div class="receipt">
+    <div class="header">
+        <h1>PREMIUM RECEIPT</h1>
+        <h2>Travel Medical Insurance</h2>
+    </div>
+
+    <div class="section-header">VISITOR DETAILS</div>
+    <div class="section-content">
+        <table class="fields">
+            <tr>
+                <td class="label">Full Name</td>
+                <td th:text="${receipt.visitorFullName}"></td>
+                <td class="label">Passport Number</td>
+                <td th:text="${receipt.passportNumber}"></td>
+            </tr>
+            <tr>
+                <td class="label">Insurer</td>
+                <td th:text="${receipt.insurerName}"></td>
+                <td class="label">Date</td>
+                <td th:text="${generatedDate}"></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section-header">PREMIUM &amp; LEVIES (KES)</div>
+    <div class="section-content" style="padding: 0;">
+        <table class="amounts-table">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th class="num">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Total Premium</td>
+                    <td class="num" th:text="${#numbers.formatDecimal(receipt.totalPremium, 1, 2)}"></td>
+                </tr>
+                <tr>
+                    <td>PCF Levy</td>
+                    <td class="num" th:text="${#numbers.formatPercent(receipt.pcfLevy, 1, 4)}"></td>
+                </tr>
+                <tr>
+                    <td>Insurance Premium Levy</td>
+                    <td class="num" th:text="${#numbers.formatPercent(receipt.insurancePremiumLevy, 1, 4)}"></td>
+                </tr>
+                <tr>
+                    <td>Training Levy</td>
+                    <td class="num" th:text="${#numbers.formatPercent(receipt.trainingLevy, 1, 4)}"></td>
+                </tr>
+                <tr class="totals-row">
+                    <td>Stamp Duty</td>
+                    <td class="num" th:text="${#numbers.formatDecimal(receipt.stampDuty, 1, 2)}"></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="footer">
+        <p>System Generated &#x2014; No wet signature required</p>
+    </div>
+</div>
+</body>
+</html>
