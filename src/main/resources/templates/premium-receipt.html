@@ -11,8 +11,9 @@
                 letter-spacing: -1.5pt; color: #d9d9d9; background: #ffffff; overflow: hidden; white-space: nowrap; }
         .tear-top { padding-top: 4pt; }
         .tear-bottom { padding-bottom: 4pt; }
-        .logo-img { display: block; max-width: 120pt; max-height: 36pt; margin: 4pt auto 0 auto; }
-        .logo-box { width: 120pt; height: 36pt; margin: 4pt auto 0 auto; border: 0.75pt dashed #9a9a9a;
+        .masthead { width: 100%; text-align: center; margin-top: 4pt; }
+        .logo-img { max-width: 120pt; max-height: 36pt; }
+        .logo-box { width: 120pt; height: 36pt; margin: 0 auto; border: 0.75pt dashed #9a9a9a;
                     color: #9a9a9a; text-align: center; font-size: 6.5pt; letter-spacing: 1pt; }
         .logo-box div { padding-top: 13pt; }
         h1 { text-align: center; font-size: 13pt; letter-spacing: 1pt; margin: 6pt 0 4pt 0; }
@@ -34,8 +35,10 @@
 <body>
 <div class="tear tear-top">&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;&#9660;</div>
 <div class="receipt">
-    <img th:if="${!#strings.isEmpty(insurerLogoUrl)}" class="logo-img" th:src="${insurerLogoUrl}" alt="Insurer logo"/>
-    <div th:unless="${!#strings.isEmpty(insurerLogoUrl)}" class="logo-box"><div>[ INSURER LOGO ]</div></div>
+    <div class="masthead">
+        <img th:if="${!#strings.isEmpty(insurerLogoUrl)}" class="logo-img" th:src="${insurerLogoUrl}" alt="Insurer logo"/>
+        <div th:unless="${!#strings.isEmpty(insurerLogoUrl)}" class="logo-box"><div>[ INSURER LOGO ]</div></div>
+    </div>
     <h1>PREMIUM RECEIPT</h1>
     <div class="subline" th:text="${receipt.insurerName}"></div>
     <div class="subline" th:text="${generatedDate}"></div>
