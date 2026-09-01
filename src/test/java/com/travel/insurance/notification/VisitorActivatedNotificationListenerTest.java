@@ -173,6 +173,7 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(receiptCaptor.getValue().visitorFullName()).isEqualTo("Jane Traveler");
         assertThat(receiptCaptor.getValue().passportNumber()).isEqualTo("P1234567");
         assertThat(receiptCaptor.getValue().insurerName()).isEqualTo("Acme Insurance");
+        assertThat(receiptCaptor.getValue().insurerLogoUrl()).isEqualTo("https://cdn.example/acme.png");
         assertThat(receiptCaptor.getValue().totalPremium()).isEqualTo(new BigDecimal("44"));
         assertThat(receiptCaptor.getValue().stampDuty()).isEqualTo(new BigDecimal("40"));
 
