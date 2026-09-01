@@ -70,10 +70,14 @@
 
     <table class="meta">
         <tr>
-            <td class="label">Insurer</td>
-            <td class="value" th:text="${receipt.insurerName}"></td>
+            <td class="label">Receipt No.</td>
+            <td class="value" th:text="${receipt.certificateSerialNumber}"></td>
             <td class="label">Date Issued</td>
             <td class="value" th:text="${generatedDate}"></td>
+        </tr>
+        <tr>
+            <td class="label">Insurer</td>
+            <td class="value" th:text="${receipt.insurerName}"></td>
         </tr>
     </table>
 

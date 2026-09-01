@@ -1205,8 +1205,11 @@ emails them a personalized policy certificate as a PDF attachment:
   `PolicyDocumentRenderer.renderPremiumReceiptPdf` processes
   `templates/premium-receipt.html` (Thymeleaf) to HTML then to PDF via
   `openhtmltopdf` — from a `PremiumReceiptData` holder (visitor full name,
-  passport number, visitor address, visitor nationality, insurer name,
-  insurer logo URL, insurer address — `visitorAddress`/`insurerAddress` are
+  passport number, certificate serial number, visitor address, visitor
+  nationality, insurer name, insurer logo URL, insurer address —
+  `certificateSerialNumber` is `Visitor.certificateSerialNumber` (the same
+  value shown on the policy certificate) reused as the receipt's "Receipt No."
+  field; `visitorAddress`/`insurerAddress` are
   the plain `Visitor.address`/`Insurer.address` strings and `visitorNationality`
   is `Visitor.nationality` (country of origin), all unstructured and possibly
   empty, rendered in a "RECEIVED FROM" / "INSURER" two-column address block

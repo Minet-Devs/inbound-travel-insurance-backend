@@ -139,6 +139,7 @@ public class VisitorActivatedNotificationListener {
         PremiumReceiptData premiumReceiptData = new PremiumReceiptData(
                 visitor.getFullName(),
                 visitor.getPassportNumber(),
+                visitor.getCertificateSerialNumber(),
                 visitor.getAddress(),
                 visitor.getNationality(),
                 insurer.getName(),
