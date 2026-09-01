@@ -102,7 +102,7 @@ class PolicyDocumentRendererTest {
 
         String html = renderer.renderHtml(data);
 
-        assertThat(html).contains("Certificate No.");
+        assertThat(html).contains("Policy No.");
         assertThat(html).contains("ACME-2026-000123");
         assertThat(html).doesNotContain("Verify this certificate");
         assertThat(html).doesNotContain("Policy Number above");
