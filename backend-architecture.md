@@ -1213,10 +1213,10 @@ emails them a personalized policy certificate as a PDF attachment:
   Like the rest of this listener, a failure anywhere in this path (including
   rendering) is caught by the same top-level try/catch and blocks the whole
   activation email rather than partially sending it.
-- The template is styled as a narrow, monospace thermal cash-register
-  receipt (perforated top/bottom edges, dashed dividers, a decorative
-  barcode) rather than the boxed A4 layout used by the certificate/claim
-  receipt templates, to match a reference mockup. At the top of the receipt,
+- The template is styled as a boxed A4 voucher (red banner title, grey
+  section headers, bordered field/line-item tables) matching the other
+  certificate/claim receipt templates' layout conventions, rather than the
+  earlier narrow thermal cash-register mockup. At the top of the receipt,
   the same `Insurer.logoUrl` used on the certificate (already normalized by
   `LogoUrlNormalizer`) is rendered as a centered `<img>`, falling back to a
   dashed `[ INSURER LOGO ]` placeholder box when the insurer has no logo —
