@@ -27,9 +27,6 @@
         .section-header { background: #e6e6e6; color: #1a1a1a; font-weight: bold; font-size: 9pt;
                            padding: 4pt 14pt; margin: 10pt 14pt 0 14pt; }
         .section-content { border: 0.5pt solid #cccccc; padding: 6pt 14pt; margin: 0 14pt 0 14pt; }
-        .fields { width: 100%; border-collapse: collapse; }
-        .fields td { padding: 2pt 0; font-size: 8.5pt; vertical-align: top; }
-        .fields .label { color: #666; width: 32%; }
         table.items { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
         table.items td { padding: 3pt 0; vertical-align: top; }
         table.items .num { text-align: right; white-space: nowrap; }
@@ -86,18 +83,6 @@
             <td class="value" th:text="${receipt.visitorFullName}"></td>
         </tr>
     </table>
-
-    <div class="section-header">VISITOR DETAILS</div>
-    <div class="section-content">
-        <table class="fields">
-            <tr>
-                <td class="label">Full Name</td>
-                <td th:text="${receipt.visitorFullName}"></td>
-                <td class="label">Passport No.</td>
-                <td th:text="${receipt.passportNumber}"></td>
-            </tr>
-        </table>
-    </div>
 
     <div class="section-header">PREMIUM BREAKDOWN</div>
     <div class="section-content">
