@@ -68,12 +68,14 @@ class JwtTokenProviderTest {
     void visitorAccessTokenCarriesVisitorIdAndRole() {
         Visitor visitor = new Visitor();
         visitor.setId(UUID.randomUUID());
+        visitor.setPassportNumber("P1234567");
 
         String token = jwtTokenProvider.createVisitorAccessToken(visitor);
         Claims claims = jwtTokenProvider.parse(token).orElseThrow();
 
         assertThat(claims.getSubject()).isEqualTo(visitor.getId().toString());
         assertThat(claims.get(JwtTokenProvider.CLAIM_VISITOR_ID)).isEqualTo(visitor.getId().toString());
+        assertThat(claims.get(JwtTokenProvider.CLAIM_PASSPORT_NUMBER)).isEqualTo("P1234567");
         assertThat(claims.get(JwtTokenProvider.CLAIM_ROLE)).isEqualTo(JwtTokenProvider.ROLE_VISITOR);
         assertThat(claims.get(JwtTokenProvider.CLAIM_TOKEN_TYPE)).isEqualTo(JwtTokenProvider.TOKEN_TYPE_ACCESS);
         assertThat(claims.get(JwtTokenProvider.CLAIM_ORGANIZATION_ID)).isNull();

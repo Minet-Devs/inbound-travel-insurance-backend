@@ -29,6 +29,7 @@ public class JwtTokenProvider {
     public static final String CLAIM_INSURER_ID = "insurerId";
     public static final String CLAIM_TOKEN_TYPE = "tokenType";
     public static final String CLAIM_VISITOR_ID = "visitorId";
+    public static final String CLAIM_PASSPORT_NUMBER = "passportNumber";
     public static final String TOKEN_TYPE_ACCESS = "access";
     public static final String TOKEN_TYPE_REFRESH = "refresh";
     public static final String ROLE_VISITOR = "VISITOR";
@@ -103,6 +104,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .subject(visitor.getId().toString())
                 .claim(CLAIM_VISITOR_ID, visitor.getId().toString())
+                .claim(CLAIM_PASSPORT_NUMBER, visitor.getPassportNumber())
                 .claim(CLAIM_ROLE, ROLE_VISITOR)
                 .claim(CLAIM_TOKEN_TYPE, tokenType)
                 .issuedAt(Date.from(now))
