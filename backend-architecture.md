@@ -1195,12 +1195,19 @@ emails them a personalized policy certificate as a PDF attachment:
   re-sent. It's rendered in the certificate's `.meta` strip and referenced by
   the verification copy ("Verify this certificate at kenyacares.go.ke/verify
   using the Certificate Serial Number above").
-- The activation email carries up to three attachments: the personalized
-  `policy-certificate-<passportNumber>.pdf` (rendered per visitor), a
-  `premium-receipt-<passportNumber>.pdf` (rendered per visitor, see below),
-  and the static policy wording `templates/Policy_Document_July_2026.pdf`,
-  loaded once from the classpath and cached. If the bundled document can't be
-  read it is logged and skipped so the certificate still goes out.
+- The activation email carries up to two attachments: a single
+  `policy-certificate-<passportNumber>.pdf` and the static policy wording
+  `templates/Policy_Document_July_2026.pdf`, loaded once from the classpath
+  and cached. If the bundled document can't be read it is logged and skipped
+  so the certificate still goes out. The first attachment is itself the
+  policy certificate and the premium receipt (see below) merged into one
+  continuous multi-page PDF — `PolicyDocumentRenderer.mergePdfs(byte[]...)`
+  concatenates the two already-rendered PDF byte arrays via PDFBox's
+  `PDFMergerUtility` (PDFBox is already a transitive dependency of
+  `openhtmltopdf-pdfbox`; no new library was added), rather than combining
+  the two Thymeleaf templates into one HTML document — each page keeps its
+  own independent layout/margins, and the certificate/receipt templates
+  didn't need to change.
 - The premium receipt is rendered the same way as the certificate —
   `PolicyDocumentRenderer.renderPremiumReceiptPdf` processes
   `templates/premium-receipt.html` (Thymeleaf) to HTML then to PDF via

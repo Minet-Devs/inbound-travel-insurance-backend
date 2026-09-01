@@ -131,9 +131,6 @@ public class VisitorActivatedNotificationListener {
                 mailProperties.getEmergencyAssistance().getEmail());
 
         byte[] pdf = renderer.renderPdf(data);
-        List<EmailAttachment> attachments = new ArrayList<>();
-        attachments.add(new EmailAttachment(
-                "policy-certificate-" + visitor.getPassportNumber() + ".pdf", pdf));
 
         PremiumReceiptResponse premiumReceipt = premiumReceiptService.get();
         PremiumReceiptData premiumReceiptData = new PremiumReceiptData(
@@ -147,8 +144,11 @@ public class VisitorActivatedNotificationListener {
                 insurer.getAddress(),
                 premiumReceipt.totalPremium());
         byte[] premiumReceiptPdf = renderer.renderPremiumReceiptPdf(premiumReceiptData);
+
+        byte[] combinedPdf = renderer.mergePdfs(pdf, premiumReceiptPdf);
+        List<EmailAttachment> attachments = new ArrayList<>();
         attachments.add(new EmailAttachment(
-                "premium-receipt-" + visitor.getPassportNumber() + ".pdf", premiumReceiptPdf));
+                "policy-certificate-" + visitor.getPassportNumber() + ".pdf", combinedPdf));
 
         byte[] policyDocument = loadPolicyDocument();
         if (policyDocument != null) {
@@ -161,7 +161,8 @@ public class VisitorActivatedNotificationListener {
                 visitor.getEmail(),
                 "Your Travel Insurance Policy Document",
                 "<p>Dear " + visitor.getFullName() + ",</p>"
-                        + "<p>Your travel insurance cover is now active. Your policy certificate is attached.</p>",
+                        + "<p>Your travel insurance cover is now active. Your policy certificate and "
+                        + "premium receipt are attached.</p>",
                 attachments);
         log.info("Sent policy document for visitor {} to {}", visitorId, visitor.getEmail());
     }
