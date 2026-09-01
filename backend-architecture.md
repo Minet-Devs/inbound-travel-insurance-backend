@@ -25,6 +25,7 @@ summary and the full requirement-vs-codebase gap analysis.
   - [Messaging (RabbitMQ)](#messaging-rabbitmq)
   - [Notifications (Policy Document Email)](#notifications-policy-document-email)
   - [OTP (Point-of-Service Verification)](#otp-point-of-service-verification)
+  - [Mobile Visitor Login (Email OTP)](#mobile-visitor-login-email-otp)
   - [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)
   - [Member Statement Report](#member-statement-report)
   - [API Documentation (Swagger)](#api-documentation-swagger)
@@ -1302,6 +1303,86 @@ Design notes:
   matches by the expiry-time check in `OtpServiceImpl.verify` and superseded
   by later resends, and accumulate in the table over time (same tradeoff as
   every other soft-deleted entity in this codebase).
+- **Intentionally separate from Mobile Visitor Login (below)**: both features
+  send a six-digit code to an email address, but they serve different callers
+  (a service-provider-facing point-of-service check vs. a visitor's own mobile
+  app login) with different scoping (`(email, serviceProviderId)` vs. `email`
+  alone) and different consequences on success (no token issued here vs. a
+  JWT issued there). They deliberately use separate `Otp`/`VisitorOtp`
+  entities and tables rather than a shared, purpose-flagged one — see the
+  "Design notes" under Mobile Visitor Login for why.
+
+## Mobile Visitor Login (Email OTP)
+
+The `mobileauth` package lets a visitor log into the mobile app using only
+their registered email — no password exists for visitors, since visitor
+accounts are always system-provisioned from an existing `Visitor` record
+(created by staff via the `visitor` package) and never self-registered, so a
+persistent, visitor-chosen credential would be unnecessary attack surface.
+Two endpoints:
+
+- `POST /api/v1/mobile/auth/otp/request` (`RequestVisitorOtpRequest`: `email`)
+  — generates a code and emails it if `email` matches a `Visitor`. Always
+  returns `202 Accepted`, whether or not a match was found (see "No
+  enumeration" below).
+- `POST /api/v1/mobile/auth/otp/verify` (`VerifyVisitorOtpRequest`: `email`,
+  `otp`) — checks the code and, on success, issues a visitor-specific
+  access/refresh token pair (`VisitorTokenResponse`, shaped like
+  `auth.dto.TokenResponse`). Returns `200 OK` on success, `409 Conflict` on
+  any failure.
+
+Design notes:
+- **Deliberately not built on `/auth/login` or the `user`/`User` table.**
+  `JwtAuthenticationFilter` builds its `AuthenticatedUser` principal purely
+  from JWT claims (`sub`, `organizationId`, `role`) and never loads a `User`
+  row from the database, so nothing in the filter chain requires the
+  authenticated principal to be `User`-backed. The visitor token is minted
+  directly from the `Visitor` entity (`JwtTokenProvider.createVisitorAccessToken`/
+  `createVisitorRefreshToken`, a separate method pair from the existing
+  `createToken(User, ...)` path, so staff token minting for
+  ADMIN/INSURER_USER/PROVIDER_USER is untouched). Claims: `sub` = visitor id,
+  `visitorId` = visitor id, `role` = the literal string `"VISITOR"` (not added
+  to `user.Role`, which stays staff-only) — `JwtAuthenticationFilter` already
+  builds `ROLE_<claim>` generically, so `hasRole("VISITOR")` works on future
+  visitor-only endpoints without further filter changes.
+- **Deliberately not a generalization of the `otp` package** — see the note
+  under OTP (Point-of-Service Verification) above. `Otp` hardcodes
+  `serviceProviderId` as non-nullable with no purpose discriminator;
+  retrofitting it would touch already-shipped provider-facing endpoints for
+  an unrelated use case. `VisitorOtp` is `Otp`'s shape minus
+  `serviceProviderId`, in its own `visitor_otps` table.
+- **Visitor email lookup**: `visitors.email` is AES-encrypted
+  (`EncryptedStringConverter`) and can't be queried by value directly, same as
+  `passportNumber`. A parallel deterministic HMAC blind-index column,
+  `emailHash` (`Visitor.emailHash`, populated via `BlindIndexService.hmac` on
+  create/update, same as `passportNumberHash`), backs
+  `VisitorRepository.findFirstByEmailHashOrderByCreatedDateDesc` /
+  `VisitorService.findByEmail`. Unlike passport number, email is **not**
+  treated as unique per visitor — `emailHash` has no unique constraint,
+  and the repository method returns the most recently created match, since
+  nothing else in the `visitor` package enforces email uniqueness.
+- **No enumeration**: `requestOtp` silently no-ops (still `202`) when the
+  email doesn't match any visitor, and `verifyOtp` returns the same generic
+  `"Invalid or expired code"` message (`409`, via `IllegalStateException`)
+  whether the code was wrong, expired, never issued, or the matching visitor
+  has since been deleted — a caller can't distinguish "this email isn't
+  registered" from "you guessed wrong," since this endpoint (unlike
+  `/otps/verify`) issues an identity-bearing token on success.
+- **Resend cooldown**: a lightweight 60-second minimum interval between OTP
+  sends to the same email (checked against the prior `VisitorOtp`'s
+  `createdDate`, `MobileAuthServiceImpl.RESEND_COOLDOWN`) — the only
+  throttling added, no new dependency, consistent with the `otp` package
+  having none at all.
+- Codes expire 10 minutes after generation and are invalidated via the same
+  soft-delete-on-`delete()` convention as `Otp`. Sending follows the same
+  `AFTER_COMMIT` event pattern (`VisitorOtpGeneratedEvent` /
+  `VisitorOtpNotificationListener`, mirroring `OtpNotificationListener`
+  exactly, including the sender-mailbox resolution logic).
+- `/api/v1/mobile/auth/**` is `permitAll` in `SecurityConfig` (alongside
+  `/api/v1/auth/**`), since a visitor has no credentials yet at the point they
+  call these endpoints. Any future visitor-only endpoints (e.g. "my policy" on
+  mobile) should require `hasRole("VISITOR")` and stay behind
+  `anyRequest().authenticated()`.
 
 ## Premium Receipt (Singleton Levy Rates)
 
@@ -1560,7 +1641,11 @@ Main Menu → 1. Find Hospital
     index" computed by `BlindIndexService` over the trimmed/uppercased
     passport number — is stored alongside the encrypted value and used for
     all lookup/uniqueness checks instead. `VisitorServiceImpl` computes and
-    sets it on every create/update.
+    sets it on every create/update. `Visitor.email` gets the same treatment
+    via `emailHash` (`V202608312003__visitor_email_hash.sql`), added for
+    Mobile Visitor Login's OTP-by-email lookup — unlike passport number,
+    email is not treated as unique, so `emailHash` carries no unique
+    constraint.
   - **Keys:** `APP_ENCRYPTION_KEY` (AES data key) and
     `APP_ENCRYPTION_BLIND_INDEX_KEY` (HMAC key) are separate base64-encoded
     256-bit secrets supplied via env vars (`app.encryption.*` in
@@ -1582,7 +1667,8 @@ Main Menu → 1. Find Hospital
     1. Deploy with `APP_ENCRYPTION_BACKFILL_ENABLED=true` for exactly one
        run. `EncryptionBackfillRunner` (`common/crypto`) reads existing
        plaintext via raw JDBC (bypassing JPA, since the converters assume
-       ciphertext), encrypts it, and computes `passport_number_hash` for
+       ciphertext), encrypts it, and computes `passport_number_hash` (and,
+       since `V202608312003__visitor_email_hash.sql`, `email_hash`) for
        rows still missing it. It's idempotent (columns that already
        decrypt successfully are left alone), so it's safe to re-run if
        interrupted. Set the flag back to `false` afterward.

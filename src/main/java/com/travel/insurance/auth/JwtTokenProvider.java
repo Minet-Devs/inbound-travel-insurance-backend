@@ -1,6 +1,7 @@
 package com.travel.insurance.auth;
 
 import com.travel.insurance.user.User;
+import com.travel.insurance.visitor.Visitor;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -27,8 +28,10 @@ public class JwtTokenProvider {
     public static final String CLAIM_SERVICE_PROVIDER_ID = "serviceProviderId";
     public static final String CLAIM_INSURER_ID = "insurerId";
     public static final String CLAIM_TOKEN_TYPE = "tokenType";
+    public static final String CLAIM_VISITOR_ID = "visitorId";
     public static final String TOKEN_TYPE_ACCESS = "access";
     public static final String TOKEN_TYPE_REFRESH = "refresh";
+    public static final String ROLE_VISITOR = "VISITOR";
 
     private final SecretKey key;
     private final long accessTokenTtlSeconds;
@@ -48,6 +51,14 @@ public class JwtTokenProvider {
 
     public String createRefreshToken(User user, String organizationName, UUID serviceProviderId, UUID insurerId) {
         return createToken(user, organizationName, serviceProviderId, insurerId, TOKEN_TYPE_REFRESH, refreshTokenTtlSeconds);
+    }
+
+    public String createVisitorAccessToken(Visitor visitor) {
+        return createVisitorToken(visitor, TOKEN_TYPE_ACCESS, accessTokenTtlSeconds);
+    }
+
+    public String createVisitorRefreshToken(Visitor visitor) {
+        return createVisitorToken(visitor, TOKEN_TYPE_REFRESH, refreshTokenTtlSeconds);
     }
 
     public long accessTokenTtlSeconds() {
@@ -80,6 +91,19 @@ public class JwtTokenProvider {
                 .claim(CLAIM_ORGANIZATION_NAME, organizationName)
                 .claim(CLAIM_SERVICE_PROVIDER_ID, serviceProviderId != null ? serviceProviderId.toString() : null)
                 .claim(CLAIM_INSURER_ID, insurerId != null ? insurerId.toString() : null)
+                .claim(CLAIM_TOKEN_TYPE, tokenType)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(ttlSeconds)))
+                .signWith(key)
+                .compact();
+    }
+
+    private String createVisitorToken(Visitor visitor, String tokenType, long ttlSeconds) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(visitor.getId().toString())
+                .claim(CLAIM_VISITOR_ID, visitor.getId().toString())
+                .claim(CLAIM_ROLE, ROLE_VISITOR)
                 .claim(CLAIM_TOKEN_TYPE, tokenType)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(ttlSeconds)))

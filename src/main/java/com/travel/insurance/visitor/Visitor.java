@@ -66,6 +66,9 @@ public class Visitor extends BaseEntity {
     @Column(nullable = false, columnDefinition = "text")
     private String email;
 
+    @Column(name = "email_hash", length = 64)
+    private String emailHash;
+
     @Convert(converter = EncryptedStringConverter.class)
     @Column(nullable = false, columnDefinition = "text")
     private String phoneNumber;
