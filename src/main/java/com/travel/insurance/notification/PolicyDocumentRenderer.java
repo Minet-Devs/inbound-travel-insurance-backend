@@ -76,6 +76,7 @@ public class PolicyDocumentRenderer {
         Context context = new Context();
         context.setVariable("receipt", data);
         context.setVariable("generatedDate", LocalDate.now().format(SHORT_DATE));
+        context.setVariable("insurerLogoUrl", data.insurerLogoUrl());
         context.setVariable("pcfLevyAmount", levyAmount(data.totalPremium(), data.pcfLevy()));
         context.setVariable("insurancePremiumLevyAmount", levyAmount(data.totalPremium(), data.insurancePremiumLevy()));
         context.setVariable("trainingLevyAmount", levyAmount(data.totalPremium(), data.trainingLevy()));

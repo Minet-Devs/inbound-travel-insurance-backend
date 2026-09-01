@@ -14,6 +14,7 @@ record PremiumReceiptData(
         String visitorFullName,
         String passportNumber,
         String insurerName,
+        String insurerLogoUrl,
         BigDecimal totalPremium,
         BigDecimal pcfLevy,
         BigDecimal insurancePremiumLevy,

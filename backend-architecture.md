@@ -1204,7 +1204,7 @@ emails them a personalized policy certificate as a PDF attachment:
   `PolicyDocumentRenderer.renderPremiumReceiptPdf` processes
   `templates/premium-receipt.html` (Thymeleaf) to HTML then to PDF via
   `openhtmltopdf` — from a `PremiumReceiptData` holder (visitor full name,
-  passport number, insurer name, plus `totalPremium`, `pcfLevy`,
+  passport number, insurer name, insurer logo URL, plus `totalPremium`, `pcfLevy`,
   `insurancePremiumLevy`, `stampDuty`, `trainingLevy` fetched via
   `PremiumReceiptService.get()`, the same singleton levy-rate config exposed
   by `GET /api/v1/premium-receipts` — see
@@ -1215,7 +1215,11 @@ emails them a personalized policy certificate as a PDF attachment:
 - The template is styled as a narrow, monospace thermal cash-register
   receipt (perforated top/bottom edges, dashed dividers, a decorative
   barcode) rather than the boxed A4 layout used by the certificate/claim
-  receipt templates, to match a reference mockup. The levy fields
+  receipt templates, to match a reference mockup. At the top of the receipt,
+  the same `Insurer.logoUrl` used on the certificate (already normalized by
+  `LogoUrlNormalizer`) is rendered as a centered `<img>`, falling back to a
+  dashed `[ INSURER LOGO ]` placeholder box when the insurer has no logo —
+  mirroring the certificate masthead's img/placeholder pattern. The levy fields
   (`pcfLevy`, `insurancePremiumLevy`, `trainingLevy`, each a fraction) are
   shown as their own line items with both the rate and a computed amount
   column (`totalPremium * rate`, rounded to 3dp — `PolicyDocumentRenderer`

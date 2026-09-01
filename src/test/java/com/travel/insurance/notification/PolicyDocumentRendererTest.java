@@ -213,6 +213,7 @@ class PolicyDocumentRendererTest {
                 "Jane Traveler",
                 "P1234567",
                 "Acme Insurance",
+                "https://example.com/acme-logo.png",
                 new BigDecimal("44"),
                 new BigDecimal("0.0001"),
                 new BigDecimal("0.0005"),
@@ -231,13 +232,27 @@ class PolicyDocumentRendererTest {
         assertThat(html).contains("Acme Insurance");
         assertThat(html).contains("PREMIUM RECEIPT");
         assertThat(html).contains("THANK YOU");
+        assertThat(html).contains("https://example.com/acme-logo.png");
+    }
+
+    @Test
+    void showsLogoPlaceholderWhenInsurerHasNoLogo() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PremiumReceiptData data = new PremiumReceiptData(
+                "Jane Traveler", "P1234567", "Acme Insurance", null,
+                new BigDecimal("44"), new BigDecimal("0.0001"),
+                new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"));
+
+        String html = renderer.renderPremiumReceiptHtml(data);
+
+        assertThat(html).contains("[ INSURER LOGO ]");
     }
 
     @Test
     void showsTotalPremiumAsTheBottomTotal() {
         PolicyDocumentRenderer renderer = newRenderer();
         PremiumReceiptData data = new PremiumReceiptData(
-                "Jane Traveler", "P1234567", "Acme Insurance",
+                "Jane Traveler", "P1234567", "Acme Insurance", "https://example.com/acme-logo.png",
                 new BigDecimal("44"), new BigDecimal("0.0001"),
                 new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"));
 
@@ -251,7 +266,7 @@ class PolicyDocumentRendererTest {
     void showsLevyAmountsComputedFromTotalPremium() {
         PolicyDocumentRenderer renderer = newRenderer();
         PremiumReceiptData data = new PremiumReceiptData(
-                "Jane Traveler", "P1234567", "Acme Insurance",
+                "Jane Traveler", "P1234567", "Acme Insurance", "https://example.com/acme-logo.png",
                 new BigDecimal("100"), new BigDecimal("0.0025"),
                 new BigDecimal("0.01"), new BigDecimal("40"), new BigDecimal("0.002"));
 
