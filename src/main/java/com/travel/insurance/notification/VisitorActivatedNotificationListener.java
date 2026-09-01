@@ -145,11 +145,7 @@ public class VisitorActivatedNotificationListener {
                 insurer.getName(),
                 underwriterLogoUrl,
                 insurer.getAddress(),
-                premiumReceipt.totalPremium(),
-                premiumReceipt.pcfLevy(),
-                premiumReceipt.insurancePremiumLevy(),
-                premiumReceipt.stampDuty(),
-                premiumReceipt.trainingLevy());
+                premiumReceipt.totalPremium());
         byte[] premiumReceiptPdf = renderer.renderPremiumReceiptPdf(premiumReceiptData);
         attachments.add(new EmailAttachment(
                 "premium-receipt-" + visitor.getPassportNumber() + ".pdf", premiumReceiptPdf));
