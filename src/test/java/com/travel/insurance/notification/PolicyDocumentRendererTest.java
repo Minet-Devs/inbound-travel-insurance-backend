@@ -347,4 +347,22 @@ class PolicyDocumentRendererTest {
             assertThat(document.getNumberOfPages()).isEqualTo(1);
         }
     }
+
+    @Test
+    void mergesCertificateAndPremiumReceiptIntoOneContinuousPdf() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] certificatePdf = renderer.renderPdf(sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")))));
+        byte[] premiumReceiptPdf = renderer.renderPremiumReceiptPdf(samplePremiumReceiptData());
+
+        byte[] merged = renderer.mergePdfs(certificatePdf, premiumReceiptPdf);
+
+        assertThat(new String(merged, 0, 4, StandardCharsets.US_ASCII)).isEqualTo("%PDF");
+        try (PDDocument certificate = Loader.loadPDF(certificatePdf);
+             PDDocument premiumReceipt = Loader.loadPDF(premiumReceiptPdf);
+             PDDocument combined = Loader.loadPDF(merged)) {
+            assertThat(combined.getNumberOfPages())
+                    .isEqualTo(certificate.getNumberOfPages() + premiumReceipt.getNumberOfPages());
+        }
+    }
 }

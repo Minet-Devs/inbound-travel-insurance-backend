@@ -157,6 +157,7 @@ class VisitorActivatedNotificationListenerTest {
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
         when(premiumReceiptService.get()).thenReturn(samplePremiumReceipt());
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
+        when(renderer.mergePdfs("%PDF-1.4".getBytes(), "%PDF-RECEIPT".getBytes())).thenReturn("%PDF-MERGED".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
@@ -191,11 +192,9 @@ class VisitorActivatedNotificationListenerTest {
                 attachmentsCaptor.capture());
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
-                .containsExactly("policy-certificate-P1234567.pdf", "premium-receipt-P1234567.pdf",
-                        "Policy_Document_July_2026.pdf");
-        assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-1.4".getBytes());
-        assertThat(attachmentsCaptor.getValue().get(1).content()).isEqualTo("%PDF-RECEIPT".getBytes());
-        assertThat(attachmentsCaptor.getValue().get(2).content()).isNotEmpty();
+                .containsExactly("policy-certificate-P1234567.pdf", "Policy_Document_July_2026.pdf");
+        assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-MERGED".getBytes());
+        assertThat(attachmentsCaptor.getValue().get(1).content()).isNotEmpty();
     }
 
     @Test
