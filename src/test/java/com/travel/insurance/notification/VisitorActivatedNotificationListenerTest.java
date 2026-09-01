@@ -174,6 +174,7 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(receiptCaptor.getValue().visitorFullName()).isEqualTo("Jane Traveler");
         assertThat(receiptCaptor.getValue().passportNumber()).isEqualTo("P1234567");
         assertThat(receiptCaptor.getValue().visitorAddress()).isEqualTo("12 Example Street, Berlin");
+        assertThat(receiptCaptor.getValue().visitorNationality()).isEqualTo("Germany");
         assertThat(receiptCaptor.getValue().insurerName()).isEqualTo("Acme Insurance");
         assertThat(receiptCaptor.getValue().insurerLogoUrl()).isEqualTo("https://cdn.example/acme.png");
         assertThat(receiptCaptor.getValue().insurerAddress()).isEqualTo("PO Box 500, Nairobi");

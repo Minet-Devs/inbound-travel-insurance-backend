@@ -213,6 +213,7 @@ class PolicyDocumentRendererTest {
                 "Jane Traveler",
                 "P1234567",
                 "PO Box 100, Nairobi",
+                "Kenyan",
                 "Acme Insurance",
                 "https://example.com/acme-logo.png",
                 "PO Box 200, Nairobi",
@@ -245,14 +246,15 @@ class PolicyDocumentRendererTest {
 
         assertThat(html).contains("RECEIVED FROM");
         assertThat(html).contains("PO Box 100, Nairobi");
-        assertThat(html).contains("PO Box 200, Nairobi");
+        assertThat(html).contains("Kenyan");
+        assertThat(html).contains("PO Box 200, Nairobi, Kenya");
     }
 
     @Test
     void omitsAddressLineWhenAddressIsMissing() {
         PolicyDocumentRenderer renderer = newRenderer();
         PremiumReceiptData data = new PremiumReceiptData(
-                "Jane Traveler", "P1234567", null, "Acme Insurance",
+                "Jane Traveler", "P1234567", null, null, "Acme Insurance",
                 "https://example.com/acme-logo.png", null,
                 new BigDecimal("44"), new BigDecimal("0.0001"),
                 new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"));
@@ -267,7 +269,7 @@ class PolicyDocumentRendererTest {
     void showsLogoPlaceholderWhenInsurerHasNoLogo() {
         PolicyDocumentRenderer renderer = newRenderer();
         PremiumReceiptData data = new PremiumReceiptData(
-                "Jane Traveler", "P1234567", "PO Box 100, Nairobi", "Acme Insurance", null, "PO Box 200, Nairobi",
+                "Jane Traveler", "P1234567", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance", null, "PO Box 200, Nairobi",
                 new BigDecimal("44"), new BigDecimal("0.0001"),
                 new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"));
 
@@ -280,7 +282,7 @@ class PolicyDocumentRendererTest {
     void showsTotalPremiumAsTheBottomTotal() {
         PolicyDocumentRenderer renderer = newRenderer();
         PremiumReceiptData data = new PremiumReceiptData(
-                "Jane Traveler", "P1234567", "PO Box 100, Nairobi", "Acme Insurance",
+                "Jane Traveler", "P1234567", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance",
                 "https://example.com/acme-logo.png", "PO Box 200, Nairobi",
                 new BigDecimal("44"), new BigDecimal("0.0001"),
                 new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"));
@@ -295,7 +297,7 @@ class PolicyDocumentRendererTest {
     void showsLevyAmountsComputedFromTotalPremium() {
         PolicyDocumentRenderer renderer = newRenderer();
         PremiumReceiptData data = new PremiumReceiptData(
-                "Jane Traveler", "P1234567", "PO Box 100, Nairobi", "Acme Insurance",
+                "Jane Traveler", "P1234567", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance",
                 "https://example.com/acme-logo.png", "PO Box 200, Nairobi",
                 new BigDecimal("100"), new BigDecimal("0.0025"),
                 new BigDecimal("0.01"), new BigDecimal("40"), new BigDecimal("0.002"));

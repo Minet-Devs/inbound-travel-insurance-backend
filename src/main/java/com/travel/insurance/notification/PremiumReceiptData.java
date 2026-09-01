@@ -14,6 +14,7 @@ record PremiumReceiptData(
         String visitorFullName,
         String passportNumber,
         String visitorAddress,
+        String visitorNationality,
         String insurerName,
         String insurerLogoUrl,
         String insurerAddress,
