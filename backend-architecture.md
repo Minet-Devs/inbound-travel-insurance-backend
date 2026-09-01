@@ -1345,8 +1345,9 @@ Design notes:
   `createVisitorRefreshToken`, a separate method pair from the existing
   `createToken(User, ...)` path, so staff token minting for
   ADMIN/INSURER_USER/PROVIDER_USER is untouched). Claims: `sub` = visitor id,
-  `visitorId` = visitor id, `role` = the literal string `"VISITOR"` (not added
-  to `user.Role`, which stays staff-only) — `JwtAuthenticationFilter` already
+  `visitorId` = visitor id, `passportNumber` = `Visitor.passportNumber`
+  (`JwtTokenProvider.CLAIM_PASSPORT_NUMBER`), `role` = the literal string
+  `"VISITOR"` (not added to `user.Role`, which stays staff-only) — `JwtAuthenticationFilter` already
   builds `ROLE_<claim>` generically, so `hasRole("VISITOR")` works on future
   visitor-only endpoints without further filter changes.
 - **Deliberately not a generalization of the `otp` package** — see the note
