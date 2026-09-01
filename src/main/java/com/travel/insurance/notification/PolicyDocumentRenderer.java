@@ -1,6 +1,7 @@
 package com.travel.insurance.notification;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import com.travel.insurance.common.util.AmountInWordsConverter;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
@@ -76,6 +77,7 @@ public class PolicyDocumentRenderer {
         context.setVariable("receipt", data);
         context.setVariable("generatedDate", LocalDate.now().format(SHORT_DATE));
         context.setVariable("insurerLogoUrl", data.insurerLogoUrl());
+        context.setVariable("totalPremiumInWords", AmountInWordsConverter.toWords(data.totalPremium()));
         return templateEngine.process("premium-receipt", context);
     }
 

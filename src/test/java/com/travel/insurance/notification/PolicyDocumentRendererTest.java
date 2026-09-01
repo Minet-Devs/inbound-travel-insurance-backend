@@ -308,6 +308,20 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
+    void showsTotalPremiumInWordsBelowTheTotal() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PremiumReceiptData data = new PremiumReceiptData(
+                "Jane Traveler", "P1234567", "ACME-2026-000123", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance",
+                "https://example.com/acme-logo.png", "PO Box 200, Nairobi",
+                new BigDecimal("68044"));
+
+        String html = renderer.renderPremiumReceiptHtml(data);
+
+        assertThat(html).contains("TOTAL AMOUNT RECEIVED IN WORDS:");
+        assertThat(html).contains("Sixty Eight Thousand and Forty Four Only");
+    }
+
+    @Test
     void rendersPremiumReceiptPdfStartingWithPdfMagicHeader() {
         PolicyDocumentRenderer renderer = newRenderer();
 

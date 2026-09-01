@@ -25,9 +25,12 @@
         .meta .label { color: #666; }
         .meta .value { font-weight: bold; }
         .total-box { background: #e6e6e6; font-weight: bold; font-size: 10pt;
-                      padding: 6pt 14pt; margin: 10pt 14pt 12pt 14pt; }
+                      padding: 6pt 14pt; margin: 10pt 14pt 0 14pt; }
         .total-box table { width: 100%; }
         .total-box .num { text-align: right; }
+        .words-box { border: 0.5pt solid #cccccc; font-size: 8.5pt;
+                     padding: 6pt 14pt; margin: 0 14pt 12pt 14pt; }
+        .words-label { font-weight: bold; margin-right: 4pt; }
         .thankyou { text-align: center; font-size: 9.5pt; font-weight: bold; letter-spacing: 1pt;
                     padding: 0 0 12pt 0; }
     </style>
@@ -84,6 +87,11 @@
                 <td class="num" th:text="${#numbers.formatDecimal(receipt.totalPremium, 1, 2)}"></td>
             </tr>
         </table>
+    </div>
+
+    <div class="words-box">
+        <span class="words-label">TOTAL AMOUNT RECEIVED IN WORDS:</span>
+        <span th:text="${totalPremiumInWords}"></span>
     </div>
 
     <div class="thankyou">THANK YOU</div>

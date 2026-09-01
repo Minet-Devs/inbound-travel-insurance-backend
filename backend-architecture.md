@@ -1227,10 +1227,16 @@ emails them a personalized policy certificate as a PDF attachment:
   fields (`pcfLevy`, `insurancePremiumLevy`, `stampDuty`, `trainingLevy`) are
   fetched from that same config for the admin-facing API but are no longer
   passed into `PremiumReceiptData` or shown on the receipt — there is no
-  breakdown section any more, only the total. Like the rest of this listener,
-  a failure anywhere in this path (including rendering) is caught by the same
-  top-level try/catch and blocks the whole activation email rather than
-  partially sending it.
+  breakdown section any more, only the total. Directly below the total,
+  `common/util/AmountInWordsConverter.toWords` spells `totalPremium` out
+  (e.g. `68044.00` → "Sixty Eight Thousand and Forty Four Only", with a
+  "and NN/100" fraction appended only when cents are non-zero) — computed by
+  `PolicyDocumentRenderer.renderPremiumReceiptHtml` and passed as
+  `totalPremiumInWords`, shown under a "TOTAL AMOUNT RECEIVED IN WORDS:"
+  label matching the wording style on Minet's cheque/receipt vouchers. Like
+  the rest of this listener, a failure anywhere in this path (including
+  rendering) is caught by the same top-level try/catch and blocks the whole
+  activation email rather than partially sending it.
 - The template is styled as a boxed A4 voucher (red banner title, bordered
   meta/address tables) matching the other certificate/claim receipt
   templates' layout conventions, rather than the earlier narrow thermal
