@@ -13,8 +13,10 @@ import java.math.BigDecimal;
 record PremiumReceiptData(
         String visitorFullName,
         String passportNumber,
+        String visitorAddress,
         String insurerName,
         String insurerLogoUrl,
+        String insurerAddress,
         BigDecimal totalPremium,
         BigDecimal pcfLevy,
         BigDecimal insurancePremiumLevy,

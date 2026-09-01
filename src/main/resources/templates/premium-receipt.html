@@ -14,6 +14,12 @@
         .logo-box div { padding-top: 12pt; }
         .banner { background: #c8102e; color: #ffffff; font-size: 15pt; font-weight: bold;
                    letter-spacing: 0.5pt; padding: 8pt 14pt; margin-top: 10pt; }
+        .address-row { margin: 10pt 14pt 0 14pt; }
+        .address-table { width: 100%; border-collapse: separate; border-spacing: 8pt 0; }
+        .address-box { width: 50%; border: 0.5pt solid #cccccc; padding: 6pt 8pt; vertical-align: top; }
+        .address-label { color: #666; font-weight: bold; font-size: 7.5pt; letter-spacing: 0.5pt; margin-bottom: 2pt; }
+        .address-name { font-weight: bold; font-size: 8.5pt; }
+        .address-line { font-size: 8.5pt; margin-top: 2pt; }
         .meta { width: 100%; border-collapse: collapse; padding: 6pt 14pt 0 14pt; }
         .meta td { padding: 6pt 14pt 0 14pt; font-size: 8.5pt; }
         .meta .label { color: #666; }
@@ -43,6 +49,23 @@
         <div th:unless="${!#strings.isEmpty(insurerLogoUrl)}" class="logo-box"><div>[ INSURER LOGO ]</div></div>
     </div>
     <div class="banner">RECEIPT VOUCHER</div>
+
+    <div class="address-row">
+        <table class="address-table">
+            <tr>
+                <td class="address-box">
+                    <div class="address-label">RECEIVED FROM</div>
+                    <div class="address-name" th:text="${receipt.visitorFullName}"></div>
+                    <div class="address-line" th:if="${!#strings.isEmpty(receipt.visitorAddress)}" th:text="${receipt.visitorAddress}"></div>
+                </td>
+                <td class="address-box">
+                    <div class="address-label">INSURER</div>
+                    <div class="address-name" th:text="${receipt.insurerName}"></div>
+                    <div class="address-line" th:if="${!#strings.isEmpty(receipt.insurerAddress)}" th:text="${receipt.insurerAddress}"></div>
+                </td>
+            </tr>
+        </table>
+    </div>
 
     <table class="meta">
         <tr>
