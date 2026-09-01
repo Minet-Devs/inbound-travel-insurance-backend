@@ -184,7 +184,7 @@
                     <img th:if="${!#strings.isEmpty(esignatureUrl)}" class="esign-img" th:src="${esignatureUrl}" alt="Authorized signature"/><br th:if="${!#strings.isEmpty(esignatureUrl)}"/>
                     For and on behalf of
                     <strong th:text="${#strings.isEmpty(underwriterName)} ? 'the Underwriter' : ${underwriterName}">Acme Insurance</strong><br/>
-                    Authorized Signatory
+                    Authorized Signatory - Principal Officer
                 </div>
             </td>
             <td class="sysgen">
