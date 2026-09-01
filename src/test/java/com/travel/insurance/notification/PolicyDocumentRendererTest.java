@@ -230,7 +230,7 @@ class PolicyDocumentRendererTest {
         assertThat(html).contains("Jane Traveler");
         assertThat(html).contains("P1234567");
         assertThat(html).contains("Acme Insurance");
-        assertThat(html).contains("PREMIUM RECEIPT");
+        assertThat(html).contains("RECEIPT VOUCHER");
         assertThat(html).contains("THANK YOU");
         assertThat(html).contains("https://example.com/acme-logo.png");
     }
