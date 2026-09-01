@@ -57,6 +57,7 @@
                     <div class="address-label">RECEIVED FROM</div>
                     <div class="address-name" th:text="${receipt.visitorFullName}"></div>
                     <div class="address-line" th:if="${!#strings.isEmpty(receipt.visitorAddress)}" th:text="${receipt.visitorAddress}"></div>
+                    <div class="address-line" th:if="${!#strings.isEmpty(receipt.visitorNationality)}" th:text="${receipt.visitorNationality}"></div>
                 </td>
                 <td class="address-box">
                     <div class="address-label">INSURER</div>

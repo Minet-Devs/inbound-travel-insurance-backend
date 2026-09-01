@@ -140,6 +140,7 @@ public class VisitorActivatedNotificationListener {
                 visitor.getFullName(),
                 visitor.getPassportNumber(),
                 visitor.getAddress(),
+                visitor.getNationality(),
                 insurer.getName(),
                 underwriterLogoUrl,
                 insurer.getAddress(),
