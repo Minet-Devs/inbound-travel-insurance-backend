@@ -247,7 +247,7 @@ class PolicyDocumentRendererTest {
         assertThat(html).contains("RECEIVED FROM");
         assertThat(html).contains("PO Box 100, Nairobi");
         assertThat(html).contains("Kenyan");
-        assertThat(html).contains("PO Box 200, Nairobi");
+        assertThat(html).contains("PO Box 200, Nairobi, Kenya");
     }
 
     @Test

@@ -62,7 +62,7 @@
                 <td class="address-box">
                     <div class="address-label">INSURER</div>
                     <div class="address-name" th:text="${receipt.insurerName}"></div>
-                    <div class="address-line" th:if="${!#strings.isEmpty(receipt.insurerAddress)}" th:text="${receipt.insurerAddress}"></div>
+                    <div class="address-line" th:if="${!#strings.isEmpty(receipt.insurerAddress)}" th:text="${receipt.insurerAddress} + ', Kenya'"></div>
                 </td>
             </tr>
         </table>
