@@ -218,11 +218,7 @@ class PolicyDocumentRendererTest {
                 "Acme Insurance",
                 "https://example.com/acme-logo.png",
                 "PO Box 200, Nairobi",
-                new BigDecimal("44"),
-                new BigDecimal("0.0001"),
-                new BigDecimal("0.0005"),
-                new BigDecimal("40"),
-                new BigDecimal("0.001"));
+                new BigDecimal("44"));
     }
 
     @Test
@@ -277,8 +273,7 @@ class PolicyDocumentRendererTest {
         PremiumReceiptData data = new PremiumReceiptData(
                 "Jane Traveler", "P1234567", "ACME-2026-000123", null, null, "Acme Insurance",
                 "https://example.com/acme-logo.png", null,
-                new BigDecimal("44"), new BigDecimal("0.0001"),
-                new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"));
+                new BigDecimal("44"));
 
         String html = renderer.renderPremiumReceiptHtml(data);
 
@@ -291,8 +286,7 @@ class PolicyDocumentRendererTest {
         PolicyDocumentRenderer renderer = newRenderer();
         PremiumReceiptData data = new PremiumReceiptData(
                 "Jane Traveler", "P1234567", "ACME-2026-000123", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance", null, "PO Box 200, Nairobi",
-                new BigDecimal("44"), new BigDecimal("0.0001"),
-                new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"));
+                new BigDecimal("44"));
 
         String html = renderer.renderPremiumReceiptHtml(data);
 
@@ -305,31 +299,12 @@ class PolicyDocumentRendererTest {
         PremiumReceiptData data = new PremiumReceiptData(
                 "Jane Traveler", "P1234567", "ACME-2026-000123", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance",
                 "https://example.com/acme-logo.png", "PO Box 200, Nairobi",
-                new BigDecimal("44"), new BigDecimal("0.0001"),
-                new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"));
+                new BigDecimal("44"));
 
         String html = renderer.renderPremiumReceiptHtml(data);
 
         assertThat(html).contains("TOTAL PREMIUM (USD)");
         assertThat(html).contains("44.00");
-    }
-
-    @Test
-    void showsLevyAmountsComputedFromTotalPremium() {
-        PolicyDocumentRenderer renderer = newRenderer();
-        PremiumReceiptData data = new PremiumReceiptData(
-                "Jane Traveler", "P1234567", "ACME-2026-000123", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance",
-                "https://example.com/acme-logo.png", "PO Box 200, Nairobi",
-                new BigDecimal("100"), new BigDecimal("0.0025"),
-                new BigDecimal("0.01"), new BigDecimal("40"), new BigDecimal("0.002"));
-
-        String html = renderer.renderPremiumReceiptHtml(data);
-
-        // 100 * 0.0025 = 0.250, 100 * 0.01 = 1.000, 100 * 0.002 = 0.200
-        assertThat(html).contains("0.250");
-        assertThat(html).contains("1.000");
-        assertThat(html).contains("0.200");
-        assertThat(html).contains("0.308");
     }
 
     @Test

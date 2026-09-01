@@ -24,13 +24,6 @@
         .meta td { padding: 6pt 14pt 0 14pt; font-size: 8.5pt; }
         .meta .label { color: #666; }
         .meta .value { font-weight: bold; }
-        .section-header { background: #e6e6e6; color: #1a1a1a; font-weight: bold; font-size: 9pt;
-                           padding: 4pt 14pt; margin: 10pt 14pt 0 14pt; }
-        .section-content { border: 0.5pt solid #cccccc; padding: 6pt 14pt; margin: 0 14pt 0 14pt; }
-        table.items { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
-        table.items td { padding: 3pt 0; vertical-align: top; }
-        table.items .num { text-align: right; white-space: nowrap; }
-        table.items .amount { padding-left: 8pt; }
         .total-box { background: #e6e6e6; font-weight: bold; font-size: 10pt;
                       padding: 6pt 14pt; margin: 10pt 14pt 12pt 14pt; }
         .total-box table { width: 100%; }
@@ -83,32 +76,6 @@
             <td class="value" th:text="${receipt.visitorFullName}"></td>
         </tr>
     </table>
-
-    <div class="section-header">PREMIUM BREAKDOWN</div>
-    <div class="section-content">
-        <table class="items">
-            <tr>
-                <td>PCF Levy</td>
-                <td class="num" th:text="${#numbers.formatPercent(receipt.pcfLevy, 1, 2)}"></td>
-                <td class="num amount" th:text="${#numbers.formatDecimal(pcfLevyAmount, 1, 3)}"></td>
-            </tr>
-            <tr>
-                <td>Insurance Premium Levy</td>
-                <td class="num" th:text="${#numbers.formatPercent(receipt.insurancePremiumLevy, 1, 2)}"></td>
-                <td class="num amount" th:text="${#numbers.formatDecimal(insurancePremiumLevyAmount, 1, 3)}"></td>
-            </tr>
-            <tr>
-                <td>Training Levy</td>
-                <td class="num" th:text="${#numbers.formatPercent(receipt.trainingLevy, 1, 2)}"></td>
-                <td class="num amount" th:text="${#numbers.formatDecimal(trainingLevyAmount, 1, 3)}"></td>
-            </tr>
-            <tr>
-                <td>Stamp Duty</td>
-                <td class="num" th:text="${#numbers.formatDecimal(receipt.stampDuty, 1, 2)}"></td>
-                <td class="num amount">0.308</td>
-            </tr>
-        </table>
-    </div>
 
     <div class="total-box">
         <table>

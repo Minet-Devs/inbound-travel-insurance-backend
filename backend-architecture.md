@@ -1206,12 +1206,12 @@ emails them a personalized policy certificate as a PDF attachment:
   `templates/premium-receipt.html` (Thymeleaf) to HTML then to PDF via
   `openhtmltopdf` — from a `PremiumReceiptData` holder (visitor full name,
   passport number, certificate serial number, visitor address, visitor
-  nationality, insurer name, insurer logo URL, insurer address —
-  `certificateSerialNumber` is `Visitor.certificateSerialNumber` (the same
-  value shown on the policy certificate) reused as the receipt's "Receipt No."
-  field; `visitorAddress`/`insurerAddress` are
-  the plain `Visitor.address`/`Insurer.address` strings and `visitorNationality`
-  is `Visitor.nationality` (country of origin), all unstructured and possibly
+  nationality, insurer name, insurer logo URL, insurer address, total
+  premium). `certificateSerialNumber` is `Visitor.certificateSerialNumber`
+  (the same value shown on the policy certificate) reused as the receipt's
+  "Receipt No." field; `visitorAddress`/`insurerAddress` are the plain
+  `Visitor.address`/`Insurer.address` strings and `visitorNationality` is
+  `Visitor.nationality` (country of origin), all unstructured and possibly
   empty, rendered in a "RECEIVED FROM" / "INSURER" two-column address block
   immediately below the banner (nationality as an extra line under the
   visitor's address; the insurer's address line has a hardcoded ", Kenya"
@@ -1219,32 +1219,26 @@ emails them a personalized policy certificate as a PDF attachment:
   line only shown when non-empty. The meta strip also reuses `passportNumber`
   as "Account No." and `visitorFullName` as "Account Name" — no separate
   bank-account concept exists, these are the same visitor fields shown
-  elsewhere on the receipt. Plus `totalPremium`, `pcfLevy`,
-  `insurancePremiumLevy`, `stampDuty`, `trainingLevy` fetched via
-  `PremiumReceiptService.get()`, the same singleton levy-rate config exposed
-  by `GET /api/v1/premium-receipts` — see
-  [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)).
-  Like the rest of this listener, a failure anywhere in this path (including
-  rendering) is caught by the same top-level try/catch and blocks the whole
-  activation email rather than partially sending it.
-- The template is styled as a boxed A4 voucher (red banner title, grey
-  section headers, bordered field/line-item tables) matching the other
-  certificate/claim receipt templates' layout conventions, rather than the
-  earlier narrow thermal cash-register mockup. At the top of the receipt,
-  the same `Insurer.logoUrl` used on the certificate (already normalized by
-  `LogoUrlNormalizer`) is rendered as a centered `<img>`, falling back to a
-  dashed `[ INSURER LOGO ]` placeholder box when the insurer has no logo —
-  mirroring the certificate masthead's img/placeholder pattern. The levy fields
-  (`pcfLevy`, `insurancePremiumLevy`, `trainingLevy`, each a fraction) are
-  shown as their own line items with both the rate and a computed amount
-  column (`totalPremium * rate`, rounded to 3dp — `PolicyDocumentRenderer`
-  computes `pcfLevyAmount`/`insurancePremiumLevyAmount`/`trainingLevyAmount`
-  and passes them into the template alongside `receipt`); `stampDuty` (a
-  flat amount) is shown as its own line item with no rate, and its amount
-  column is a hardcoded `0.308` in the template rather than derived from
-  any `PremiumReceiptData` field. The bottom
-  `TOTAL PREMIUM (USD)` row simply echoes `totalPremium` unchanged — it is
-  not a sum of the line items above it.
+  elsewhere on the receipt. `totalPremium` is the only levy-related value
+  still shown — it's `PremiumReceiptService.get().totalPremium()` (the same
+  singleton levy-rate config exposed by `GET /api/v1/premium-receipts`, see
+  [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)),
+  echoed unchanged in the bottom `TOTAL PREMIUM (USD)` row. The levy rate
+  fields (`pcfLevy`, `insurancePremiumLevy`, `stampDuty`, `trainingLevy`) are
+  fetched from that same config for the admin-facing API but are no longer
+  passed into `PremiumReceiptData` or shown on the receipt — there is no
+  breakdown section any more, only the total. Like the rest of this listener,
+  a failure anywhere in this path (including rendering) is caught by the same
+  top-level try/catch and blocks the whole activation email rather than
+  partially sending it.
+- The template is styled as a boxed A4 voucher (red banner title, bordered
+  meta/address tables) matching the other certificate/claim receipt
+  templates' layout conventions, rather than the earlier narrow thermal
+  cash-register mockup. At the top of the receipt, the same `Insurer.logoUrl`
+  used on the certificate (already normalized by `LogoUrlNormalizer`) is
+  rendered as a centered `<img>`, falling back to a dashed
+  `[ INSURER LOGO ]` placeholder box when the insurer has no logo —
+  mirroring the certificate masthead's img/placeholder pattern.
 - `common/email/EmailService` is a thin, domain-agnostic wrapper over
   `JavaMailSender` (mirrors `common/messaging/EventPublisher`'s catch-and-log
   style) — it never logs the email body or PDF bytes, only the outcome. It
