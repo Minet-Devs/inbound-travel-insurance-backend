@@ -1205,7 +1205,11 @@ emails them a personalized policy certificate as a PDF attachment:
   `PolicyDocumentRenderer.renderPremiumReceiptPdf` processes
   `templates/premium-receipt.html` (Thymeleaf) to HTML then to PDF via
   `openhtmltopdf` — from a `PremiumReceiptData` holder (visitor full name,
-  passport number, insurer name, insurer logo URL, plus `totalPremium`, `pcfLevy`,
+  passport number, visitor address, insurer name, insurer logo URL, insurer
+  address — `visitorAddress`/`insurerAddress` are the plain `Visitor.address`/
+  `Insurer.address` strings, unstructured and possibly empty, rendered in a
+  "RECEIVED FROM" / "INSURER" two-column address block immediately below the
+  banner, each address line only shown when non-empty — plus `totalPremium`, `pcfLevy`,
   `insurancePremiumLevy`, `stampDuty`, `trainingLevy` fetched via
   `PremiumReceiptService.get()`, the same singleton levy-rate config exposed
   by `GET /api/v1/premium-receipts` — see
