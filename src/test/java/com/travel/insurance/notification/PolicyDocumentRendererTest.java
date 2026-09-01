@@ -250,6 +250,16 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
+    void showsPassportNumberAsAccountNoAndVisitorNameAsAccountName() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        String html = renderer.renderPremiumReceiptHtml(samplePremiumReceiptData());
+
+        assertThat(html).contains("Account No.");
+        assertThat(html).contains("Account Name");
+    }
+
+    @Test
     void showsVisitorAndInsurerAddresses() {
         PolicyDocumentRenderer renderer = newRenderer();
 

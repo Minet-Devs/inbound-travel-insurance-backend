@@ -1216,7 +1216,10 @@ emails them a personalized policy certificate as a PDF attachment:
   immediately below the banner (nationality as an extra line under the
   visitor's address; the insurer's address line has a hardcoded ", Kenya"
   suffix appended in the template — the insurer is always Kenya-based), each
-  line only shown when non-empty — plus `totalPremium`, `pcfLevy`,
+  line only shown when non-empty. The meta strip also reuses `passportNumber`
+  as "Account No." and `visitorFullName` as "Account Name" — no separate
+  bank-account concept exists, these are the same visitor fields shown
+  elsewhere on the receipt. Plus `totalPremium`, `pcfLevy`,
   `insurancePremiumLevy`, `stampDuty`, `trainingLevy` fetched via
   `PremiumReceiptService.get()`, the same singleton levy-rate config exposed
   by `GET /api/v1/premium-receipts` — see
