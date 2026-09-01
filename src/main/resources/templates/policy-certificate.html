@@ -12,7 +12,7 @@
             color: #1a1a1a;
             margin: 0;
         }
-        .cert { border: 1.5pt solid #0b6b3a; padding: 12pt; }
+        .cert { border: 1.5pt solid rgba(15, 59, 135, 1); padding: 12pt; }
 
         /* Masthead */
         .masthead { width: 100%; text-align: center; }
@@ -39,9 +39,9 @@
         /* Section headers */
         .section { margin-top: 10pt; }
         .section-title {
-            background-color: #eaf4ee; color: #0b6b3a;
+            background-color: #e8edf7; color: rgba(15, 59, 135, 1);
             font-size: 9pt; font-weight: bold; letter-spacing: 1.5pt;
-            padding: 4pt 8pt; border-left: 3pt solid #0b6b3a;
+            padding: 4pt 8pt; border-left: 3pt solid rgba(15, 59, 135, 1);
         }
 
         /* Field grid */
@@ -53,7 +53,7 @@
         /* Benefits table */
         .benefits { width: 100%; border-collapse: collapse; margin-top: 6pt; }
         .benefits th {
-            background-color: #0b6b3a; color: #ffffff;
+            background-color: rgba(15, 59, 135, 1); color: #ffffff;
             text-align: left; font-size: 8.5pt; letter-spacing: 0.5pt;
             padding: 5pt 8pt;
         }
@@ -98,7 +98,7 @@
                 <div class="v" th:text="${issueDate}">08 August 2026</div>
             </td>
             <td>
-                <div class="k">Certificate No.</div>
+                <div class="k">Policy No.</div>
                 <div class="v" th:text="${data.certificateSerialNumber}">ACME-2026-000123</div>
             </td>
         </tr>
@@ -153,7 +153,7 @@
     </div>
 
     <div class="section">
-        <div class="section-title">WHAT THIS CERTIFICATE COVERS</div>
+        <div class="section-title">WHAT THIS POLICY COVERS</div>
         <ul class="covers">
             <li>Personal accident leading to death or permanent total disability</li>
             <li>Emergency medical expenses, including hospitalization and out-patient care</li>
