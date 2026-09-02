@@ -2,9 +2,15 @@ package com.travel.insurance.notification;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
 import com.travel.insurance.common.util.AmountInWordsConverter;
+import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.io.IOUtils;
 import org.apache.pdfbox.io.RandomAccessReadBuffer;
 import org.apache.pdfbox.multipdf.PDFMergerUtility;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
@@ -12,6 +18,8 @@ import org.thymeleaf.spring6.SpringTemplateEngine;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.URLConnection;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -30,6 +38,13 @@ public class PolicyDocumentRenderer {
             DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter SHORT_DATE =
             DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
+
+    private static final float PAGE_MARGIN = 36f;
+    private static final float LOGO_MAX_WIDTH = 120f;
+    private static final float LOGO_MAX_HEIGHT = 50f;
+    private static final float SIGNATURE_MAX_WIDTH = 150f;
+    private static final float SIGNATURE_MAX_HEIGHT = 60f;
+    private static final int IMAGE_FETCH_TIMEOUT_MILLIS = 5000;
 
     private final SpringTemplateEngine templateEngine;
 
@@ -117,6 +132,65 @@ public class PolicyDocumentRenderer {
             throw new IllegalStateException("Failed to merge PDF documents", ex);
         }
         return out.toByteArray();
+    }
+
+    /**
+     * Overlays the insurer's logo onto the top-right of the first page and its
+     * e-signature onto the bottom-right of the last page of the bundled policy
+     * wording PDF. Either URL may be null, in which case that overlay is
+     * skipped. Returns the document unmodified if both are null.
+     */
+    byte[] brandPolicyWording(byte[] policyWordingPdf, String logoUrl, String esignatureUrl) {
+        if (logoUrl == null && esignatureUrl == null) {
+            return policyWordingPdf;
+        }
+        try (PDDocument document = Loader.loadPDF(policyWordingPdf)) {
+            if (logoUrl != null) {
+                overlayImage(document, document.getPage(0), fetchImageBytes(logoUrl),
+                        LOGO_MAX_WIDTH, LOGO_MAX_HEIGHT, true);
+            }
+            if (esignatureUrl != null) {
+                PDPage lastPage = document.getPage(document.getNumberOfPages() - 1);
+                overlayImage(document, lastPage, fetchImageBytes(esignatureUrl),
+                        SIGNATURE_MAX_WIDTH, SIGNATURE_MAX_HEIGHT, false);
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            document.save(out);
+            return out.toByteArray();
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to brand policy wording PDF", ex);
+        }
+    }
+
+    /**
+     * Draws an image into a page's top-right (logo) or bottom-right
+     * (signature) corner, scaled down to fit within maxWidth/maxHeight while
+     * preserving aspect ratio.
+     */
+    private void overlayImage(PDDocument document, PDPage page, byte[] imageBytes,
+                               float maxWidth, float maxHeight, boolean topRight) throws IOException {
+        PDImageXObject image = PDImageXObject.createFromByteArray(document, imageBytes, "overlay");
+        float scale = Math.min(maxWidth / image.getWidth(), maxHeight / image.getHeight());
+        float width = image.getWidth() * scale;
+        float height = image.getHeight() * scale;
+        PDRectangle mediaBox = page.getMediaBox();
+        float x = mediaBox.getUpperRightX() - PAGE_MARGIN - width;
+        float y = topRight
+                ? mediaBox.getUpperRightY() - PAGE_MARGIN - height
+                : mediaBox.getLowerLeftY() + PAGE_MARGIN;
+        try (PDPageContentStream contentStream = new PDPageContentStream(
+                document, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
+            contentStream.drawImage(image, x, y, width, height);
+        }
+    }
+
+    private byte[] fetchImageBytes(String url) throws IOException {
+        URLConnection connection = URI.create(url).toURL().openConnection();
+        connection.setConnectTimeout(IMAGE_FETCH_TIMEOUT_MILLIS);
+        connection.setReadTimeout(IMAGE_FETCH_TIMEOUT_MILLIS);
+        try (var in = connection.getInputStream()) {
+            return in.readAllBytes();
+        }
     }
 
     static String displayName(String enumName) {

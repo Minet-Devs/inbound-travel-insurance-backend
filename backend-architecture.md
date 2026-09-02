@@ -1240,11 +1240,23 @@ emails them a personalized policy certificate as a PDF attachment:
   the verification copy ("Verify this certificate at kenyacares.go.ke/verify
   using the Certificate Serial Number above").
 - The activation email carries up to two attachments: a single
-  `policy-certificate-<passportNumber>.pdf` and the static policy wording
-  `templates/Policy_Document_July_2026.pdf`, loaded once from the classpath
-  and cached. If the bundled document can't be read it is logged and skipped
-  so the certificate still goes out. The first attachment is itself the
-  policy certificate and the premium receipt (see below) merged into one
+  `policy-certificate-<passportNumber>.pdf` and the policy wording
+  `templates/Policy_Document_July_2026.pdf`. The base wording PDF is loaded
+  once from the classpath and cached (`rawPolicyDocumentCache`); if the
+  bundled document can't be read it is logged and skipped so the certificate
+  still goes out. When the backing insurer has a logo and/or e-signature URL,
+  `PolicyDocumentRenderer.brandPolicyWording` overlays the logo onto the
+  top-right of page 1 and the e-signature onto the bottom-right of the last
+  page via PDFBox (`PDPageContentStream` + `PDImageXObject`, scaled to fit
+  120×50pt / 150×60pt boxes with a 36pt margin, aspect ratio preserved); the
+  branded result is cached per insurer (`brandedPolicyDocumentCache`, keyed by
+  `Insurer.id`), since the wording document is no longer identical for every
+  insurer. Both overlay URLs are optional and independent — an insurer with
+  only a logo gets just the page-1 overlay, and vice versa — and a branding
+  failure (unreachable logo/e-signature URL) falls back to the unbranded
+  wording PDF rather than dropping the attachment. The first attachment is
+  itself the policy certificate and the premium receipt (see below) merged
+  into one
   continuous multi-page PDF — `PolicyDocumentRenderer.mergePdfs(byte[]...)`
   concatenates the two already-rendered PDF byte arrays via PDFBox's
   `PDFMergerUtility` (PDFBox is already a transitive dependency of

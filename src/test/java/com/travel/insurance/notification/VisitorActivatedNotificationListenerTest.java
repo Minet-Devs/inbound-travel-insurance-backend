@@ -158,6 +158,8 @@ class VisitorActivatedNotificationListenerTest {
         when(premiumReceiptService.get()).thenReturn(samplePremiumReceipt());
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
         when(renderer.mergePdfs("%PDF-1.4".getBytes(), "%PDF-RECEIPT".getBytes())).thenReturn("%PDF-MERGED".getBytes());
+        when(renderer.brandPolicyWording(any(byte[].class), eq("https://cdn.example/acme.png"), isNull()))
+                .thenReturn("%PDF-BRANDED".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
@@ -194,7 +196,7 @@ class VisitorActivatedNotificationListenerTest {
                 .extracting(EmailAttachment::filename)
                 .containsExactly("policy-certificate-P1234567.pdf", "Policy_Document_July_2026.pdf");
         assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-MERGED".getBytes());
-        assertThat(attachmentsCaptor.getValue().get(1).content()).isNotEmpty();
+        assertThat(attachmentsCaptor.getValue().get(1).content()).isEqualTo("%PDF-BRANDED".getBytes());
     }
 
     @Test
@@ -305,6 +307,49 @@ class VisitorActivatedNotificationListenerTest {
                 anyString(), anyString(), anyList());
         assertThat(credentialsCaptor.getValue())
                 .isEqualTo(new SmtpCredentials("smtp.acme.example", 587, "notify@acme.example", "s3cr3t"));
+    }
+
+    @Test
+    void attachesUnbrandedPolicyDocumentWhenInsurerHasNoLogoOrEsignature() {
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
+        when(premiumReceiptService.get()).thenReturn(samplePremiumReceipt());
+        when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
+
+        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
+
+        ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(emailService).send(any(), anyString(), anyString(), anyString(), anyString(), attachmentsCaptor.capture());
+        assertThat(attachmentsCaptor.getValue())
+                .extracting(EmailAttachment::filename)
+                .contains("Policy_Document_July_2026.pdf");
+        verify(renderer, never()).brandPolicyWording(any(), any(), any());
+    }
+
+    @Test
+    void fallsBackToUnbrandedPolicyDocumentWhenBrandingFails() {
+        Insurer insurer = sampleInsurer();
+        insurer.setLogoUrl("https://cdn.example/acme.png");
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
+        when(premiumReceiptService.get()).thenReturn(samplePremiumReceipt());
+        when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
+        when(renderer.brandPolicyWording(any(byte[].class), anyString(), isNull()))
+                .thenThrow(new IllegalStateException("logo fetch failed"));
+
+        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
+
+        ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(emailService).send(any(), anyString(), anyString(), anyString(), anyString(), attachmentsCaptor.capture());
+        assertThat(attachmentsCaptor.getValue())
+                .extracting(EmailAttachment::filename)
+                .contains("Policy_Document_July_2026.pdf");
     }
 
     @Test
