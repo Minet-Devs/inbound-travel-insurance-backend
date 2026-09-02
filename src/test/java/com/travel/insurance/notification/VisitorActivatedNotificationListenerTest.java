@@ -130,6 +130,7 @@ class VisitorActivatedNotificationListenerTest {
         insurer.setId(insurerId);
         insurer.setName("Acme Insurance");
         insurer.setContactEmail("contact@acme.example");
+        insurer.setAddress("PO Box 500, Nairobi");
         return insurer;
     }
 
@@ -156,6 +157,7 @@ class VisitorActivatedNotificationListenerTest {
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
         when(premiumReceiptService.get()).thenReturn(samplePremiumReceipt());
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
+        when(renderer.mergePdfs("%PDF-1.4".getBytes(), "%PDF-RECEIPT".getBytes())).thenReturn("%PDF-MERGED".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
@@ -172,10 +174,13 @@ class VisitorActivatedNotificationListenerTest {
         verify(renderer).renderPremiumReceiptPdf(receiptCaptor.capture());
         assertThat(receiptCaptor.getValue().visitorFullName()).isEqualTo("Jane Traveler");
         assertThat(receiptCaptor.getValue().passportNumber()).isEqualTo("P1234567");
+        assertThat(receiptCaptor.getValue().certificateSerialNumber()).isEqualTo("ACME-2026-000123");
+        assertThat(receiptCaptor.getValue().visitorAddress()).isEqualTo("12 Example Street, Berlin");
+        assertThat(receiptCaptor.getValue().visitorNationality()).isEqualTo("Germany");
         assertThat(receiptCaptor.getValue().insurerName()).isEqualTo("Acme Insurance");
         assertThat(receiptCaptor.getValue().insurerLogoUrl()).isEqualTo("https://cdn.example/acme.png");
+        assertThat(receiptCaptor.getValue().insurerAddress()).isEqualTo("PO Box 500, Nairobi");
         assertThat(receiptCaptor.getValue().totalPremium()).isEqualTo(new BigDecimal("44"));
-        assertThat(receiptCaptor.getValue().stampDuty()).isEqualTo(new BigDecimal("40"));
 
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
         verify(emailService).send(
@@ -187,11 +192,9 @@ class VisitorActivatedNotificationListenerTest {
                 attachmentsCaptor.capture());
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
-                .containsExactly("policy-certificate-P1234567.pdf", "premium-receipt-P1234567.pdf",
-                        "Policy_Document_July_2026.pdf");
-        assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-1.4".getBytes());
-        assertThat(attachmentsCaptor.getValue().get(1).content()).isEqualTo("%PDF-RECEIPT".getBytes());
-        assertThat(attachmentsCaptor.getValue().get(2).content()).isNotEmpty();
+                .containsExactly("policy-certificate-P1234567.pdf", "Policy_Document_July_2026.pdf");
+        assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-MERGED".getBytes());
+        assertThat(attachmentsCaptor.getValue().get(1).content()).isNotEmpty();
     }
 
     @Test

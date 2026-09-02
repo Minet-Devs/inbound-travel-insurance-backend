@@ -17,5 +17,7 @@ public interface ServiceProviderRepository extends JpaRepository<ServiceProvider
     Page<ServiceProvider> findByNameContainingIgnoreCase(String name, Pageable pageable);
 
     Optional<ServiceProvider> findFirstByOrganizationId(UUID organizationId);
+
+    List<ServiceProvider> findByLatitudeIsNotNullAndLongitudeIsNotNull();
 }
 

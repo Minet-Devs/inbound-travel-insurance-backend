@@ -1,7 +1,11 @@
 package com.travel.insurance.organization.dto;
 
 import com.travel.insurance.organization.OrganizationType;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
+
+import java.math.BigDecimal;
 
 /**
  * Partial-update counterpart to {@link OrganizationRequest}: every field is
@@ -21,6 +25,8 @@ public record OrganizationPatchRequest(
         String notificationEmailPassword,
         String host,
         Integer port,
-        String esignature
+        String esignature,
+        @DecimalMin("-180") @DecimalMax("180") BigDecimal longitude,
+        @DecimalMin("-90") @DecimalMax("90") BigDecimal latitude
 ) {
 }

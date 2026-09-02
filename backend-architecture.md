@@ -129,11 +129,14 @@ com.travel.insurance/
 │   ├── ServiceProviderServiceImpl.java
 │   ├── ServiceProviderRepository.java
 │   ├── ServiceProvider.java                # name (unique), contactEmail, contactPhone, address,
-│   │                                        # organizationId (nullable, → Organization)
+│   │                                        # organizationId (nullable, → Organization),
+│   │                                        # longitude/latitude (nullable, BigDecimal(9,6))
 │   ├── ServiceProviderMapper.java
 │   └── 📁 dto/
 │       ├── ServiceProviderRequest.java
-│       └── ServiceProviderResponse.java
+│       ├── ServiceProviderResponse.java
+│       └── ServiceProviderNearbyResponse.java  # id, name, longitude, latitude, contactEmail,
+│                                                 # contactPhone — GET .../nearby response shape
 │
 ├── 📁 policy/                              # Feature: Policy Management
 │   ├── PolicyController.java
@@ -309,11 +312,15 @@ com.travel.insurance/
 │   │                                        # esignature — all optional
 │   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER
 │   ├── OrganizationMapper.java
-│   ├── OrganizationCreatedEvent.java         # published on create; consumed below
+│   ├── OrganizationCreatedEvent.java         # organizationId + longitude/latitude (not persisted
+│   │                                         # on Organization itself — see below); published on
+│   │                                         # create, consumed below
 │   ├── OrganizationCreatedListener.java      # @EventListener — provisions the matching
 │   │                                         # Insurer/ServiceProvider for organizationType
 │   │                                         # INSURER/SERVICE_PROVIDER (ADMIN is a no-op)
-│   ├── OrganizationUpdatedEvent.java         # published on update; consumed below
+│   ├── OrganizationUpdatedEvent.java         # organizationId + longitude/latitude (null = "leave
+│   │                                         # the linked ServiceProvider's location unchanged");
+│   │                                         # published on update/patch, consumed below
 │   ├── OrganizationUpdatedListener.java      # @EventListener — mirrors the update into the
 │   │                                         # matching Insurer/ServiceProvider (found via
 │   │                                         # organizationId), if one exists; no-op otherwise
@@ -567,7 +574,27 @@ Policy
   these (including `logoUrl` and `policyToken`) are carried across to the
   provisioned `Insurer` by `OrganizationCreatedListener` below;
   `ServiceProvider` has no equivalent fields, so `SERVICE_PROVIDER`
-  organizations don't carry any of this.
+  organizations don't carry any of this. `OrganizationRequest`/
+  `OrganizationPatchRequest` also accept optional `longitude`/`latitude`
+  (`@DecimalMin`/`@DecimalMax`-validated to the standard -180..180/-90..90
+  ranges) — meaningful only for `SERVICE_PROVIDER`-type organizations, and
+  propagated to the linked `ServiceProvider` rather than stored on
+  `Organization` itself; see the `Organization` → `Insurer`/`ServiceProvider`
+  provisioning notes below.
+- A **ServiceProvider** carries `longitude`/`latitude`
+  (`BigDecimal(9,6)`, nullable — set via its own `ServiceProviderRequest`, or
+  indirectly through a linked `SERVICE_PROVIDER`-type `Organization`, see
+  above). `GET /api/v1/service-providers/nearby?lat=…&lng=…&radiusKm=…`
+  (`@DecimalMin`/`@DecimalMax`-validated the same way, `radiusKm` must be
+  `> 0`) returns every non-deleted `ServiceProvider` with both coordinates
+  set whose great-circle (Haversine) distance from `(lat, lng)` is within
+  `radiusKm`, closest first, as a list of `ServiceProviderNearbyResponse`
+  (`id`, `name`, `longitude`, `latitude`, `contactEmail`, `contactPhone`) —
+  `200` with an empty list when nothing matches, never `404`. Distance is
+  computed in-app (`ServiceProviderServiceImpl.findNearby`) rather than in
+  the database — there's no PostGIS/spatial extension in this project.
+  Access follows the rest of `/api/v1/service-providers/**`: `ADMIN` or
+  `PROVIDER_USER` only (`SecurityConfig`).
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) and a
   denormalized `insurerId` (non-nullable `UUID`, mirroring `Claim.insurerId`),
@@ -921,6 +948,14 @@ entities:
   `ServiceProviderService.create` (`name`/`email`/`phoneNumber`/`address`
   copied across; insurer-only fields like `policyToken`/`host`/`esignature`
   are left `null`), and `ADMIN` is a no-op — there's no entity to create.
+  `ServiceProvider.longitude`/`latitude` are populated from
+  `OrganizationCreatedEvent.longitude`/`latitude` (sourced from
+  `OrganizationRequest.longitude`/`latitude` on the originating
+  `POST /api/v1/organizations` call) rather than from the `Organization`
+  entity — `Organization` itself carries no location columns, so
+  `OrganizationResponse` never exposes `longitude`/`latitude`; the
+  `ServiceProvider` row (`GET /api/v1/service-providers/{id}` or the nearby
+  search below) is the only place they're readable back.
   Either create call is passed the originating `Organization.id` as
   `organizationId`, so the new `Insurer`/`ServiceProvider` is linked back in
   the same step (no separate "assign" call). Because the listener runs in
@@ -941,7 +976,15 @@ entities:
   or `organizationType` is `ADMIN`), the listener is a no-op — it never
   creates one. Directly updating an `Insurer`/`ServiceProvider` does **not**
   update the `Organization` it's linked to; propagation only runs
-  `Organization` → `Insurer`/`ServiceProvider`.
+  `Organization` → `Insurer`/`ServiceProvider`. For `SERVICE_PROVIDER`, the
+  `longitude`/`latitude` carried on `OrganizationUpdatedEvent` (from the
+  `PUT`/`PATCH` request body) follow a different rule than the rest of the
+  fields: since these values aren't persisted on `Organization`, a `null`
+  on the event means "not supplied on this request" rather than "clear it"
+  — `OrganizationUpdatedListener` fetches the linked `ServiceProvider`'s
+  current `longitude`/`latitude` first and only overwrites the ones the
+  event actually supplied, so an unrelated `Organization` edit (e.g. just
+  `city`) can't silently wipe out a previously-set location.
 - Provisioning continues one hop further: `InsurerServiceImpl.create`
   publishes an in-process `InsurerCreatedEvent` (via `ApplicationEventPublisher`,
   synchronously within the same transaction) after saving.
@@ -1195,42 +1238,63 @@ emails them a personalized policy certificate as a PDF attachment:
   re-sent. It's rendered in the certificate's `.meta` strip and referenced by
   the verification copy ("Verify this certificate at kenyacares.go.ke/verify
   using the Certificate Serial Number above").
-- The activation email carries up to three attachments: the personalized
-  `policy-certificate-<passportNumber>.pdf` (rendered per visitor), a
-  `premium-receipt-<passportNumber>.pdf` (rendered per visitor, see below),
-  and the static policy wording `templates/Policy_Document_July_2026.pdf`,
-  loaded once from the classpath and cached. If the bundled document can't be
-  read it is logged and skipped so the certificate still goes out.
+- The activation email carries up to two attachments: a single
+  `policy-certificate-<passportNumber>.pdf` and the static policy wording
+  `templates/Policy_Document_July_2026.pdf`, loaded once from the classpath
+  and cached. If the bundled document can't be read it is logged and skipped
+  so the certificate still goes out. The first attachment is itself the
+  policy certificate and the premium receipt (see below) merged into one
+  continuous multi-page PDF — `PolicyDocumentRenderer.mergePdfs(byte[]...)`
+  concatenates the two already-rendered PDF byte arrays via PDFBox's
+  `PDFMergerUtility` (PDFBox is already a transitive dependency of
+  `openhtmltopdf-pdfbox`; no new library was added), rather than combining
+  the two Thymeleaf templates into one HTML document — each page keeps its
+  own independent layout/margins, and the certificate/receipt templates
+  didn't need to change.
 - The premium receipt is rendered the same way as the certificate —
   `PolicyDocumentRenderer.renderPremiumReceiptPdf` processes
   `templates/premium-receipt.html` (Thymeleaf) to HTML then to PDF via
   `openhtmltopdf` — from a `PremiumReceiptData` holder (visitor full name,
-  passport number, insurer name, insurer logo URL, plus `totalPremium`, `pcfLevy`,
-  `insurancePremiumLevy`, `stampDuty`, `trainingLevy` fetched via
-  `PremiumReceiptService.get()`, the same singleton levy-rate config exposed
-  by `GET /api/v1/premium-receipts` — see
-  [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)).
-  Like the rest of this listener, a failure anywhere in this path (including
+  passport number, certificate serial number, visitor address, visitor
+  nationality, insurer name, insurer logo URL, insurer address, total
+  premium). `certificateSerialNumber` is `Visitor.certificateSerialNumber`
+  (the same value shown on the policy certificate) reused as the receipt's
+  "Receipt No." field; `visitorAddress`/`insurerAddress` are the plain
+  `Visitor.address`/`Insurer.address` strings and `visitorNationality` is
+  `Visitor.nationality` (country of origin), all unstructured and possibly
+  empty, rendered in a "RECEIVED FROM" / "INSURER" two-column address block
+  immediately below the banner (nationality as an extra line under the
+  visitor's address; the insurer's address line has a hardcoded ", Kenya"
+  suffix appended in the template — the insurer is always Kenya-based), each
+  line only shown when non-empty. The meta strip also reuses `passportNumber`
+  as "Account No." and `visitorFullName` as "Account Name" — no separate
+  bank-account concept exists, these are the same visitor fields shown
+  elsewhere on the receipt. `totalPremium` is the only levy-related value
+  still shown — it's `PremiumReceiptService.get().totalPremium()` (the same
+  singleton levy-rate config exposed by `GET /api/v1/premium-receipts`, see
+  [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)),
+  echoed unchanged in the bottom `TOTAL PREMIUM (USD)` row. The levy rate
+  fields (`pcfLevy`, `insurancePremiumLevy`, `stampDuty`, `trainingLevy`) are
+  fetched from that same config for the admin-facing API but are no longer
+  passed into `PremiumReceiptData` or shown on the receipt — there is no
+  breakdown section any more, only the total. Directly below the total,
+  `common/util/AmountInWordsConverter.toWords` spells `totalPremium` out
+  (e.g. `68044.00` → "Sixty Eight Thousand and Forty Four Only", with a
+  "and NN/100" fraction appended only when cents are non-zero) — computed by
+  `PolicyDocumentRenderer.renderPremiumReceiptHtml` and passed as
+  `totalPremiumInWords`, shown under a "TOTAL AMOUNT RECEIVED IN WORDS:"
+  label matching the wording style on Minet's cheque/receipt vouchers. Like
+  the rest of this listener, a failure anywhere in this path (including
   rendering) is caught by the same top-level try/catch and blocks the whole
   activation email rather than partially sending it.
-- The template is styled as a narrow, monospace thermal cash-register
-  receipt (perforated top/bottom edges, dashed dividers, a decorative
-  barcode) rather than the boxed A4 layout used by the certificate/claim
-  receipt templates, to match a reference mockup. At the top of the receipt,
-  the same `Insurer.logoUrl` used on the certificate (already normalized by
-  `LogoUrlNormalizer`) is rendered as a centered `<img>`, falling back to a
-  dashed `[ INSURER LOGO ]` placeholder box when the insurer has no logo —
-  mirroring the certificate masthead's img/placeholder pattern. The levy fields
-  (`pcfLevy`, `insurancePremiumLevy`, `trainingLevy`, each a fraction) are
-  shown as their own line items with both the rate and a computed amount
-  column (`totalPremium * rate`, rounded to 3dp — `PolicyDocumentRenderer`
-  computes `pcfLevyAmount`/`insurancePremiumLevyAmount`/`trainingLevyAmount`
-  and passes them into the template alongside `receipt`); `stampDuty` (a
-  flat amount) is shown as its own line item with no rate, and its amount
-  column is a hardcoded `0.308` in the template rather than derived from
-  any `PremiumReceiptData` field. The bottom
-  `TOTAL PREMIUM (USD)` row simply echoes `totalPremium` unchanged — it is
-  not a sum of the line items above it.
+- The template is styled as a boxed A4 voucher (red banner title, bordered
+  meta/address tables) matching the other certificate/claim receipt
+  templates' layout conventions, rather than the earlier narrow thermal
+  cash-register mockup. At the top of the receipt, the same `Insurer.logoUrl`
+  used on the certificate (already normalized by `LogoUrlNormalizer`) is
+  rendered as a centered `<img>`, falling back to a dashed
+  `[ INSURER LOGO ]` placeholder box when the insurer has no logo —
+  mirroring the certificate masthead's img/placeholder pattern.
 - `common/email/EmailService` is a thin, domain-agnostic wrapper over
   `JavaMailSender` (mirrors `common/messaging/EventPublisher`'s catch-and-log
   style) — it never logs the email body or PDF bytes, only the outcome. It

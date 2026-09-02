@@ -5,20 +5,17 @@ import java.math.BigDecimal;
 /**
  * Plain data holder assembled by {@link VisitorActivatedNotificationListener}
  * for {@link PolicyDocumentRenderer}. Internal to this package — not a DTO,
- * never crosses the web boundary. {@code pcfLevy}, {@code insurancePremiumLevy}
- * and {@code trainingLevy} are fractions (0-1), matching
- * {@code premiumreceipt.PremiumReceipt}; {@code totalPremium} and
- * {@code stampDuty} are flat KES amounts.
+ * never crosses the web boundary.
  */
 record PremiumReceiptData(
         String visitorFullName,
         String passportNumber,
+        String certificateSerialNumber,
+        String visitorAddress,
+        String visitorNationality,
         String insurerName,
         String insurerLogoUrl,
-        BigDecimal totalPremium,
-        BigDecimal pcfLevy,
-        BigDecimal insurancePremiumLevy,
-        BigDecimal stampDuty,
-        BigDecimal trainingLevy
+        String insurerAddress,
+        BigDecimal totalPremium
 ) {
 }

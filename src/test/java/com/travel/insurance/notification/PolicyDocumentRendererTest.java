@@ -212,13 +212,13 @@ class PolicyDocumentRendererTest {
         return new PremiumReceiptData(
                 "Jane Traveler",
                 "P1234567",
+                "ACME-2026-000123",
+                "PO Box 100, Nairobi",
+                "Kenyan",
                 "Acme Insurance",
                 "https://example.com/acme-logo.png",
-                new BigDecimal("44"),
-                new BigDecimal("0.0001"),
-                new BigDecimal("0.0005"),
-                new BigDecimal("40"),
-                new BigDecimal("0.001"));
+                "PO Box 200, Nairobi",
+                new BigDecimal("44"));
     }
 
     @Test
@@ -230,18 +230,63 @@ class PolicyDocumentRendererTest {
         assertThat(html).contains("Jane Traveler");
         assertThat(html).contains("P1234567");
         assertThat(html).contains("Acme Insurance");
-        assertThat(html).contains("PREMIUM RECEIPT");
+        assertThat(html).contains("RECEIPT VOUCHER");
         assertThat(html).contains("THANK YOU");
         assertThat(html).contains("https://example.com/acme-logo.png");
+    }
+
+    @Test
+    void showsCertificateSerialNumberAsTheReceiptNumber() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        String html = renderer.renderPremiumReceiptHtml(samplePremiumReceiptData());
+
+        assertThat(html).contains("Receipt No.");
+        assertThat(html).contains("ACME-2026-000123");
+    }
+
+    @Test
+    void showsPassportNumberAsAccountNoAndVisitorNameAsAccountName() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        String html = renderer.renderPremiumReceiptHtml(samplePremiumReceiptData());
+
+        assertThat(html).contains("Account No.");
+        assertThat(html).contains("Account Name");
+    }
+
+    @Test
+    void showsVisitorAndInsurerAddresses() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        String html = renderer.renderPremiumReceiptHtml(samplePremiumReceiptData());
+
+        assertThat(html).contains("RECEIVED FROM");
+        assertThat(html).contains("PO Box 100, Nairobi");
+        assertThat(html).contains("Kenyan");
+        assertThat(html).contains("PO Box 200, Nairobi, Kenya");
+    }
+
+    @Test
+    void omitsAddressLineWhenAddressIsMissing() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PremiumReceiptData data = new PremiumReceiptData(
+                "Jane Traveler", "P1234567", "ACME-2026-000123", null, null, "Acme Insurance",
+                "https://example.com/acme-logo.png", null,
+                new BigDecimal("44"));
+
+        String html = renderer.renderPremiumReceiptHtml(data);
+
+        assertThat(html).contains("RECEIVED FROM");
+        assertThat(html).contains("Jane Traveler");
     }
 
     @Test
     void showsLogoPlaceholderWhenInsurerHasNoLogo() {
         PolicyDocumentRenderer renderer = newRenderer();
         PremiumReceiptData data = new PremiumReceiptData(
-                "Jane Traveler", "P1234567", "Acme Insurance", null,
-                new BigDecimal("44"), new BigDecimal("0.0001"),
-                new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"));
+                "Jane Traveler", "P1234567", "ACME-2026-000123", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance", null, "PO Box 200, Nairobi",
+                new BigDecimal("44"));
 
         String html = renderer.renderPremiumReceiptHtml(data);
 
@@ -252,31 +297,28 @@ class PolicyDocumentRendererTest {
     void showsTotalPremiumAsTheBottomTotal() {
         PolicyDocumentRenderer renderer = newRenderer();
         PremiumReceiptData data = new PremiumReceiptData(
-                "Jane Traveler", "P1234567", "Acme Insurance", "https://example.com/acme-logo.png",
-                new BigDecimal("44"), new BigDecimal("0.0001"),
-                new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"));
+                "Jane Traveler", "P1234567", "ACME-2026-000123", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance",
+                "https://example.com/acme-logo.png", "PO Box 200, Nairobi",
+                new BigDecimal("44"));
 
         String html = renderer.renderPremiumReceiptHtml(data);
 
-        assertThat(html).contains("TOTAL PREMIUM (USD)");
-        assertThat(html).contains("44.00");
+        assertThat(html).contains("TOTAL AMOUNT RECEIVED:");
+        assertThat(html).contains("USD 44.00");
     }
 
     @Test
-    void showsLevyAmountsComputedFromTotalPremium() {
+    void showsTotalPremiumInWordsBelowTheTotal() {
         PolicyDocumentRenderer renderer = newRenderer();
         PremiumReceiptData data = new PremiumReceiptData(
-                "Jane Traveler", "P1234567", "Acme Insurance", "https://example.com/acme-logo.png",
-                new BigDecimal("100"), new BigDecimal("0.0025"),
-                new BigDecimal("0.01"), new BigDecimal("40"), new BigDecimal("0.002"));
+                "Jane Traveler", "P1234567", "ACME-2026-000123", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance",
+                "https://example.com/acme-logo.png", "PO Box 200, Nairobi",
+                new BigDecimal("68044"));
 
         String html = renderer.renderPremiumReceiptHtml(data);
 
-        // 100 * 0.0025 = 0.250, 100 * 0.01 = 1.000, 100 * 0.002 = 0.200
-        assertThat(html).contains("0.250");
-        assertThat(html).contains("1.000");
-        assertThat(html).contains("0.200");
-        assertThat(html).contains("0.308");
+        assertThat(html).contains("TOTAL AMOUNT RECEIVED IN WORDS:");
+        assertThat(html).contains("Sixty Eight Thousand and Forty Four Only");
     }
 
     @Test
@@ -303,6 +345,24 @@ class PolicyDocumentRendererTest {
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
             assertThat(document.getNumberOfPages()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void mergesCertificateAndPremiumReceiptIntoOneContinuousPdf() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] certificatePdf = renderer.renderPdf(sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")))));
+        byte[] premiumReceiptPdf = renderer.renderPremiumReceiptPdf(samplePremiumReceiptData());
+
+        byte[] merged = renderer.mergePdfs(certificatePdf, premiumReceiptPdf);
+
+        assertThat(new String(merged, 0, 4, StandardCharsets.US_ASCII)).isEqualTo("%PDF");
+        try (PDDocument certificate = Loader.loadPDF(certificatePdf);
+             PDDocument premiumReceipt = Loader.loadPDF(premiumReceiptPdf);
+             PDDocument combined = Loader.loadPDF(merged)) {
+            assertThat(combined.getNumberOfPages())
+                    .isEqualTo(certificate.getNumberOfPages() + premiumReceipt.getNumberOfPages());
         }
     }
 }

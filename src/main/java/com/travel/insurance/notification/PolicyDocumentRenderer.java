@@ -1,6 +1,10 @@
 package com.travel.insurance.notification;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import com.travel.insurance.common.util.AmountInWordsConverter;
+import org.apache.pdfbox.io.IOUtils;
+import org.apache.pdfbox.io.RandomAccessReadBuffer;
+import org.apache.pdfbox.multipdf.PDFMergerUtility;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
@@ -8,7 +12,6 @@ import org.thymeleaf.spring6.SpringTemplateEngine;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -77,14 +80,8 @@ public class PolicyDocumentRenderer {
         context.setVariable("receipt", data);
         context.setVariable("generatedDate", LocalDate.now().format(SHORT_DATE));
         context.setVariable("insurerLogoUrl", data.insurerLogoUrl());
-        context.setVariable("pcfLevyAmount", levyAmount(data.totalPremium(), data.pcfLevy()));
-        context.setVariable("insurancePremiumLevyAmount", levyAmount(data.totalPremium(), data.insurancePremiumLevy()));
-        context.setVariable("trainingLevyAmount", levyAmount(data.totalPremium(), data.trainingLevy()));
+        context.setVariable("totalPremiumInWords", AmountInWordsConverter.toWords(data.totalPremium()));
         return templateEngine.process("premium-receipt", context);
-    }
-
-    private static BigDecimal levyAmount(BigDecimal totalPremium, BigDecimal levyRate) {
-        return totalPremium.multiply(levyRate).setScale(3, RoundingMode.HALF_UP);
     }
 
     byte[] renderPremiumReceiptPdf(PremiumReceiptData data) {
@@ -97,6 +94,27 @@ public class PolicyDocumentRenderer {
             builder.run();
         } catch (IOException ex) {
             throw new IllegalStateException("Failed to render premium receipt PDF", ex);
+        }
+        return out.toByteArray();
+    }
+
+    /**
+     * Concatenates already-rendered PDFs into a single multi-page document,
+     * in the given order, via PDFBox's merger — used to send the policy
+     * certificate and premium receipt as one continuous attachment rather
+     * than two separate files.
+     */
+    byte[] mergePdfs(byte[]... pdfs) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PDFMergerUtility merger = new PDFMergerUtility();
+        merger.setDestinationStream(out);
+        try {
+            for (byte[] pdf : pdfs) {
+                merger.addSource(new RandomAccessReadBuffer(pdf));
+            }
+            merger.mergeDocuments(IOUtils.createMemoryOnlyStreamCache());
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to merge PDF documents", ex);
         }
         return out.toByteArray();
     }

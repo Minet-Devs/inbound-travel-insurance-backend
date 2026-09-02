@@ -4,12 +4,15 @@ import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerRequest;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderRequest;
+import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -60,7 +63,7 @@ class OrganizationUpdatedListenerTest {
         when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
         when(insurerService.findIdByOrganizationId(organization.getId())).thenReturn(Optional.of(insurerId));
 
-        listener.onOrganizationUpdated(new OrganizationUpdatedEvent(organization.getId()));
+        listener.onOrganizationUpdated(new OrganizationUpdatedEvent(organization.getId(), null, null));
 
         ArgumentCaptor<InsurerRequest> captor = ArgumentCaptor.forClass(InsurerRequest.class);
         verify(insurerService).update(eq(insurerId), captor.capture());
@@ -86,15 +89,43 @@ class OrganizationUpdatedListenerTest {
         UUID providerId = UUID.randomUUID();
         when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
         when(serviceProviderService.findIdByOrganizationId(organization.getId())).thenReturn(Optional.of(providerId));
+        when(serviceProviderService.getById(providerId)).thenReturn(new ServiceProviderResponse(providerId, "Acme",
+                "contact@acme.example", "+254700000000", "Nairobi", organization.getId(), null, null, Instant.now(),
+                Instant.now()));
+        BigDecimal longitude = new BigDecimal("36.821946");
+        BigDecimal latitude = new BigDecimal("-1.292066");
 
-        listener.onOrganizationUpdated(new OrganizationUpdatedEvent(organization.getId()));
+        listener.onOrganizationUpdated(new OrganizationUpdatedEvent(organization.getId(), longitude, latitude));
 
         ArgumentCaptor<ServiceProviderRequest> captor = ArgumentCaptor.forClass(ServiceProviderRequest.class);
         verify(serviceProviderService).update(eq(providerId), captor.capture());
         assertThat(captor.getValue().name()).isEqualTo("Acme");
         assertThat(captor.getValue().contactEmail()).isEqualTo("contact@acme.example");
         assertThat(captor.getValue().organizationId()).isEqualTo(organization.getId());
+        assertThat(captor.getValue().longitude()).isEqualTo(longitude);
+        assertThat(captor.getValue().latitude()).isEqualTo(latitude);
         verify(insurerService, never()).update(any(), any());
+    }
+
+    @Test
+    void onOrganizationUpdatedPreservesExistingLocationWhenEventOmitsIt() {
+        listener = new OrganizationUpdatedListener(organizationService, insurerService, serviceProviderService);
+        Organization organization = organization(OrganizationType.SERVICE_PROVIDER);
+        UUID providerId = UUID.randomUUID();
+        BigDecimal existingLongitude = new BigDecimal("36.821946");
+        BigDecimal existingLatitude = new BigDecimal("-1.292066");
+        when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
+        when(serviceProviderService.findIdByOrganizationId(organization.getId())).thenReturn(Optional.of(providerId));
+        when(serviceProviderService.getById(providerId)).thenReturn(new ServiceProviderResponse(providerId, "Acme",
+                "contact@acme.example", "+254700000000", "Nairobi", organization.getId(), existingLongitude,
+                existingLatitude, Instant.now(), Instant.now()));
+
+        listener.onOrganizationUpdated(new OrganizationUpdatedEvent(organization.getId(), null, null));
+
+        ArgumentCaptor<ServiceProviderRequest> captor = ArgumentCaptor.forClass(ServiceProviderRequest.class);
+        verify(serviceProviderService).update(eq(providerId), captor.capture());
+        assertThat(captor.getValue().longitude()).isEqualTo(existingLongitude);
+        assertThat(captor.getValue().latitude()).isEqualTo(existingLatitude);
     }
 
     @Test
@@ -104,7 +135,7 @@ class OrganizationUpdatedListenerTest {
         when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
         when(insurerService.findIdByOrganizationId(organization.getId())).thenReturn(Optional.empty());
 
-        listener.onOrganizationUpdated(new OrganizationUpdatedEvent(organization.getId()));
+        listener.onOrganizationUpdated(new OrganizationUpdatedEvent(organization.getId(), null, null));
 
         verify(insurerService, never()).update(any(), any());
     }
@@ -115,7 +146,7 @@ class OrganizationUpdatedListenerTest {
         Organization organization = organization(OrganizationType.ADMIN);
         when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
 
-        listener.onOrganizationUpdated(new OrganizationUpdatedEvent(organization.getId()));
+        listener.onOrganizationUpdated(new OrganizationUpdatedEvent(organization.getId(), null, null));
 
         verify(insurerService, never()).update(any(), any());
         verify(serviceProviderService, never()).update(any(), any());
