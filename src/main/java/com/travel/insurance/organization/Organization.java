@@ -14,6 +14,8 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "organizations")
 @SQLDelete(sql = "update organizations set deleted = true, deleted_date = now() where id = ?")
@@ -54,4 +56,10 @@ public class Organization extends BaseEntity {
     private Integer port;
 
     private String esignature;
+
+    @Column(precision = 9, scale = 6)
+    private BigDecimal longitude;
+
+    @Column(precision = 9, scale = 6)
+    private BigDecimal latitude;
 }

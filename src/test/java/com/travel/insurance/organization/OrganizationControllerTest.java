@@ -48,7 +48,7 @@ class OrganizationControllerTest {
     private OrganizationResponse sampleResponse() {
         return new OrganizationResponse(organizationId, "Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
                 "0700000000", "123 Main St", "Nairobi", "https://cdn.example/acme.png", 123456L, "notify@acme.com",
-                "smtp.acme.com", 587, "signature-data", Instant.now(), Instant.now());
+                "smtp.acme.com", 587, "signature-data", null, null, Instant.now(), Instant.now());
     }
 
     @Test
