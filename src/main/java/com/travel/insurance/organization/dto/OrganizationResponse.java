@@ -2,6 +2,7 @@ package com.travel.insurance.organization.dto;
 
 import com.travel.insurance.organization.OrganizationType;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -19,6 +20,8 @@ public record OrganizationResponse(
         String host,
         Integer port,
         String esignature,
+        BigDecimal longitude,
+        BigDecimal latitude,
         Instant createdDate,
         Instant updatedDate
 ) {

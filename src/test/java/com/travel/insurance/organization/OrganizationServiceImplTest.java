@@ -80,11 +80,13 @@ class OrganizationServiceImplTest {
         org.mockito.ArgumentCaptor<OrganizationCreatedEvent> captor =
                 org.mockito.ArgumentCaptor.forClass(OrganizationCreatedEvent.class);
 
-        organizationService.create(withLocation);
+        OrganizationResponse response = organizationService.create(withLocation);
 
         verify(eventPublisher).publishEvent(captor.capture());
         assertThat(captor.getValue().longitude()).isEqualTo(longitude);
         assertThat(captor.getValue().latitude()).isEqualTo(latitude);
+        assertThat(response.longitude()).isEqualTo(longitude);
+        assertThat(response.latitude()).isEqualTo(latitude);
     }
 
     @Test
@@ -183,6 +185,25 @@ class OrganizationServiceImplTest {
         assertThat(response.email()).isEqualTo("contact@acme.com");
         verify(organizationRepository, never()).existsByNameAndIdNot(any(), any());
         verify(eventPublisher).publishEvent(any(OrganizationUpdatedEvent.class));
+    }
+
+    @Test
+    void patchAppliesCoordinatesWithoutClearingOthers() {
+        UUID id = UUID.randomUUID();
+        java.math.BigDecimal longitude = new java.math.BigDecimal("36.821946");
+        java.math.BigDecimal latitude = new java.math.BigDecimal("-1.292066");
+        Organization existing = organizationMapper.toEntity(request);
+        when(organizationRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(organizationRepository.save(any(Organization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        OrganizationPatchRequest patchRequest = new OrganizationPatchRequest(
+                null, null, null, null, null, null, null, null, null, null, null, null, null, longitude, latitude);
+
+        OrganizationResponse response = organizationService.patch(id, patchRequest);
+
+        assertThat(response.longitude()).isEqualTo(longitude);
+        assertThat(response.latitude()).isEqualTo(latitude);
+        assertThat(response.name()).isEqualTo("Acme Ltd");
     }
 
     @Test

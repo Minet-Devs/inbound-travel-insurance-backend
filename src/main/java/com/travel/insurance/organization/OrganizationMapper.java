@@ -29,6 +29,8 @@ public class OrganizationMapper {
         organization.setHost(request.host());
         organization.setPort(request.port());
         organization.setEsignature(request.esignature());
+        organization.setLongitude(request.longitude());
+        organization.setLatitude(request.latitude());
     }
 
     public void patchEntity(Organization organization, OrganizationPatchRequest request) {
@@ -71,6 +73,12 @@ public class OrganizationMapper {
         if (request.esignature() != null) {
             organization.setEsignature(request.esignature());
         }
+        if (request.longitude() != null) {
+            organization.setLongitude(request.longitude());
+        }
+        if (request.latitude() != null) {
+            organization.setLatitude(request.latitude());
+        }
     }
 
     public OrganizationResponse toResponse(Organization organization) {
@@ -88,6 +96,8 @@ public class OrganizationMapper {
                 organization.getHost(),
                 organization.getPort(),
                 organization.getEsignature(),
+                organization.getLongitude(),
+                organization.getLatitude(),
                 organization.getCreatedDate(),
                 organization.getUpdatedDate()
         );
