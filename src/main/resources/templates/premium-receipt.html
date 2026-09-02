@@ -53,7 +53,6 @@
                     <div class="address-line" th:if="${!#strings.isEmpty(receipt.visitorNationality)}" th:text="${receipt.visitorNationality}"></div>
                 </td>
                 <td class="address-box">
-                    <div class="address-label">INSURER</div>
                     <div class="address-name" th:text="${receipt.insurerName}"></div>
                     <div class="address-line" th:if="${!#strings.isEmpty(receipt.insurerAddress)}" th:text="${receipt.insurerAddress} + ', Kenya'"></div>
                 </td>
@@ -83,8 +82,8 @@
     <div class="total-box">
         <table>
             <tr>
-                <td>TOTAL PREMIUM (USD)</td>
-                <td class="num" th:text="${#numbers.formatDecimal(receipt.totalPremium, 1, 2)}"></td>
+                <td>TOTAL AMOUNT RECEIVED:</td>
+                <td class="num" th:text="'USD ' + ${#numbers.formatDecimal(receipt.totalPremium, 1, 2)}"></td>
             </tr>
         </table>
     </div>
