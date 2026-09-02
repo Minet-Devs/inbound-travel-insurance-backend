@@ -1245,10 +1245,11 @@ emails them a personalized policy certificate as a PDF attachment:
   once from the classpath and cached (`rawPolicyDocumentCache`); if the
   bundled document can't be read it is logged and skipped so the certificate
   still goes out. When the backing insurer has a logo and/or e-signature URL,
-  `PolicyDocumentRenderer.brandPolicyWording` overlays the logo onto the
-  top-right of page 1 and the e-signature onto the bottom-right of the last
-  page via PDFBox (`PDPageContentStream` + `PDImageXObject`, scaled to fit
-  120×50pt / 150×60pt boxes with a 36pt margin, aspect ratio preserved); the
+  `PolicyDocumentRenderer.brandPolicyWording` overlays the logo, horizontally
+  centered near the top of page 1, and the e-signature, horizontally centered
+  near the bottom of the last page, via PDFBox (`PDPageContentStream` +
+  `PDImageXObject`, scaled to fit 120×50pt / 150×60pt boxes with a 36pt
+  margin from the top/bottom edge, aspect ratio preserved); the
   branded result is cached per insurer (`brandedPolicyDocumentCache`, keyed by
   `Insurer.id`), since the wording document is no longer identical for every
   insurer. Both overlay URLs are optional and independent — an insurer with
