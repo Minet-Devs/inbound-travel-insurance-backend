@@ -10,6 +10,7 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
@@ -32,4 +33,10 @@ public class ServiceProvider extends BaseEntity {
     private String address;
 
     private UUID organizationId;
+
+    @Column(precision = 9, scale = 6)
+    private BigDecimal longitude;
+
+    @Column(precision = 9, scale = 6)
+    private BigDecimal latitude;
 }

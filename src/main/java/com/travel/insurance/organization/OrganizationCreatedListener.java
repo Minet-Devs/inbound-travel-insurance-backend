@@ -47,7 +47,9 @@ public class OrganizationCreatedListener {
                     organization.getEmail(),
                     organization.getPhoneNumber(),
                     organization.getAddress(),
-                    organization.getId()));
+                    organization.getId(),
+                    event.longitude(),
+                    event.latitude()));
             case ADMIN -> {
             }
         }

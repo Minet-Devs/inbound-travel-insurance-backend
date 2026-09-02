@@ -77,7 +77,7 @@ class OrganizationControllerTest {
                                 new OrganizationRequest("Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
                                         "0700000000", "123 Main St", "Nairobi", "https://cdn.example/acme.png",
                                         123456L, "notify@acme.com", "s3cr3t", "smtp.acme.com", 587,
-                                        "signature-data"))))
+                                        "signature-data", null, null))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Acme Ltd"))
                 .andExpect(jsonPath("$.logoUrl").value("https://cdn.example/acme.png"))
@@ -97,7 +97,7 @@ class OrganizationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new OrganizationRequest("", null, "not-an-email", null, null, null, null, null, null,
-                                        null, null, null, null))))
+                                        null, null, null, null, null, null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation failed"));
     }
@@ -119,7 +119,7 @@ class OrganizationControllerTest {
         when(organizationService.patch(eq(organizationId), any(OrganizationPatchRequest.class)))
                 .thenReturn(sampleResponse());
         OrganizationPatchRequest patchRequest = new OrganizationPatchRequest(
-                null, null, null, null, null, "Nairobi", null, null, null, null, null, null, null);
+                null, null, null, null, null, "Nairobi", null, null, null, null, null, null, null, null, null);
 
         mockMvc.perform(patch("/api/v1/organizations/{id}", organizationId)
                         .with(csrf())
@@ -134,7 +134,7 @@ class OrganizationControllerTest {
     @WithMockUser(roles = "ADMIN")
     void patchRejectsInvalidEmail() throws Exception {
         OrganizationPatchRequest patchRequest = new OrganizationPatchRequest(
-                null, null, "not-an-email", null, null, null, null, null, null, null, null, null, null);
+                null, null, "not-an-email", null, null, null, null, null, null, null, null, null, null, null, null);
 
         mockMvc.perform(patch("/api/v1/organizations/{id}", organizationId)
                         .with(csrf())

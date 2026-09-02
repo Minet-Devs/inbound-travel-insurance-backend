@@ -31,7 +31,8 @@ public class OrganizationServiceImpl implements OrganizationService {
             throw new IllegalStateException("Organization already exists: " + request.name());
         }
         Organization organization = organizationRepository.save(organizationMapper.toEntity(request));
-        eventPublisher.publishEvent(new OrganizationCreatedEvent(organization.getId()));
+        eventPublisher.publishEvent(
+                new OrganizationCreatedEvent(organization.getId(), request.longitude(), request.latitude()));
         return organizationMapper.toResponse(organization);
     }
 
@@ -58,7 +59,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
         organizationMapper.updateEntity(organization, request);
         OrganizationResponse response = organizationMapper.toResponse(organizationRepository.save(organization));
-        eventPublisher.publishEvent(new OrganizationUpdatedEvent(id));
+        eventPublisher.publishEvent(new OrganizationUpdatedEvent(id, request.longitude(), request.latitude()));
         return response;
     }
 
@@ -70,7 +71,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         }
         organizationMapper.patchEntity(organization, request);
         OrganizationResponse response = organizationMapper.toResponse(organizationRepository.save(organization));
-        eventPublisher.publishEvent(new OrganizationUpdatedEvent(id));
+        eventPublisher.publishEvent(new OrganizationUpdatedEvent(id, request.longitude(), request.latitude()));
         return response;
     }
 

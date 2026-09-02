@@ -45,7 +45,7 @@ class OrganizationServiceImplTest {
     void setUp() {
         organizationService = new OrganizationServiceImpl(organizationRepository, organizationMapper, eventPublisher);
         request = new OrganizationRequest("Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
-                "0700000000", "123 Main St", "Nairobi", null, null, null, null, null, null, null);
+                "0700000000", "123 Main St", "Nairobi", null, null, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -64,6 +64,27 @@ class OrganizationServiceImplTest {
         assertThat(response.city()).isEqualTo("Nairobi");
         verify(organizationRepository).save(any(Organization.class));
         verify(eventPublisher).publishEvent(any(OrganizationCreatedEvent.class));
+    }
+
+    @Test
+    void createPublishesEventWithSubmittedCoordinates() {
+        java.math.BigDecimal longitude = new java.math.BigDecimal("36.821946");
+        java.math.BigDecimal latitude = new java.math.BigDecimal("-1.292066");
+        OrganizationRequest withLocation =
+                new OrganizationRequest("Acme Ltd", OrganizationType.SERVICE_PROVIDER, "contact@acme.com",
+                        "0700000000", "123 Main St", "Nairobi", null, null, null, null, null, null, null,
+                        longitude, latitude);
+        when(organizationRepository.existsByName("Acme Ltd")).thenReturn(false);
+        when(organizationRepository.save(any(Organization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        org.mockito.ArgumentCaptor<OrganizationCreatedEvent> captor =
+                org.mockito.ArgumentCaptor.forClass(OrganizationCreatedEvent.class);
+
+        organizationService.create(withLocation);
+
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().longitude()).isEqualTo(longitude);
+        assertThat(captor.getValue().latitude()).isEqualTo(latitude);
     }
 
     @Test
@@ -118,7 +139,8 @@ class OrganizationServiceImplTest {
         when(organizationRepository.findById(id)).thenReturn(Optional.of(existing));
         OrganizationRequest updateRequest =
                 new OrganizationRequest("Beta Ltd", OrganizationType.SERVICE_PROVIDER, "info@beta.com",
-                        "0711111111", "456 Side St", "Mombasa", null, null, null, null, null, null, null);
+                        "0711111111", "456 Side St", "Mombasa", null, null, null, null, null, null, null, null,
+                        null);
         when(organizationRepository.existsByNameAndIdNot("Beta Ltd", id)).thenReturn(false);
         when(organizationRepository.save(any(Organization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -139,7 +161,7 @@ class OrganizationServiceImplTest {
 
         assertThatThrownBy(() -> organizationService.update(id,
                 new OrganizationRequest("Beta Ltd", OrganizationType.SERVICE_PROVIDER, "info@beta.com",
-                        null, null, null, null, null, null, null, null, null, null)))
+                        null, null, null, null, null, null, null, null, null, null, null, null)))
                 .isInstanceOf(IllegalStateException.class);
         verify(organizationRepository, never()).save(any());
     }
@@ -152,7 +174,7 @@ class OrganizationServiceImplTest {
         when(organizationRepository.save(any(Organization.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         OrganizationPatchRequest patchRequest = new OrganizationPatchRequest(
-                null, null, null, null, null, "Kisumu", null, null, null, null, null, null, null);
+                null, null, null, null, null, "Kisumu", null, null, null, null, null, null, null, null, null);
 
         OrganizationResponse response = organizationService.patch(id, patchRequest);
 
@@ -170,7 +192,7 @@ class OrganizationServiceImplTest {
         when(organizationRepository.findById(id)).thenReturn(Optional.of(existing));
         when(organizationRepository.existsByNameAndIdNot("Beta Ltd", id)).thenReturn(true);
         OrganizationPatchRequest patchRequest = new OrganizationPatchRequest(
-                "Beta Ltd", null, null, null, null, null, null, null, null, null, null, null, null);
+                "Beta Ltd", null, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> organizationService.patch(id, patchRequest))
                 .isInstanceOf(IllegalStateException.class);
@@ -182,7 +204,7 @@ class OrganizationServiceImplTest {
         UUID id = UUID.randomUUID();
         when(organizationRepository.findById(id)).thenReturn(Optional.empty());
         OrganizationPatchRequest patchRequest = new OrganizationPatchRequest(
-                null, null, null, null, null, "Kisumu", null, null, null, null, null, null, null);
+                null, null, null, null, null, "Kisumu", null, null, null, null, null, null, null, null, null);
 
         assertThatThrownBy(() -> organizationService.patch(id, patchRequest))
                 .isInstanceOf(ResourceNotFoundException.class);

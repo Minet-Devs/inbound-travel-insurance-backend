@@ -129,11 +129,14 @@ com.travel.insurance/
 │   ├── ServiceProviderServiceImpl.java
 │   ├── ServiceProviderRepository.java
 │   ├── ServiceProvider.java                # name (unique), contactEmail, contactPhone, address,
-│   │                                        # organizationId (nullable, → Organization)
+│   │                                        # organizationId (nullable, → Organization),
+│   │                                        # longitude/latitude (nullable, BigDecimal(9,6))
 │   ├── ServiceProviderMapper.java
 │   └── 📁 dto/
 │       ├── ServiceProviderRequest.java
-│       └── ServiceProviderResponse.java
+│       ├── ServiceProviderResponse.java
+│       └── ServiceProviderNearbyResponse.java  # id, name, longitude, latitude, contactEmail,
+│                                                 # contactPhone — GET .../nearby response shape
 │
 ├── 📁 policy/                              # Feature: Policy Management
 │   ├── PolicyController.java
@@ -309,11 +312,15 @@ com.travel.insurance/
 │   │                                        # esignature — all optional
 │   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER
 │   ├── OrganizationMapper.java
-│   ├── OrganizationCreatedEvent.java         # published on create; consumed below
+│   ├── OrganizationCreatedEvent.java         # organizationId + longitude/latitude (not persisted
+│   │                                         # on Organization itself — see below); published on
+│   │                                         # create, consumed below
 │   ├── OrganizationCreatedListener.java      # @EventListener — provisions the matching
 │   │                                         # Insurer/ServiceProvider for organizationType
 │   │                                         # INSURER/SERVICE_PROVIDER (ADMIN is a no-op)
-│   ├── OrganizationUpdatedEvent.java         # published on update; consumed below
+│   ├── OrganizationUpdatedEvent.java         # organizationId + longitude/latitude (null = "leave
+│   │                                         # the linked ServiceProvider's location unchanged");
+│   │                                         # published on update/patch, consumed below
 │   ├── OrganizationUpdatedListener.java      # @EventListener — mirrors the update into the
 │   │                                         # matching Insurer/ServiceProvider (found via
 │   │                                         # organizationId), if one exists; no-op otherwise
@@ -567,7 +574,27 @@ Policy
   these (including `logoUrl` and `policyToken`) are carried across to the
   provisioned `Insurer` by `OrganizationCreatedListener` below;
   `ServiceProvider` has no equivalent fields, so `SERVICE_PROVIDER`
-  organizations don't carry any of this.
+  organizations don't carry any of this. `OrganizationRequest`/
+  `OrganizationPatchRequest` also accept optional `longitude`/`latitude`
+  (`@DecimalMin`/`@DecimalMax`-validated to the standard -180..180/-90..90
+  ranges) — meaningful only for `SERVICE_PROVIDER`-type organizations, and
+  propagated to the linked `ServiceProvider` rather than stored on
+  `Organization` itself; see the `Organization` → `Insurer`/`ServiceProvider`
+  provisioning notes below.
+- A **ServiceProvider** carries `longitude`/`latitude`
+  (`BigDecimal(9,6)`, nullable — set via its own `ServiceProviderRequest`, or
+  indirectly through a linked `SERVICE_PROVIDER`-type `Organization`, see
+  above). `GET /api/v1/service-providers/nearby?lat=…&lng=…&radiusKm=…`
+  (`@DecimalMin`/`@DecimalMax`-validated the same way, `radiusKm` must be
+  `> 0`) returns every non-deleted `ServiceProvider` with both coordinates
+  set whose great-circle (Haversine) distance from `(lat, lng)` is within
+  `radiusKm`, closest first, as a list of `ServiceProviderNearbyResponse`
+  (`id`, `name`, `longitude`, `latitude`, `contactEmail`, `contactPhone`) —
+  `200` with an empty list when nothing matches, never `404`. Distance is
+  computed in-app (`ServiceProviderServiceImpl.findNearby`) rather than in
+  the database — there's no PostGIS/spatial extension in this project.
+  Access follows the rest of `/api/v1/service-providers/**`: `ADMIN` or
+  `PROVIDER_USER` only (`SecurityConfig`).
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) and a
   denormalized `insurerId` (non-nullable `UUID`, mirroring `Claim.insurerId`),
@@ -921,6 +948,14 @@ entities:
   `ServiceProviderService.create` (`name`/`email`/`phoneNumber`/`address`
   copied across; insurer-only fields like `policyToken`/`host`/`esignature`
   are left `null`), and `ADMIN` is a no-op — there's no entity to create.
+  `ServiceProvider.longitude`/`latitude` are populated from
+  `OrganizationCreatedEvent.longitude`/`latitude` (sourced from
+  `OrganizationRequest.longitude`/`latitude` on the originating
+  `POST /api/v1/organizations` call) rather than from the `Organization`
+  entity — `Organization` itself carries no location columns, so
+  `OrganizationResponse` never exposes `longitude`/`latitude`; the
+  `ServiceProvider` row (`GET /api/v1/service-providers/{id}` or the nearby
+  search below) is the only place they're readable back.
   Either create call is passed the originating `Organization.id` as
   `organizationId`, so the new `Insurer`/`ServiceProvider` is linked back in
   the same step (no separate "assign" call). Because the listener runs in
@@ -941,7 +976,15 @@ entities:
   or `organizationType` is `ADMIN`), the listener is a no-op — it never
   creates one. Directly updating an `Insurer`/`ServiceProvider` does **not**
   update the `Organization` it's linked to; propagation only runs
-  `Organization` → `Insurer`/`ServiceProvider`.
+  `Organization` → `Insurer`/`ServiceProvider`. For `SERVICE_PROVIDER`, the
+  `longitude`/`latitude` carried on `OrganizationUpdatedEvent` (from the
+  `PUT`/`PATCH` request body) follow a different rule than the rest of the
+  fields: since these values aren't persisted on `Organization`, a `null`
+  on the event means "not supplied on this request" rather than "clear it"
+  — `OrganizationUpdatedListener` fetches the linked `ServiceProvider`'s
+  current `longitude`/`latitude` first and only overwrites the ones the
+  event actually supplied, so an unrelated `Organization` edit (e.g. just
+  `city`) can't silently wipe out a previously-set location.
 - Provisioning continues one hop further: `InsurerServiceImpl.create`
   publishes an in-process `InsurerCreatedEvent` (via `ApplicationEventPublisher`,
   synchronously within the same transaction) after saving.
