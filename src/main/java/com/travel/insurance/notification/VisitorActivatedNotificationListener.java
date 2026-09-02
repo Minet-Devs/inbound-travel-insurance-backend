@@ -29,7 +29,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Emails the visitor their personalized policy certificate once their cover is
@@ -56,7 +58,8 @@ public class VisitorActivatedNotificationListener {
     private static final String POLICY_DOCUMENT_RESOURCE = "templates/Policy_Document_July_2026.pdf";
     private static final String POLICY_DOCUMENT_ATTACHMENT_NAME = "Policy_Document_July_2026.pdf";
 
-    private byte[] policyDocumentCache;
+    private byte[] rawPolicyDocumentCache;
+    private final Map<UUID, byte[]> brandedPolicyDocumentCache = new ConcurrentHashMap<>();
 
     private final VisitorService visitorService;
     private final PolicyService policyService;
@@ -150,7 +153,7 @@ public class VisitorActivatedNotificationListener {
         attachments.add(new EmailAttachment(
                 "policy-certificate-" + visitor.getPassportNumber() + ".pdf", combinedPdf));
 
-        byte[] policyDocument = loadPolicyDocument();
+        byte[] policyDocument = loadBrandedPolicyDocument(insurer.getId(), underwriterLogoUrl, esignatureUrl);
         if (policyDocument != null) {
             attachments.add(new EmailAttachment(POLICY_DOCUMENT_ATTACHMENT_NAME, policyDocument));
         }
@@ -205,10 +208,10 @@ public class VisitorActivatedNotificationListener {
      * first read. A load failure is logged and returns {@code null} so the
      * certificate still goes out without the supplementary document.
      */
-    private synchronized byte[] loadPolicyDocument() {
-        if (policyDocumentCache == null) {
+    private synchronized byte[] loadRawPolicyDocument() {
+        if (rawPolicyDocumentCache == null) {
             try {
-                policyDocumentCache = new ClassPathResource(POLICY_DOCUMENT_RESOURCE)
+                rawPolicyDocumentCache = new ClassPathResource(POLICY_DOCUMENT_RESOURCE)
                         .getInputStream().readAllBytes();
             } catch (IOException ex) {
                 log.error("Could not load bundled policy document {}: {}",
@@ -216,6 +219,32 @@ public class VisitorActivatedNotificationListener {
                 return null;
             }
         }
-        return policyDocumentCache;
+        return rawPolicyDocumentCache;
+    }
+
+    /**
+     * Returns the policy wording PDF branded with the insurer's logo (page 1)
+     * and e-signature (last page), cached per insurer for the process
+     * lifetime — same tradeoff as the previous single cached copy, now keyed
+     * by insurer since the content differs per insurer. A branding failure
+     * (e.g. the logo/e-signature URL is unreachable) falls back to the
+     * unbranded document rather than dropping the attachment entirely.
+     */
+    private byte[] loadBrandedPolicyDocument(UUID insurerId, String logoUrl, String esignatureUrl) {
+        byte[] raw = loadRawPolicyDocument();
+        if (raw == null) {
+            return null;
+        }
+        if (logoUrl == null && esignatureUrl == null) {
+            return raw;
+        }
+        return brandedPolicyDocumentCache.computeIfAbsent(insurerId, id -> {
+            try {
+                return renderer.brandPolicyWording(raw, logoUrl, esignatureUrl);
+            } catch (Exception ex) {
+                log.error("Failed to brand policy document for insurer {}: {}", id, ex.getMessage(), ex);
+                return raw;
+            }
+        });
     }
 }

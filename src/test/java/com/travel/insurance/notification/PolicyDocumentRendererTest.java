@@ -2,20 +2,28 @@ package com.travel.insurance.notification;
 
 import com.travel.insurance.notification.PolicyDocumentData.BenefitLine;
 import com.travel.insurance.visitor.Gender;
+import com.sun.net.httpserver.HttpServer;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 import org.thymeleaf.templatemode.TemplateMode;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
+import javax.imageio.ImageIO;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PolicyDocumentRendererTest {
 
@@ -364,5 +372,89 @@ class PolicyDocumentRendererTest {
             assertThat(combined.getNumberOfPages())
                     .isEqualTo(certificate.getNumberOfPages() + premiumReceipt.getNumberOfPages());
         }
+    }
+
+    private HttpServer imageServer;
+
+    @AfterEach
+    void stopImageServer() {
+        if (imageServer != null) {
+            imageServer.stop(0);
+            imageServer = null;
+        }
+    }
+
+    private String servePngImage() throws IOException {
+        BufferedImage image = new BufferedImage(40, 20, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream pngBytes = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", pngBytes);
+        byte[] png = pngBytes.toByteArray();
+
+        imageServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        imageServer.createContext("/logo.png", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, png.length);
+            exchange.getResponseBody().write(png);
+            exchange.close();
+        });
+        imageServer.start();
+        return "http://localhost:" + imageServer.getAddress().getPort() + "/logo.png";
+    }
+
+    private byte[] samplePolicyWordingPdf() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        return renderer.renderPdf(sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")))));
+    }
+
+    @Test
+    void returnsDocumentUnchangedWhenNoLogoOrEsignatureUrlGiven() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdf();
+
+        byte[] branded = renderer.brandPolicyWording(pdf, null, null);
+
+        assertThat(branded).isSameAs(pdf);
+    }
+
+    @Test
+    void overlaysLogoOnFirstPageWithoutChangingPageCount() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdf();
+        String logoUrl = servePngImage();
+
+        byte[] branded = renderer.brandPolicyWording(pdf, logoUrl, null);
+
+        try (PDDocument original = Loader.loadPDF(pdf);
+             PDDocument brandedDocument = Loader.loadPDF(branded)) {
+            assertThat(brandedDocument.getNumberOfPages()).isEqualTo(original.getNumberOfPages());
+            PDPage firstPage = brandedDocument.getPage(0);
+            assertThat(firstPage.getResources().getXObjectNames()).isNotEmpty();
+        }
+    }
+
+    @Test
+    void overlaysEsignatureOnLastPageOnly() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = renderer.mergePdfs(samplePolicyWordingPdf(), samplePolicyWordingPdf());
+        String esignatureUrl = servePngImage();
+
+        byte[] branded = renderer.brandPolicyWording(pdf, null, esignatureUrl);
+
+        try (PDDocument brandedDocument = Loader.loadPDF(branded)) {
+            PDPage firstPage = brandedDocument.getPage(0);
+            PDPage lastPage = brandedDocument.getPage(brandedDocument.getNumberOfPages() - 1);
+            assertThat(firstPage.getResources().getXObjectNames()).isEmpty();
+            assertThat(lastPage.getResources().getXObjectNames()).isNotEmpty();
+        }
+    }
+
+    @Test
+    void brandingFailsFastWhenImageUrlIsUnreachable() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdf();
+
+        assertThatThrownBy(() -> renderer.brandPolicyWording(pdf, "http://localhost:1/missing.png", null))
+                .isInstanceOf(IllegalStateException.class);
     }
 }
