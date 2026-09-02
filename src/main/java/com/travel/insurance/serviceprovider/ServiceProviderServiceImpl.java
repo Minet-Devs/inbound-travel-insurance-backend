@@ -2,6 +2,7 @@ package com.travel.insurance.serviceprovider;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.organization.OrganizationService;
+import com.travel.insurance.serviceprovider.dto.ServiceProviderNearbyResponse;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderRequest;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +13,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -23,6 +26,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 public class ServiceProviderServiceImpl implements ServiceProviderService {
+
+    private static final double EARTH_RADIUS_KM = 6371.0;
 
     private final ServiceProviderRepository serviceProviderRepository;
     private final ServiceProviderMapper serviceProviderMapper;
@@ -106,5 +111,30 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
     @Transactional(readOnly = true)
     public Optional<UUID> findIdByOrganizationId(UUID organizationId) {
         return serviceProviderRepository.findFirstByOrganizationId(organizationId).map(ServiceProvider::getId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ServiceProviderNearbyResponse> findNearby(BigDecimal latitude, BigDecimal longitude,
+                                                            double radiusKm) {
+        double lat = latitude.doubleValue();
+        double lng = longitude.doubleValue();
+        return serviceProviderRepository.findByLatitudeIsNotNullAndLongitudeIsNotNull().stream()
+                .map(provider -> Map.entry(provider, haversineKm(lat, lng,
+                        provider.getLatitude().doubleValue(), provider.getLongitude().doubleValue())))
+                .filter(entry -> entry.getValue() <= radiusKm)
+                .sorted(Comparator.comparingDouble(Map.Entry::getValue))
+                .map(entry -> serviceProviderMapper.toNearbyResponse(entry.getKey()))
+                .toList();
+    }
+
+    private double haversineKm(double lat1, double lng1, double lat2, double lng2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return EARTH_RADIUS_KM * c;
     }
 }

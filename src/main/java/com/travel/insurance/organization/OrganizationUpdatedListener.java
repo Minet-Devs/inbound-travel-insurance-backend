@@ -4,7 +4,10 @@ import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerRequest;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderRequest;
+import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import lombok.RequiredArgsConstructor;
+
+import java.math.BigDecimal;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,12 +47,19 @@ public class OrganizationUpdatedListener {
                             organization.getEsignature(),
                             organization.getId())));
             case SERVICE_PROVIDER -> serviceProviderService.findIdByOrganizationId(organization.getId())
-                    .ifPresent(providerId -> serviceProviderService.update(providerId, new ServiceProviderRequest(
-                            organization.getName(),
-                            organization.getEmail(),
-                            organization.getPhoneNumber(),
-                            organization.getAddress(),
-                            organization.getId())));
+                    .ifPresent(providerId -> {
+                        ServiceProviderResponse current = serviceProviderService.getById(providerId);
+                        BigDecimal longitude = event.longitude() != null ? event.longitude() : current.longitude();
+                        BigDecimal latitude = event.latitude() != null ? event.latitude() : current.latitude();
+                        serviceProviderService.update(providerId, new ServiceProviderRequest(
+                                organization.getName(),
+                                organization.getEmail(),
+                                organization.getPhoneNumber(),
+                                organization.getAddress(),
+                                organization.getId(),
+                                longitude,
+                                latitude));
+                    });
             case ADMIN -> {
             }
         }
