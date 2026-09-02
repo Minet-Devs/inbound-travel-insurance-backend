@@ -50,6 +50,10 @@ public class SecurityConfig {
                     // Disable POST create endpoint specifically — must come BEFORE the broader service-providers rule
                     // insurers & service-providers are now create through organization to enable role based system access
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/service-providers").denyAll();
+                    // Visitors on the mobile app only need /nearby — must come BEFORE the broader
+                    // service-providers rule, which keeps the rest of the CRUD surface ADMIN/PROVIDER_USER-only.
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/service-providers/nearby")
+                            .hasAnyRole("ADMIN", "PROVIDER_USER", "VISITOR");
                     auth.requestMatchers("/api/v1/service-providers/**").hasAnyRole("ADMIN", "PROVIDER_USER");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/icd11-codes/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**").hasRole("ADMIN");
