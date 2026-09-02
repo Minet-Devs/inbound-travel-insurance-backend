@@ -26,8 +26,7 @@
         .meta .value { font-weight: bold; }
         .total-box { background: #e6e6e6; font-weight: bold; font-size: 10pt;
                       padding: 6pt 14pt; margin: 10pt 14pt 0 14pt; }
-        .total-box table { width: 100%; }
-        .total-box .num { text-align: right; }
+        .total-label { margin-right: 4pt; }
         .words-box { border: 0.5pt solid #cccccc; font-size: 8.5pt;
                      padding: 6pt 14pt; margin: 0 14pt 12pt 14pt; }
         .words-label { font-weight: bold; margin-right: 4pt; }
@@ -80,12 +79,8 @@
     </table>
 
     <div class="total-box">
-        <table>
-            <tr>
-                <td>TOTAL AMOUNT RECEIVED:</td>
-                <td class="num" th:text="'USD ' + ${#numbers.formatDecimal(receipt.totalPremium, 1, 2)}"></td>
-            </tr>
-        </table>
+        <span class="total-label">TOTAL AMOUNT RECEIVED:</span>
+        <span th:text="'USD ' + ${#numbers.formatDecimal(receipt.totalPremium, 1, 2)}"></span>
     </div>
 
     <div class="words-box">
