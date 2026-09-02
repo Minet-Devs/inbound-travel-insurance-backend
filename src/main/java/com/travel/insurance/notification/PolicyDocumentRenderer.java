@@ -135,10 +135,11 @@ public class PolicyDocumentRenderer {
     }
 
     /**
-     * Overlays the insurer's logo onto the top-right of the first page and its
-     * e-signature onto the bottom-right of the last page of the bundled policy
-     * wording PDF. Either URL may be null, in which case that overlay is
-     * skipped. Returns the document unmodified if both are null.
+     * Overlays the insurer's logo, horizontally centered near the top of the
+     * first page, and its e-signature, horizontally centered near the bottom
+     * of the last page, onto the bundled policy wording PDF. Either URL may
+     * be null, in which case that overlay is skipped. Returns the document
+     * unmodified if both are null.
      */
     byte[] brandPolicyWording(byte[] policyWordingPdf, String logoUrl, String esignatureUrl) {
         if (logoUrl == null && esignatureUrl == null) {
@@ -163,19 +164,19 @@ public class PolicyDocumentRenderer {
     }
 
     /**
-     * Draws an image into a page's top-right (logo) or bottom-right
-     * (signature) corner, scaled down to fit within maxWidth/maxHeight while
-     * preserving aspect ratio.
+     * Draws an image horizontally centered near the top (logo) or bottom
+     * (signature) of a page, scaled down to fit within maxWidth/maxHeight
+     * while preserving aspect ratio.
      */
     private void overlayImage(PDDocument document, PDPage page, byte[] imageBytes,
-                               float maxWidth, float maxHeight, boolean topRight) throws IOException {
+                               float maxWidth, float maxHeight, boolean atTop) throws IOException {
         PDImageXObject image = PDImageXObject.createFromByteArray(document, imageBytes, "overlay");
         float scale = Math.min(maxWidth / image.getWidth(), maxHeight / image.getHeight());
         float width = image.getWidth() * scale;
         float height = image.getHeight() * scale;
         PDRectangle mediaBox = page.getMediaBox();
-        float x = mediaBox.getUpperRightX() - PAGE_MARGIN - width;
-        float y = topRight
+        float x = mediaBox.getLowerLeftX() + (mediaBox.getWidth() - width) / 2f;
+        float y = atTop
                 ? mediaBox.getUpperRightY() - PAGE_MARGIN - height
                 : mediaBox.getLowerLeftY() + PAGE_MARGIN;
         try (PDPageContentStream contentStream = new PDPageContentStream(
