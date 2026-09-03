@@ -1,5 +1,6 @@
 package com.travel.insurance.notification;
 
+import com.travel.insurance.common.email.EmailAttachment;
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
@@ -17,9 +18,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -80,12 +83,17 @@ class WelcomePackNotificationListenerTest {
 
         ArgumentCaptor<SmtpCredentials> credentialsCaptor = ArgumentCaptor.forClass(SmtpCredentials.class);
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
         verify(emailService).send(credentialsCaptor.capture(), eq("no_reply@acme.example"),
                 eq("traveler@example.com"), eq("RE: Welcome to Kenya – Your Medical Cover Is Now Active"),
-                bodyCaptor.capture());
+                bodyCaptor.capture(), attachmentsCaptor.capture());
 
         assertThat(credentialsCaptor.getValue().host()).isEqualTo("smtp.acme.example");
         assertThat(bodyCaptor.getValue()).contains("Dear Jane,").contains("+254 719 044 777");
+        assertThat(attachmentsCaptor.getValue())
+                .extracting(EmailAttachment::filename)
+                .containsExactly("Inbound-Travel-Health-Welcome-Pack.pdf");
     }
 
     @Test
@@ -96,7 +104,7 @@ class WelcomePackNotificationListenerTest {
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, UUID.randomUUID()));
 
         verify(emailService).send(eq((SmtpCredentials) null), eq("no-reply@travelinsurance.example"),
-                eq("traveler@example.com"), anyString(), anyString());
+                eq("traveler@example.com"), anyString(), anyString(), any(List.class));
     }
 
     @Test
@@ -108,7 +116,7 @@ class WelcomePackNotificationListenerTest {
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, UUID.randomUUID()));
 
         verify(emailService).send(eq((SmtpCredentials) null), eq("no-reply@travelinsurance.example"),
-                eq("traveler@example.com"), anyString(), anyString());
+                eq("traveler@example.com"), anyString(), anyString(), any(List.class));
     }
 
     @Test
@@ -118,6 +126,6 @@ class WelcomePackNotificationListenerTest {
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, UUID.randomUUID()));
 
         verifyNoInteractions(organizationService);
-        verify(emailService, never()).send(eq((SmtpCredentials) null), anyString(), anyString(), anyString(), anyString());
+        verify(emailService, never()).send(eq((SmtpCredentials) null), anyString(), anyString(), anyString(), anyString(), any(List.class));
     }
 }

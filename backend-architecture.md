@@ -1336,9 +1336,13 @@ A second, independent notification — `notification.WelcomePackNotificationList
 — also listens for `VisitorCreatedEvent` and, gated on the visitor being
 `ACTIVE`, emails a fixed "Welcome to Kenya" HTML message covering emergency
 contacts, cover benefits, accredited-hospital lookup instructions, and mobile
-app download links. Unlike `VisitorActivatedNotificationListener` it carries
-no PDF attachment and no per-insurer branding — the body text is static,
-matching the wording supplied by the business (`prompts.md`). It uses the same
+app download links, with the bundled `templates/Inbound-Travel-Health-Welcome-Pack.pdf`
+attached (loaded from the classpath and cached after first read, same pattern
+as `VisitorActivatedNotificationListener`'s policy wording PDF; a load failure
+is logged and the email still goes out without the attachment). Unlike
+`VisitorActivatedNotificationListener` it carries no per-insurer branding — the
+body text is static, matching the wording supplied by the business
+(`prompts.md`). It uses the same
 `@TransactionalEventListener(phase = AFTER_COMMIT)` + catch-and-log pattern as
 every other visitor-facing mail listener, so a failure here can never roll
 back visitor creation, and it fires independently of whether the policy
