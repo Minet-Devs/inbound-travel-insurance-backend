@@ -83,7 +83,15 @@ com.travel.insurance/
 │   │                                       # on VisitorStatusChangedEvent; composes
 │   │                                       # Visitor+Policy+VisitorBenefit+Insurer data
 │   ├── PolicyDocumentRenderer.java         # Thymeleaf → HTML → PDF (openhtmltopdf)
-│   └── PolicyDocumentData.java             # Internal template data holder (not a DTO)
+│   ├── PolicyDocumentData.java             # Internal template data holder (not a DTO)
+│   └── WelcomePackNotificationListener.java  # @TransactionalEventListener(AFTER_COMMIT)
+│                                           # on VisitorCreatedEvent; sends the Kenya
+│                                           # arrival "Welcome Pack" email (a second,
+│                                           # separate notification from the policy
+│                                           # document email above) when the newly
+│                                           # created visitor is ACTIVE. Mailbox resolved
+│                                           # from a fixed organization id, same pattern
+│                                           # as otp.OtpNotificationListener.
 │
 ├── 📁 auth/                                # Feature: Authentication
 │   ├── AuthController.java                 # /login, /refresh
@@ -1321,6 +1329,28 @@ emails them a personalized policy certificate as a PDF attachment:
   every reference insurer hardcodes it too).
 - No "document sent" tracking column exists — a resend on re-activation is
   desired behavior, not a defect.
+
+## Notifications (Welcome Pack Email)
+
+A second, independent notification — `notification.WelcomePackNotificationListener`
+— also listens for `VisitorCreatedEvent` and, gated on the visitor being
+`ACTIVE`, emails a fixed "Welcome to Kenya" HTML message covering emergency
+contacts, cover benefits, accredited-hospital lookup instructions, and mobile
+app download links. Unlike `VisitorActivatedNotificationListener` it carries
+no PDF attachment and no per-insurer branding — the body text is static,
+matching the wording supplied by the business (`prompts.md`). It uses the same
+`@TransactionalEventListener(phase = AFTER_COMMIT)` + catch-and-log pattern as
+every other visitor-facing mail listener, so a failure here can never roll
+back visitor creation, and it fires independently of whether the policy
+document email succeeds. The sender mailbox is resolved from a **fixed
+organization id** (`db705c1e-05e8-48c6-b0ea-62237256e7b3`) — the same id and
+resolution pattern (`Organization.host/port/notificationEmail/notificationEmailPassword`
+fully configured → its own mailbox, else fall back to `MailProperties.from`)
+already used by `otp.OtpNotificationListener` — rather than derived from the
+insurer, since this notification is organization-wide, not insurer-specific.
+The mobile app download links are literal `[Insert Google Play link]` /
+`[Insert Apple App Store link]` placeholders in the copy; no app store URLs
+are configured yet.
 
 ## OTP (Point-of-Service Verification)
 
