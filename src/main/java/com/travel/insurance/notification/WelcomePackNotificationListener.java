@@ -1,5 +1,6 @@
 package com.travel.insurance.notification;
 
+import com.travel.insurance.common.email.EmailAttachment;
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
@@ -12,10 +13,13 @@ import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.VisitorStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -34,6 +38,11 @@ public class WelcomePackNotificationListener {
 
     private static final UUID WELCOME_PACK_SENDER_ORGANIZATION_ID =
             UUID.fromString("db705c1e-05e8-48c6-b0ea-62237256e7b3");
+
+    private static final String WELCOME_PACK_RESOURCE = "templates/Inbound-Travel-Health-Welcome-Pack.pdf";
+    private static final String WELCOME_PACK_ATTACHMENT_NAME = "Inbound-Travel-Health-Welcome-Pack.pdf";
+
+    private byte[] welcomePackPdfCache;
 
     private final VisitorService visitorService;
     private final OrganizationService organizationService;
@@ -57,13 +66,35 @@ public class WelcomePackNotificationListener {
         }
 
         MailSettings mailSettings = resolveMailSettings();
+        byte[] welcomePackPdf = loadWelcomePackPdf();
+        List<EmailAttachment> attachments = welcomePackPdf == null
+                ? List.of()
+                : List.of(new EmailAttachment(WELCOME_PACK_ATTACHMENT_NAME, welcomePackPdf));
         emailService.send(
                 mailSettings.credentials(),
                 mailSettings.from(),
                 visitor.getEmail(),
                 "RE: Welcome to Kenya – Your Medical Cover Is Now Active",
-                buildWelcomePackHtml(firstNameOf(visitor.getFullName())));
+                buildWelcomePackHtml(firstNameOf(visitor.getFullName())),
+                attachments);
         log.info("Sent welcome pack email for visitor {} to {}", visitorId, visitor.getEmail());
+    }
+
+    /**
+     * Loads the bundled Welcome Pack PDF from the classpath, cached after the
+     * first read. A load failure is logged and returns {@code null} so the
+     * email still goes out without the attachment.
+     */
+    private synchronized byte[] loadWelcomePackPdf() {
+        if (welcomePackPdfCache == null) {
+            try {
+                welcomePackPdfCache = new ClassPathResource(WELCOME_PACK_RESOURCE).getInputStream().readAllBytes();
+            } catch (IOException ex) {
+                log.error("Could not load bundled welcome pack {}: {}", WELCOME_PACK_RESOURCE, ex.getMessage(), ex);
+                return null;
+            }
+        }
+        return welcomePackPdfCache;
     }
 
     private static String firstNameOf(String fullName) {
