@@ -443,8 +443,11 @@ Policy
   `GET /api/v1/policies` return `PolicyDetailResponse` rows that embed the
   benefit catalog under `benefits`; since benefits are global (see below),
   every policy carries the whole catalog. `PolicyController` fetches it once
-  via `BenefitService.listAll()` and attaches it to each policy. Create/update
-  return plain `PolicyResponse` rows without benefits.
+  via `BenefitService.listAll()` and attaches it to each policy.
+  `PolicyDetailResponse` also carries `insurerName`, resolved via
+  `InsurerService.namesByIds` (batched across the page for the list endpoint
+  to avoid N+1 lookups). Create/update return plain `PolicyResponse` rows
+  without benefits or `insurerName`.
 - Since a policy backs exactly one insurer (`Policy.insurerId`), `InsurerResponse`
   (returned by `POST/GET/PUT /api/v1/insurers` and the paged `GET
   /api/v1/insurers`) carries a `policyId` field alongside the insurer's own
