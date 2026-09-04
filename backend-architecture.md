@@ -80,18 +80,12 @@ com.travel.insurance/
 │
 ├── 📁 notification/                        # Feature: Visitor-facing notifications
 │   ├── VisitorActivatedNotificationListener.java  # @TransactionalEventListener(AFTER_COMMIT)
-│   │                                       # on VisitorStatusChangedEvent; composes
-│   │                                       # Visitor+Policy+VisitorBenefit+Insurer data
+│   │                                       # on VisitorStatusChangedEvent / VisitorCreatedEvent;
+│   │                                       # composes Visitor+Policy+VisitorBenefit+Insurer data
+│   │                                       # and sends the visitor's single activation email
+│   │                                       # (certificate + Welcome Pack copy/attachment)
 │   ├── PolicyDocumentRenderer.java         # Thymeleaf → HTML → PDF (openhtmltopdf)
-│   ├── PolicyDocumentData.java             # Internal template data holder (not a DTO)
-│   └── WelcomePackNotificationListener.java  # @TransactionalEventListener(AFTER_COMMIT)
-│                                           # on VisitorCreatedEvent; sends the Kenya
-│                                           # arrival "Welcome Pack" email (a second,
-│                                           # separate notification from the policy
-│                                           # document email above) when the newly
-│                                           # created visitor is ACTIVE. Mailbox resolved
-│                                           # from a fixed organization id, same pattern
-│                                           # as otp.OtpNotificationListener.
+│   └── PolicyDocumentData.java             # Internal template data holder (not a DTO)
 │
 ├── 📁 auth/                                # Feature: Authentication
 │   ├── AuthController.java                 # /login, /refresh
@@ -1188,8 +1182,20 @@ POST /api/v1/visitors
 
 ## Notifications (Policy Document Email)
 
-When a `Visitor`'s cover becomes `ACTIVE`, the `notification` package
-emails them a personalized policy certificate as a PDF attachment:
+When a `Visitor`'s cover becomes `ACTIVE`, the `notification` package sends
+them a single email — their personalized policy certificate plus the "Welcome
+to Kenya" Welcome Pack copy and attachment. This used to be two separate
+emails (a policy-document email from this listener and a second, independent
+"Welcome Pack" email from `WelcomePackNotificationListener`); the two were
+folded into one so the visitor gets exactly one activation email, per
+`prompts.md`. The subject line and HTML body are the former Welcome Pack
+copy (`Welcome to Kenya – Your Medical Cover Is Now Active`, minus the "RE:"
+prefix it carried when it was a follow-up to a separate first email — with
+only one email now, "RE:" no longer applies), covering emergency contacts,
+cover benefits, accredited-hospital lookup instructions, and mobile app
+download links (the app store links are literal `[Insert Google Play link]`
+/ `[Insert Apple App Store link]` placeholders in the copy; no app store
+URLs are configured yet):
 
 - `VisitorActivatedNotificationListener` sends the certificate on two paths,
   both gated on `ACTIVE`: `VisitorStatusChangedEvent` with `newStatus == ACTIVE`
@@ -1247,12 +1253,14 @@ emails them a personalized policy certificate as a PDF attachment:
   re-sent. It's rendered in the certificate's `.meta` strip and referenced by
   the verification copy ("Verify this certificate at kenyacares.go.ke/verify
   using the Certificate Serial Number above").
-- The activation email carries up to two attachments: a single
-  `policy-certificate-<passportNumber>.pdf` and the policy wording
-  `templates/Policy_Document_July_2026.pdf`. The base wording PDF is loaded
-  once from the classpath and cached (`rawPolicyDocumentCache`); if the
-  bundled document can't be read it is logged and skipped so the certificate
-  still goes out. When the backing insurer has a logo and/or e-signature URL,
+- The activation email carries up to three attachments: a single
+  `policy-certificate-<passportNumber>.pdf`, the policy wording
+  `templates/Policy_Document_July_2026.pdf`, and the bundled
+  `templates/Inbound-Travel-Health-Welcome-Pack.pdf`. The base wording PDF
+  and the Welcome Pack PDF are each loaded once from the classpath and cached
+  (`rawPolicyDocumentCache`, `welcomePackPdfCache`); if either bundled
+  document can't be read, that load is logged and skipped so the rest of the
+  email still goes out. When the backing insurer has a logo and/or e-signature URL,
   `PolicyDocumentRenderer.brandPolicyWording` overlays the logo, horizontally
   centered near the top of page 1, and the e-signature, horizontally centered
   near the bottom of the last page, via PDFBox (`PDPageContentStream` +
@@ -1329,32 +1337,6 @@ emails them a personalized policy certificate as a PDF attachment:
   every reference insurer hardcodes it too).
 - No "document sent" tracking column exists — a resend on re-activation is
   desired behavior, not a defect.
-
-## Notifications (Welcome Pack Email)
-
-A second, independent notification — `notification.WelcomePackNotificationListener`
-— also listens for `VisitorCreatedEvent` and, gated on the visitor being
-`ACTIVE`, emails a fixed "Welcome to Kenya" HTML message covering emergency
-contacts, cover benefits, accredited-hospital lookup instructions, and mobile
-app download links, with the bundled `templates/Inbound-Travel-Health-Welcome-Pack.pdf`
-attached (loaded from the classpath and cached after first read, same pattern
-as `VisitorActivatedNotificationListener`'s policy wording PDF; a load failure
-is logged and the email still goes out without the attachment). Unlike
-`VisitorActivatedNotificationListener` it carries no per-insurer branding — the
-body text is static, matching the wording supplied by the business
-(`prompts.md`). It uses the same
-`@TransactionalEventListener(phase = AFTER_COMMIT)` + catch-and-log pattern as
-every other visitor-facing mail listener, so a failure here can never roll
-back visitor creation, and it fires independently of whether the policy
-document email succeeds. The sender mailbox is resolved from a **fixed
-organization id** (`db705c1e-05e8-48c6-b0ea-62237256e7b3`) — the same id and
-resolution pattern (`Organization.host/port/notificationEmail/notificationEmailPassword`
-fully configured → its own mailbox, else fall back to `MailProperties.from`)
-already used by `otp.OtpNotificationListener` — rather than derived from the
-insurer, since this notification is organization-wide, not insurer-specific.
-The mobile app download links are literal `[Insert Google Play link]` /
-`[Insert Apple App Store link]` placeholders in the copy; no app store URLs
-are configured yet.
 
 ## OTP (Point-of-Service Verification)
 

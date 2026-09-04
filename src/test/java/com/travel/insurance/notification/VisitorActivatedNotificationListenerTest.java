@@ -184,17 +184,22 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(receiptCaptor.getValue().insurerAddress()).isEqualTo("PO Box 500, Nairobi");
         assertThat(receiptCaptor.getValue().totalPremium()).isEqualTo(new BigDecimal("44"));
 
+        ArgumentCaptor<String> subjectCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
         verify(emailService).send(
                 isNull(),
                 eq("no-reply@travelinsurance.example"),
                 eq("jane.traveler@example.com"),
-                anyString(),
-                anyString(),
+                subjectCaptor.capture(),
+                bodyCaptor.capture(),
                 attachmentsCaptor.capture());
+        assertThat(subjectCaptor.getValue()).isEqualTo("Welcome to Kenya – Your Medical Cover Is Now Active");
+        assertThat(bodyCaptor.getValue()).contains("Dear Jane,").contains("+254 719 044 777");
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
-                .containsExactly("policy-certificate-P1234567.pdf", "Policy_Document_July_2026.pdf");
+                .containsExactly("policy-certificate-P1234567.pdf", "Policy_Document_July_2026.pdf",
+                        "Inbound-Travel-Health-Welcome-Pack.pdf");
         assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-MERGED".getBytes());
         assertThat(attachmentsCaptor.getValue().get(1).content()).isEqualTo("%PDF-BRANDED".getBytes());
     }
@@ -350,6 +355,25 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .contains("Policy_Document_July_2026.pdf");
+    }
+
+    @Test
+    void attachesWelcomePackPdfAlongsideCertificateAndPolicyDocument() {
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
+        when(premiumReceiptService.get()).thenReturn(samplePremiumReceipt());
+        when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
+
+        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
+
+        ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(emailService).send(any(), anyString(), anyString(), anyString(), anyString(), attachmentsCaptor.capture());
+        assertThat(attachmentsCaptor.getValue())
+                .extracting(EmailAttachment::filename)
+                .contains("Inbound-Travel-Health-Welcome-Pack.pdf");
     }
 
     @Test
