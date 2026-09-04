@@ -34,10 +34,13 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Emails the visitor their personalized policy certificate once their cover is
- * active — either on a status transition to ACTIVE, or on creation when the
- * visitor is created already ACTIVE (the default). Both paths are gated on the
- * ACTIVE status so exactly one certificate goes out per activation.
+ * Emails the visitor their personalized policy certificate and Welcome Pack
+ * once their cover is active — either on a status transition to ACTIVE, or on
+ * creation when the visitor is created already ACTIVE (the default). Both
+ * paths are gated on the ACTIVE status so exactly one email goes out per
+ * activation. This is the visitor's only activation email — it used to be
+ * split into a separate "Welcome Pack" notification, but that was folded in
+ * here so the visitor gets one email, not two (per {@code prompts.md}).
  * Unlike {@code visitorbenefit.VisitorStatusChangedListener}
  * (which stays synchronous and in-transaction because it must mirror the
  * status onto VisitorBenefit rows consistently), this listener uses
@@ -46,7 +49,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * status change if the mail server is slow or unreachable. Any failure here
  * is caught and logged, never propagated — a broken mail server must never
  * be able to affect the visitor status API's correctness. Re-activation
- * (e.g. ACTIVE → SUSPENDED → ACTIVE) intentionally re-sends the certificate;
+ * (e.g. ACTIVE → SUSPENDED → ACTIVE) intentionally re-sends the email;
  * that's treated as a new, valid activation rather than a duplicate to guard
  * against.
  */
@@ -57,8 +60,11 @@ public class VisitorActivatedNotificationListener {
 
     private static final String POLICY_DOCUMENT_RESOURCE = "templates/Policy_Document_July_2026.pdf";
     private static final String POLICY_DOCUMENT_ATTACHMENT_NAME = "Policy_Document_July_2026.pdf";
+    private static final String WELCOME_PACK_RESOURCE = "templates/Inbound-Travel-Health-Welcome-Pack.pdf";
+    private static final String WELCOME_PACK_ATTACHMENT_NAME = "Inbound-Travel-Health-Welcome-Pack.pdf";
 
     private byte[] rawPolicyDocumentCache;
+    private byte[] welcomePackPdfCache;
     private final Map<UUID, byte[]> brandedPolicyDocumentCache = new ConcurrentHashMap<>();
 
     private final VisitorService visitorService;
@@ -90,7 +96,7 @@ public class VisitorActivatedNotificationListener {
         try {
             sendActivationDocument(visitorId);
         } catch (Exception ex) {
-            log.error("Failed to generate/send policy document for visitor {}: {}",
+            log.error("Failed to generate/send activation email for visitor {}: {}",
                     visitorId, ex.getMessage(), ex);
         }
     }
@@ -157,17 +163,96 @@ public class VisitorActivatedNotificationListener {
         if (policyDocument != null) {
             attachments.add(new EmailAttachment(POLICY_DOCUMENT_ATTACHMENT_NAME, policyDocument));
         }
+        byte[] welcomePackPdf = loadWelcomePackPdf();
+        if (welcomePackPdf != null) {
+            attachments.add(new EmailAttachment(WELCOME_PACK_ATTACHMENT_NAME, welcomePackPdf));
+        }
         InsurerMailSettings mailSettings = resolveMailSettings(insurer);
         emailService.send(
                 mailSettings.credentials(),
                 mailSettings.from(),
                 visitor.getEmail(),
-                "Your Travel Insurance Policy Document",
-                "<p>Dear " + visitor.getFullName() + ",</p>"
-                        + "<p>Your travel insurance cover is now active. Your policy certificate and "
-                        + "premium receipt are attached.</p>",
+                "Welcome to Kenya – Your Medical Cover Is Now Active",
+                buildActivationEmailHtml(firstNameOf(visitor.getFullName())),
                 attachments);
-        log.info("Sent policy document for visitor {} to {}", visitorId, visitor.getEmail());
+        log.info("Sent activation email for visitor {} to {}", visitorId, visitor.getEmail());
+    }
+
+    private static String firstNameOf(String fullName) {
+        if (fullName == null || fullName.isBlank()) {
+            return "Traveller";
+        }
+        return fullName.trim().split("\\s+")[0];
+    }
+
+    private static final String EMAIL_FONT_FAMILY = "Corbel, 'Segoe UI', Arial, sans-serif";
+
+    private static String buildActivationEmailHtml(String firstName) {
+        return "<div style=\"font-family: " + EMAIL_FONT_FAMILY + ";\">"
+                + "<p>Dear " + firstName + ",</p>"
+                + "<p>Welcome to Kenya!</p>"
+                + "<p>We are pleased to confirm that your Inbound Travel Health Insurance cover has been "
+                + "activated following your arrival in the country. Your cover will remain valid in "
+                + "accordance with the period stated in your policy document.</p>"
+                + "<p>To help you access assistance and medical care easily during your stay, we have "
+                + "attached your Welcome Pack. It contains:</p>"
+                + "<ul>"
+                + "<li>Your 24-hour emergency and assistance contacts</li>"
+                + "<li>Your medical cover benefits</li>"
+                + "<li>Instructions for accessing medical care</li>"
+                + "<li>Details on how to locate accredited hospitals across Kenya</li>"
+                + "<li>Guidance on emergency evacuation and hospital admission</li>"
+                + "<li>Information on downloading and using the mobile app</li>"
+                + "</ul>"
+                + "<p><strong>Download the mobile app:</strong><br>"
+                + "Android: [Insert Google Play link]<br>"
+                + "iPhone: [Insert Apple App Store link]</p>"
+                + "<p><strong>How to find an accredited hospital:</strong></p>"
+                + "<ul>"
+                + "<li>Use the app and select “Find a Hospital”</li>"
+                + "<li>If you have a Kenyan mobile line, dial *202*15#, select “Find Hospital,” "
+                + "and follow the prompts</li>"
+                + "<li>Call our 24/7 Assistance Centre on +254 719 044 777 for guidance to the nearest "
+                + "appropriate facility</li>"
+                + "</ul>"
+                + "<p>If you require medical attention, please visit an accredited healthcare provider and "
+                + "present:</p>"
+                + "<ul>"
+                + "<li>Your passport and</li>"
+                + "<li>Your electronic insurance policy or confirmation of cover.</li>"
+                + "</ul>"
+                + "<p>Treatment at accredited facilities is provided on a cashless basis, subject to your "
+                + "policy terms, benefit limits and the applicable authorization process.</p>"
+                + "<p>In an emergency, please call +254 719 044 777 immediately, preferably before "
+                + "incurring any medical expenses. If you are admitted to a non-accredited hospital because "
+                + "of an emergency, you or someone assisting you must notify us within 24 hours.</p>"
+                + "<p>For general enquiries, contact us at inbound.travel@minet.co.ke.</p>"
+                + "<p>Please save the emergency number in your phone and keep the attached Welcome Pack "
+                + "readily accessible throughout your stay.</p>"
+                + "<p>We wish you a safe, healthy and enjoyable stay in Kenya.</p>"
+                + "<p>Warm regards,</p>"
+                + "<p>Inbound Travel Health Insurance Support Team<br>"
+                + "Minet Kenya<br>"
+                + "24/7 Assistance Centre: +254 719 044 777<br>"
+                + "Email: inbound.travel@minet.co.ke</p>"
+                + "</div>";
+    }
+
+    /**
+     * Loads the bundled Welcome Pack PDF from the classpath, cached after the
+     * first read. A load failure is logged and returns {@code null} so the
+     * email still goes out without the attachment.
+     */
+    private synchronized byte[] loadWelcomePackPdf() {
+        if (welcomePackPdfCache == null) {
+            try {
+                welcomePackPdfCache = new ClassPathResource(WELCOME_PACK_RESOURCE).getInputStream().readAllBytes();
+            } catch (IOException ex) {
+                log.error("Could not load bundled welcome pack {}: {}", WELCOME_PACK_RESOURCE, ex.getMessage(), ex);
+                return null;
+            }
+        }
+        return welcomePackPdfCache;
     }
 
     /**
