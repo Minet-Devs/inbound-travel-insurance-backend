@@ -185,8 +185,11 @@ public class VisitorActivatedNotificationListener {
         return fullName.trim().split("\\s+")[0];
     }
 
+    private static final String EMAIL_FONT_FAMILY = "Corbel, 'Segoe UI', Arial, sans-serif";
+
     private static String buildActivationEmailHtml(String firstName) {
-        return "<p>Dear " + firstName + ",</p>"
+        return "<div style=\"font-family: " + EMAIL_FONT_FAMILY + ";\">"
+                + "<p>Dear " + firstName + ",</p>"
                 + "<p>Welcome to Kenya!</p>"
                 + "<p>We are pleased to confirm that your Inbound Travel Health Insurance cover has been "
                 + "activated following your arrival in the country. Your cover will remain valid in "
@@ -231,7 +234,8 @@ public class VisitorActivatedNotificationListener {
                 + "<p>Inbound Travel Health Insurance Support Team<br>"
                 + "Minet Kenya<br>"
                 + "24/7 Assistance Centre: +254 719 044 777<br>"
-                + "Email: inbound.travel@minet.co.ke</p>";
+                + "Email: inbound.travel@minet.co.ke</p>"
+                + "</div>";
     }
 
     /**
