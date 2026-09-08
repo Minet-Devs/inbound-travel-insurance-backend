@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Service
@@ -30,6 +31,19 @@ public class PremiumReceiptServiceImpl implements PremiumReceiptService {
         PremiumReceipt premiumReceipt = getEntity();
         premiumReceiptMapper.patchEntity(premiumReceipt, request);
         return premiumReceiptMapper.toResponse(premiumReceiptRepository.save(premiumReceipt));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BigDecimal calculateTotalPremium(int ageInYears) {
+        PremiumReceipt premiumReceipt = getEntity();
+        if (ageInYears <= 2) {
+            return premiumReceipt.getInfantPremium();
+        }
+        if (ageInYears <= 17) {
+            return premiumReceipt.getMinorPremium();
+        }
+        return premiumReceipt.getTotalPremium();
     }
 
     private PremiumReceipt getEntity() {

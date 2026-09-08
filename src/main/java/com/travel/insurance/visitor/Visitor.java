@@ -18,6 +18,7 @@ import org.hibernate.annotations.SQLRestriction;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Period;
 import java.util.UUID;
 
 @Entity
@@ -82,6 +83,15 @@ public class Visitor extends BaseEntity {
     @Transient
     public LocalDate getPolicyExpiryDate() {
         return dateIn != null ? dateIn.plusDays(365) : null;
+    }
+
+    /**
+     * Age in whole years as at {@link #dateIn}, the start of cover — used to
+     * resolve the age-tiered premium rate rather than the visitor's current age.
+     */
+    @Transient
+    public int getAgeAtTravel() {
+        return Period.between(dateOfBirth, dateIn).getYears();
     }
 
     @Enumerated(EnumType.STRING)

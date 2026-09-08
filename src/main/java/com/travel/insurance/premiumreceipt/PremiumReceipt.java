@@ -17,8 +17,23 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 public class PremiumReceipt extends BaseEntity {
 
+    /**
+     * Rate for visitors aged 18 and above.
+     */
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal totalPremium;
+
+    /**
+     * Rate for visitors aged 3 to 17.
+     */
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal minorPremium;
+
+    /**
+     * Rate for visitors aged 2 and below.
+     */
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal infantPremium;
 
     @Column(nullable = false, precision = 10, scale = 6)
     private BigDecimal pcfLevy;

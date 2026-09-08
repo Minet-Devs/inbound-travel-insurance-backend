@@ -11,7 +11,6 @@ import com.travel.insurance.notification.PolicyDocumentData.BenefitLine;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.premiumreceipt.PremiumReceiptService;
-import com.travel.insurance.premiumreceipt.dto.PremiumReceiptResponse;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorCreatedEvent;
 import com.travel.insurance.visitor.VisitorService;
@@ -27,6 +26,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -141,7 +141,7 @@ public class VisitorActivatedNotificationListener {
 
         byte[] pdf = renderer.renderPdf(data);
 
-        PremiumReceiptResponse premiumReceipt = premiumReceiptService.get();
+        BigDecimal totalPremium = premiumReceiptService.calculateTotalPremium(visitor.getAgeAtTravel());
         PremiumReceiptData premiumReceiptData = new PremiumReceiptData(
                 visitor.getFullName(),
                 visitor.getPassportNumber(),
@@ -151,7 +151,7 @@ public class VisitorActivatedNotificationListener {
                 insurer.getName(),
                 underwriterLogoUrl,
                 insurer.getAddress(),
-                premiumReceipt.totalPremium());
+                totalPremium);
         byte[] premiumReceiptPdf = renderer.renderPremiumReceiptPdf(premiumReceiptData);
 
         byte[] combinedPdf = renderer.mergePdfs(pdf, premiumReceiptPdf);

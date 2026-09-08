@@ -41,8 +41,9 @@ class PremiumReceiptControllerTest {
 
     private PremiumReceiptResponse sampleResponse() {
         return new PremiumReceiptResponse(UUID.fromString("00000000-0000-0000-0000-000000000001"),
-                new BigDecimal("44"), new BigDecimal("0.0001"), new BigDecimal("0.0005"), new BigDecimal("40"),
-                new BigDecimal("0.001"), Instant.now(), Instant.now());
+                new BigDecimal("44"), new BigDecimal("22"), new BigDecimal("0"), new BigDecimal("0.0001"),
+                new BigDecimal("0.0005"), new BigDecimal("40"), new BigDecimal("0.001"), Instant.now(),
+                Instant.now());
     }
 
     @Test
@@ -60,7 +61,8 @@ class PremiumReceiptControllerTest {
     @WithMockUser(roles = "ADMIN")
     void patchReturnsUpdatedPremiumReceipt() throws Exception {
         when(premiumReceiptService.patch(any(PremiumReceiptPatchRequest.class))).thenReturn(sampleResponse());
-        PremiumReceiptPatchRequest patchRequest = new PremiumReceiptPatchRequest(null, null, null, null, null);
+        PremiumReceiptPatchRequest patchRequest =
+                new PremiumReceiptPatchRequest(null, null, null, null, null, null, null);
 
         mockMvc.perform(patch("/api/v1/premium-receipts")
                         .with(csrf())
@@ -74,7 +76,7 @@ class PremiumReceiptControllerTest {
     @WithMockUser(roles = "ADMIN")
     void patchRejectsOutOfRangePercentage() throws Exception {
         PremiumReceiptPatchRequest patchRequest =
-                new PremiumReceiptPatchRequest(null, new BigDecimal("1.5"), null, null, null);
+                new PremiumReceiptPatchRequest(null, null, null, new BigDecimal("1.5"), null, null, null);
 
         mockMvc.perform(patch("/api/v1/premium-receipts")
                         .with(csrf())
