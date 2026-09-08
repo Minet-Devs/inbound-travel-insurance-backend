@@ -149,7 +149,7 @@ class VisitorActivatedNotificationListenerTest {
         when(renderer.brandPolicyWording(any(byte[].class), eq("https://cdn.example/acme.png"), isNull()))
                 .thenReturn("%PDF-BRANDED".getBytes());
         when(renderer.fillPolicyAgreementDetails(eq("%PDF-BRANDED".getBytes()), anyString(), any(), anyString(),
-                any(LocalDate.class)))
+                anyString(), any(LocalDate.class)))
                 .thenReturn("%PDF-AGREEMENT-FILLED".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -164,7 +164,7 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(dataCaptor.getValue().benefits()).hasSize(1);
 
         verify(renderer).fillPolicyAgreementDetails("%PDF-BRANDED".getBytes(), "Acme Insurance",
-                "PO Box 500, Nairobi", "Jane Traveler", LocalDate.now());
+                "PO Box 500, Nairobi", "Jane Traveler", "jane.traveler@example.com", LocalDate.now());
 
         ArgumentCaptor<PremiumReceiptData> receiptCaptor = ArgumentCaptor.forClass(PremiumReceiptData.class);
         verify(renderer).renderPremiumReceiptPdf(receiptCaptor.capture());
@@ -366,7 +366,7 @@ class VisitorActivatedNotificationListenerTest {
         when(renderer.brandPolicyWording(any(byte[].class), eq("https://cdn.example/acme.png"), isNull()))
                 .thenReturn("%PDF-BRANDED".getBytes());
         when(renderer.fillPolicyAgreementDetails(eq("%PDF-BRANDED".getBytes()), anyString(), any(), anyString(),
-                any(LocalDate.class)))
+                anyString(), any(LocalDate.class)))
                 .thenThrow(new IllegalStateException("agreement fill failed"));
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));

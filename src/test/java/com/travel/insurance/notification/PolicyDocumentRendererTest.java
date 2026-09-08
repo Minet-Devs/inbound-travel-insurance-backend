@@ -573,12 +573,14 @@ class PolicyDocumentRendererTest {
         byte[] pdf = samplePolicyWordingPdfWithAtLeastThreePages();
 
         byte[] filled = renderer.fillPolicyAgreementDetails(
-                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler", LocalDate.of(2026, 8, 8));
+                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler",
+                "jane.traveler@example.com", LocalDate.of(2026, 8, 8));
 
         String pageThreeText = textOfPage(filled, 2);
         assertThat(pageThreeText).contains("Acme Insurance");
         assertThat(pageThreeText).contains("200");
         assertThat(pageThreeText).contains("Jane Traveler");
+        assertThat(pageThreeText).contains("jane.traveler@example.com");
         assertThat(pageThreeText).contains("Nairobi");
         assertThat(pageThreeText).contains("08/08/26");
         assertThat(pageThreeText).contains("08 Aug 2026");
@@ -591,7 +593,8 @@ class PolicyDocumentRendererTest {
         byte[] pdf = samplePolicyWordingPdfWithAtLeastThreePages();
 
         byte[] filled = renderer.fillPolicyAgreementDetails(
-                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler", LocalDate.of(2026, 8, 8));
+                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler",
+                "jane.traveler@example.com", LocalDate.of(2026, 8, 8));
 
         try (PDDocument original = Loader.loadPDF(pdf);
              PDDocument filledDocument = Loader.loadPDF(filled)) {
@@ -605,8 +608,23 @@ class PolicyDocumentRendererTest {
         byte[] pdf = samplePolicyWordingPdf();
 
         byte[] filled = renderer.fillPolicyAgreementDetails(
-                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler", LocalDate.of(2026, 8, 8));
+                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler",
+                "jane.traveler@example.com", LocalDate.of(2026, 8, 8));
 
         assertThat(filled).isSameAs(pdf);
+    }
+
+    @Test
+    void overlaysEsignatureOnCompanySignatureLineOnPolicyAgreementPage() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdfWithAtLeastThreePages();
+        String esignatureUrl = servePngImage();
+
+        byte[] branded = renderer.brandPolicyWording(pdf, null, esignatureUrl);
+
+        try (PDDocument brandedDocument = Loader.loadPDF(branded)) {
+            PDPage policyAgreementPage = brandedDocument.getPage(2);
+            assertThat(policyAgreementPage.getResources().getXObjectNames()).isNotEmpty();
+        }
     }
 }

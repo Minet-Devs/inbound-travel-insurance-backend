@@ -61,6 +61,16 @@ public class PolicyDocumentRenderer {
     private static final String SIGNED_AT_LOCATION = "Nairobi";
     private static final Pattern PO_BOX_NUMBER = Pattern.compile("(?i)\\bbox\\s*([\\w-]+)");
 
+    // Page 3 "For and Behalf of the Company" / "Signature:" blank.
+    private static final float COMPANY_SIGNATURE_X = 107f;
+    private static final float COMPANY_SIGNATURE_Y = 385f;
+    private static final float COMPANY_SIGNATURE_MAX_WIDTH = 130f;
+    private static final float COMPANY_SIGNATURE_MAX_HEIGHT = 22f;
+
+    // Page 3 "For and Behalf of the Insured" / "Signature:" blank.
+    private static final float INSURED_SIGNATURE_X = 107f;
+    private static final float INSURED_SIGNATURE_Y = 259.1f;
+
     private final SpringTemplateEngine templateEngine;
 
     public PolicyDocumentRenderer(SpringTemplateEngine templateEngine) {
@@ -151,10 +161,13 @@ public class PolicyDocumentRenderer {
 
     /**
      * Overlays the insurer's logo, horizontally centered near the top of the
-     * first page, and its e-signature, horizontally centered near the bottom
-     * of every page, onto the bundled policy wording PDF. Either URL may
-     * be null, in which case that overlay is skipped. Returns the document
-     * unmodified if both are null.
+     * first page, and its e-signature, onto the bundled policy wording PDF.
+     * The e-signature is placed on every page: horizontally centered near
+     * the bottom on every page except the "POLICY AGREEMENT" page, where it
+     * instead sits directly on the "For and Behalf of the Company" /
+     * "Signature:" line, matching the signature actually required there.
+     * Either URL may be null, in which case that overlay is skipped. Returns
+     * the document unmodified if both are null.
      */
     byte[] brandPolicyWording(byte[] policyWordingPdf, String logoUrl, String esignatureUrl) {
         if (logoUrl == null && esignatureUrl == null) {
@@ -167,9 +180,15 @@ public class PolicyDocumentRenderer {
             }
             if (esignatureUrl != null) {
                 byte[] esignatureBytes = fetchImageBytes(esignatureUrl);
-                for (PDPage page : document.getPages()) {
-                    overlayImage(document, page, esignatureBytes,
-                            SIGNATURE_MAX_WIDTH, SIGNATURE_MAX_HEIGHT, false);
+                for (int i = 0; i < document.getNumberOfPages(); i++) {
+                    PDPage page = document.getPage(i);
+                    if (i == POLICY_AGREEMENT_PAGE_INDEX) {
+                        overlayImageAt(document, page, esignatureBytes, COMPANY_SIGNATURE_X,
+                                COMPANY_SIGNATURE_Y, COMPANY_SIGNATURE_MAX_WIDTH, COMPANY_SIGNATURE_MAX_HEIGHT);
+                    } else {
+                        overlayImage(document, page, esignatureBytes,
+                                SIGNATURE_MAX_WIDTH, SIGNATURE_MAX_HEIGHT, false);
+                    }
                 }
             }
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -192,10 +211,15 @@ public class PolicyDocumentRenderer {
      * Box (a few points of blank space between pre-printed underscores) have
      * no usable room for a real name/address and are deliberately left
      * blank; the Insured's name is instead filled into the much wider
-     * signature-block "Name:" line further down the same page.
+     * signature-block "Name:" line further down the same page. The Insured
+     * has no e-signature image on file (only the underwriter does, applied
+     * separately in {@link #brandPolicyWording}), so the visitor's email
+     * address is written onto the Insured's "Signature:" line as their
+     * signature-in-lieu.
      */
     byte[] fillPolicyAgreementDetails(byte[] brandedPolicyWordingPdf, String insurerName,
-                                       String insurerAddress, String insuredName, LocalDate issueDate) {
+                                       String insurerAddress, String insuredName, String insuredEmail,
+                                       LocalDate issueDate) {
         try (PDDocument document = Loader.loadPDF(brandedPolicyWordingPdf)) {
             if (document.getNumberOfPages() <= POLICY_AGREEMENT_PAGE_INDEX) {
                 return brandedPolicyWordingPdf;
@@ -221,6 +245,8 @@ public class PolicyDocumentRenderer {
                 drawText(contentStream, issueDateText, 95f, 356.3f, AGREEMENT_FONT_SIZE);
                 // Signature block — Insured
                 drawText(contentStream, insuredName, 90f, 281.9f, AGREEMENT_FONT_SIZE);
+                drawText(contentStream, insuredEmail, INSURED_SIGNATURE_X, INSURED_SIGNATURE_Y,
+                        AGREEMENT_TIGHT_FONT_SIZE);
                 drawText(contentStream, issueDateText, 95f, 236.2f, AGREEMENT_FONT_SIZE);
             }
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -275,6 +301,24 @@ public class PolicyDocumentRenderer {
         float y = atTop
                 ? mediaBox.getUpperRightY() - PAGE_MARGIN - height
                 : mediaBox.getLowerLeftY() + PAGE_MARGIN;
+        try (PDPageContentStream contentStream = new PDPageContentStream(
+                document, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
+            contentStream.drawImage(image, x, y, width, height);
+        }
+    }
+
+    /**
+     * Draws an image with its bottom-left corner at the given position,
+     * scaled down to fit within maxWidth/maxHeight while preserving aspect
+     * ratio — used to place the e-signature directly on a specific
+     * signature line rather than centered across the page.
+     */
+    private void overlayImageAt(PDDocument document, PDPage page, byte[] imageBytes,
+                                 float x, float y, float maxWidth, float maxHeight) throws IOException {
+        PDImageXObject image = PDImageXObject.createFromByteArray(document, imageBytes, "overlay");
+        float scale = Math.min(maxWidth / image.getWidth(), maxHeight / image.getHeight());
+        float width = image.getWidth() * scale;
+        float height = image.getHeight() * scale;
         try (PDPageContentStream contentStream = new PDPageContentStream(
                 document, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
             contentStream.drawImage(image, x, y, width, height);

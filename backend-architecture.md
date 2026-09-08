@@ -1266,16 +1266,19 @@ URLs are configured yet):
   document can't be read, that load is logged and skipped so the rest of the
   email still goes out. When the backing insurer has a logo and/or e-signature URL,
   `PolicyDocumentRenderer.brandPolicyWording` overlays the logo, horizontally
-  centered near the top of page 1, and the e-signature, horizontally centered
-  near the bottom of **every page**, via PDFBox (`PDPageContentStream` +
-  `PDImageXObject`, scaled to fit 120×50pt / 150×60pt boxes with a 36pt
-  margin from the top/bottom edge, aspect ratio preserved); the
-  branded result is cached per insurer (`brandedPolicyDocumentCache`, keyed by
-  `Insurer.id`), since the wording document is no longer identical for every
-  insurer. Both overlay URLs are optional and independent — an insurer with
-  only a logo gets just the page-1 overlay, and vice versa — and a branding
-  failure (unreachable logo/e-signature URL) falls back to the unbranded
-  wording PDF rather than dropping the attachment.
+  centered near the top of page 1, and the e-signature on every page, via
+  PDFBox (`PDPageContentStream` + `PDImageXObject`, aspect ratio preserved).
+  On every page except the "POLICY AGREEMENT" page (page 3) the e-signature
+  is horizontally centered near the bottom, scaled to fit a 150×60pt box with
+  a 36pt margin from the bottom edge; on page 3 it's instead placed directly
+  on the "For and Behalf of the Company" / "Signature:" line (scaled to fit a
+  130×22pt box), since that's the actual signature the document calls for.
+  The branded result is cached per insurer (`brandedPolicyDocumentCache`,
+  keyed by `Insurer.id`), since the wording document is no longer identical
+  for every insurer. Both overlay URLs are optional and independent — an
+  insurer with only a logo gets just the page-1 overlay, and vice versa — and
+  a branding failure (unreachable logo/e-signature URL) falls back to the
+  unbranded wording PDF rather than dropping the attachment.
 - Page 3 of the wording PDF ("POLICY AGREEMENT") is a recital and signature
   block full of pre-printed blank underscores. After the (cached, insurer-only)
   branding step, `PolicyDocumentRenderer.fillPolicyAgreementDetails` draws the
@@ -1286,15 +1289,18 @@ URLs are configured yet):
   `Insurer.address`, "Nairobi" as the signing location, the visitor's full
   name (signature block), and the issue date (both a compact `dd/MM/yy` form
   for the narrow recital blank and the full `dd MMM yyyy` form in the
-  signature block, matching each blank's available width). The recital's
+  signature block, matching each blank's available width). The visitor has no
+  e-signature image on file — only the insurer does, applied in
+  `brandPolicyWording` above — so the visitor's email address is written onto
+  the Insured's "Signature:" line as their signature-in-lieu. The recital's
   brief inline mentions of the Insured's name/PO Box sit in only a few points
   of blank space between underscores — too narrow for a real name or address
   — so those two are deliberately left blank; the Insured's name is instead
   filled into the much wider signature-block "Name:" line. Unlike
   `brandPolicyWording`, this step is **never cached**: it's called fresh for
   every visitor, after the per-insurer cache lookup, because it carries
-  visitor PII (the visitor's name) that must not be reused across visitors of
-  the same insurer. A failure here logs and falls back to the
+  visitor PII (the visitor's name and email) that must not be reused across
+  visitors of the same insurer. A failure here logs and falls back to the
   branded-but-unfilled document rather than dropping the attachment. The
   first attachment is itself the policy certificate and the premium receipt
   (see below) merged into one

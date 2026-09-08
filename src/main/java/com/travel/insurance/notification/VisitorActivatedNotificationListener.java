@@ -340,10 +340,10 @@ public class VisitorActivatedNotificationListener {
      * Fills the "POLICY AGREEMENT" page of the (already insurer-branded)
      * policy document with this visitor's details. Called fresh per visitor
      * — unlike {@link #loadBrandedPolicyDocument}, the result is never
-     * cached, since it carries visitor PII (the visitor's name) that must
-     * not leak across visitors of the same insurer. A failure here logs and
-     * falls back to the branded-but-unfilled document rather than dropping
-     * the attachment.
+     * cached, since it carries visitor PII (the visitor's name and email)
+     * that must not leak across visitors of the same insurer. A failure here
+     * logs and falls back to the branded-but-unfilled document rather than
+     * dropping the attachment.
      */
     private byte[] fillPolicyAgreementDetails(byte[] brandedPolicyDocument, Insurer insurer, Visitor visitor) {
         try {
@@ -352,6 +352,7 @@ public class VisitorActivatedNotificationListener {
                     insurer.getName(),
                     insurer.getAddress(),
                     visitor.getFullName(),
+                    visitor.getEmail(),
                     LocalDate.now());
         } catch (Exception ex) {
             log.error("Failed to fill policy agreement details for visitor {}: {}",
