@@ -148,6 +148,9 @@ class VisitorActivatedNotificationListenerTest {
         when(renderer.mergePdfs("%PDF-1.4".getBytes(), "%PDF-RECEIPT".getBytes())).thenReturn("%PDF-MERGED".getBytes());
         when(renderer.brandPolicyWording(any(byte[].class), eq("https://cdn.example/acme.png"), isNull()))
                 .thenReturn("%PDF-BRANDED".getBytes());
+        when(renderer.fillPolicyAgreementDetails(eq("%PDF-BRANDED".getBytes()), anyString(), any(), anyString(),
+                any(LocalDate.class)))
+                .thenReturn("%PDF-AGREEMENT-FILLED".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
@@ -159,6 +162,9 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(dataCaptor.getValue().underwriterLogoUrl()).isEqualTo("https://cdn.example/acme.png");
         assertThat(dataCaptor.getValue().esignatureUrl()).isNull();
         assertThat(dataCaptor.getValue().benefits()).hasSize(1);
+
+        verify(renderer).fillPolicyAgreementDetails("%PDF-BRANDED".getBytes(), "Acme Insurance",
+                "PO Box 500, Nairobi", "Jane Traveler", LocalDate.now());
 
         ArgumentCaptor<PremiumReceiptData> receiptCaptor = ArgumentCaptor.forClass(PremiumReceiptData.class);
         verify(renderer).renderPremiumReceiptPdf(receiptCaptor.capture());
@@ -190,7 +196,7 @@ class VisitorActivatedNotificationListenerTest {
                 .containsExactly("policy-certificate-P1234567.pdf", "Policy_Document_July_2026.pdf",
                         "Inbound-Travel-Health-Welcome-Pack.pdf");
         assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-MERGED".getBytes());
-        assertThat(attachmentsCaptor.getValue().get(1).content()).isEqualTo("%PDF-BRANDED".getBytes());
+        assertThat(attachmentsCaptor.getValue().get(1).content()).isEqualTo("%PDF-AGREEMENT-FILLED".getBytes());
     }
 
     @Test
@@ -344,6 +350,34 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .contains("Policy_Document_July_2026.pdf");
+    }
+
+    @Test
+    void fallsBackToBrandedButUnfilledPolicyDocumentWhenAgreementFillingFails() {
+        Insurer insurer = sampleInsurer();
+        insurer.setLogoUrl("https://cdn.example/acme.png");
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
+        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
+        when(renderer.brandPolicyWording(any(byte[].class), eq("https://cdn.example/acme.png"), isNull()))
+                .thenReturn("%PDF-BRANDED".getBytes());
+        when(renderer.fillPolicyAgreementDetails(eq("%PDF-BRANDED".getBytes()), anyString(), any(), anyString(),
+                any(LocalDate.class)))
+                .thenThrow(new IllegalStateException("agreement fill failed"));
+
+        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
+
+        ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(emailService).send(any(), anyString(), anyString(), anyString(), anyString(), attachmentsCaptor.capture());
+        assertThat(attachmentsCaptor.getValue())
+                .filteredOn(attachment -> attachment.filename().equals("Policy_Document_July_2026.pdf"))
+                .extracting(EmailAttachment::content)
+                .singleElement()
+                .isEqualTo("%PDF-BRANDED".getBytes());
     }
 
     @Test

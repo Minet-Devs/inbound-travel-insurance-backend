@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.thymeleaf.spring6.SpringTemplateEngine;
@@ -528,7 +529,7 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
-    void overlaysEsignatureOnLastPageOnly() throws IOException {
+    void overlaysEsignatureOnEveryPage() throws IOException {
         PolicyDocumentRenderer renderer = newRenderer();
         byte[] pdf = renderer.mergePdfs(samplePolicyWordingPdf(), samplePolicyWordingPdf());
         String esignatureUrl = servePngImage();
@@ -536,10 +537,9 @@ class PolicyDocumentRendererTest {
         byte[] branded = renderer.brandPolicyWording(pdf, null, esignatureUrl);
 
         try (PDDocument brandedDocument = Loader.loadPDF(branded)) {
-            PDPage firstPage = brandedDocument.getPage(0);
-            PDPage lastPage = brandedDocument.getPage(brandedDocument.getNumberOfPages() - 1);
-            assertThat(firstPage.getResources().getXObjectNames()).isEmpty();
-            assertThat(lastPage.getResources().getXObjectNames()).isNotEmpty();
+            for (PDPage page : brandedDocument.getPages()) {
+                assertThat(page.getResources().getXObjectNames()).isNotEmpty();
+            }
         }
     }
 
@@ -550,5 +550,63 @@ class PolicyDocumentRendererTest {
 
         assertThatThrownBy(() -> renderer.brandPolicyWording(pdf, "http://localhost:1/missing.png", null))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    private byte[] samplePolicyWordingPdfWithAtLeastThreePages() throws IOException {
+        byte[] onePage = samplePolicyWordingPdf();
+        PolicyDocumentRenderer renderer = newRenderer();
+        return renderer.mergePdfs(onePage, onePage, onePage);
+    }
+
+    private String textOfPage(byte[] pdf, int pageIndex) throws IOException {
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setStartPage(pageIndex + 1);
+            stripper.setEndPage(pageIndex + 1);
+            return stripper.getText(document);
+        }
+    }
+
+    @Test
+    void fillsPolicyAgreementDetailsOnPageThreeOnly() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdfWithAtLeastThreePages();
+
+        byte[] filled = renderer.fillPolicyAgreementDetails(
+                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler", LocalDate.of(2026, 8, 8));
+
+        String pageThreeText = textOfPage(filled, 2);
+        assertThat(pageThreeText).contains("Acme Insurance");
+        assertThat(pageThreeText).contains("200");
+        assertThat(pageThreeText).contains("Jane Traveler");
+        assertThat(pageThreeText).contains("Nairobi");
+        assertThat(pageThreeText).contains("08/08/26");
+        assertThat(pageThreeText).contains("08 Aug 2026");
+        assertThat(textOfPage(filled, 0)).doesNotContain("08/08/26");
+    }
+
+    @Test
+    void fillPolicyAgreementDetailsPreservesPageCount() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdfWithAtLeastThreePages();
+
+        byte[] filled = renderer.fillPolicyAgreementDetails(
+                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler", LocalDate.of(2026, 8, 8));
+
+        try (PDDocument original = Loader.loadPDF(pdf);
+             PDDocument filledDocument = Loader.loadPDF(filled)) {
+            assertThat(filledDocument.getNumberOfPages()).isEqualTo(original.getNumberOfPages());
+        }
+    }
+
+    @Test
+    void fillPolicyAgreementDetailsReturnsInputUnchangedWhenDocumentHasFewerThanThreePages() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdf();
+
+        byte[] filled = renderer.fillPolicyAgreementDetails(
+                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler", LocalDate.of(2026, 8, 8));
+
+        assertThat(filled).isSameAs(pdf);
     }
 }

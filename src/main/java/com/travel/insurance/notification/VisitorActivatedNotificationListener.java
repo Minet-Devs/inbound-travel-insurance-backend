@@ -27,6 +27,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -159,8 +160,10 @@ public class VisitorActivatedNotificationListener {
         attachments.add(new EmailAttachment(
                 "policy-certificate-" + visitor.getPassportNumber() + ".pdf", combinedPdf));
 
-        byte[] policyDocument = loadBrandedPolicyDocument(insurer.getId(), underwriterLogoUrl, esignatureUrl);
-        if (policyDocument != null) {
+        byte[] brandedPolicyDocument = loadBrandedPolicyDocument(insurer.getId(), underwriterLogoUrl, esignatureUrl);
+        if (brandedPolicyDocument != null) {
+            byte[] policyDocument = fillPolicyAgreementDetails(
+                    brandedPolicyDocument, insurer, visitor);
             attachments.add(new EmailAttachment(POLICY_DOCUMENT_ATTACHMENT_NAME, policyDocument));
         }
         byte[] welcomePackPdf = loadWelcomePackPdf();
@@ -331,5 +334,29 @@ public class VisitorActivatedNotificationListener {
                 return raw;
             }
         });
+    }
+
+    /**
+     * Fills the "POLICY AGREEMENT" page of the (already insurer-branded)
+     * policy document with this visitor's details. Called fresh per visitor
+     * — unlike {@link #loadBrandedPolicyDocument}, the result is never
+     * cached, since it carries visitor PII (the visitor's name) that must
+     * not leak across visitors of the same insurer. A failure here logs and
+     * falls back to the branded-but-unfilled document rather than dropping
+     * the attachment.
+     */
+    private byte[] fillPolicyAgreementDetails(byte[] brandedPolicyDocument, Insurer insurer, Visitor visitor) {
+        try {
+            return renderer.fillPolicyAgreementDetails(
+                    brandedPolicyDocument,
+                    insurer.getName(),
+                    insurer.getAddress(),
+                    visitor.getFullName(),
+                    LocalDate.now());
+        } catch (Exception ex) {
+            log.error("Failed to fill policy agreement details for visitor {}: {}",
+                    visitor.getId(), ex.getMessage(), ex);
+            return brandedPolicyDocument;
+        }
     }
 }
