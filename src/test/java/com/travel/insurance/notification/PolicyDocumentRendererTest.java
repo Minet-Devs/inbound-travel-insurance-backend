@@ -195,6 +195,43 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
+    void marksPrescribedMedicinesAndMentalIllnessAsSubBenefitsOfMedicalExpenses() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")),
+                new BenefitLine("Prescribed Medicines", new BigDecimal("300.00")),
+                new BenefitLine("Mental Illness", new BigDecimal("1000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("Prescribed Medicines*");
+        assertThat(html).contains("Mental Illness*");
+        assertThat(html).contains("Prescribed Medicines and Mental Illness are sub benefits of Medical Expenses");
+    }
+
+    @Test
+    void doesNotAddAsteriskToOtherBenefits() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).doesNotContain("Medical Expenses*");
+    }
+
+    @Test
+    void rendersHotlineNumberInBoldRed() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("class=\"hotline\"");
+    }
+
+    @Test
     void rendersPlaceholderWhenNoBenefitsAssigned() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of());

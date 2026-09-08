@@ -60,6 +60,7 @@
         .benefits th.amt, .benefits td.amt { text-align: right; }
         .benefits td { border-bottom: 0.5pt solid #d8d8d8; padding: 5pt 8pt; font-size: 9.5pt; }
         .empty { color: #777777; font-style: italic; }
+        .benefit-note { font-size: 7.5pt; color: #555555; margin-top: 3pt; font-style: italic; }
 
         /* Covers list */
         .covers { margin: 6pt 0 0 0; padding-left: 16pt; }
@@ -68,6 +69,7 @@
         /* Assistance */
         .assist { margin-top: 6pt; line-height: 1.5; }
         .assist .lbl { font-weight: bold; }
+        .assist .hotline { font-weight: bold; color: #c00000; }
 
         /* Signature */
         .sign { width: 100%; border-collapse: collapse; margin-top: 12pt; }
@@ -143,13 +145,14 @@
                 <th class="amt">Insurable Limit (USD)</th>
             </tr>
             <tr th:each="line : ${benefitLines}">
-                <td th:text="${line.label}">Medical expenses (outpatient &amp; inpatient)</td>
+                <td th:text="${line.label == 'Prescribed Medicines' or line.label == 'Mental Illness'} ? ${line.label + '*'} : ${line.label}">Medical expenses (outpatient &amp; inpatient)</td>
                 <td class="amt" th:text="${#numbers.formatDecimal(line.limitAmount, 1, 'COMMA', 0, 'POINT')}">20,000</td>
             </tr>
             <tr th:if="${#lists.isEmpty(benefitLines)}">
                 <td colspan="2" class="empty">No benefits assigned yet.</td>
             </tr>
         </table>
+        <div class="benefit-note">Prescribed Medicines and Mental Illness are sub benefits of Medical Expenses</div>
     </div>
 
     <div class="section">
@@ -168,7 +171,7 @@
         <div class="assist">
             <div th:if="${not #strings.isEmpty(data.emergencyAssistancePhone)}">
                 <span class="lbl">Hotline:</span>
-                <span th:text="${data.emergencyAssistancePhone}">+254 719 044 777</span>
+                <span class="hotline" th:text="${data.emergencyAssistancePhone}">+254 719 044 777</span>
             </div>
             <div th:if="${not #strings.isEmpty(data.emergencyAssistanceEmail)}">
                 <span class="lbl">Email:</span>
