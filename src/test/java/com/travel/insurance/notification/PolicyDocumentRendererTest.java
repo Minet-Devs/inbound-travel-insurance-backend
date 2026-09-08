@@ -395,6 +395,45 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
+    void rendersAsSinglePageWithUnderwriterLogoAndEsignaturePresent() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        String logoUrl = serveSizedPngImage("/logo.png", 600, 200);
+        String esignUrl = serveSizedPngImage("/esign.png", 300, 300);
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")),
+                new BenefitLine("Emergency Medical Transportation/Evacuation", new BigDecimal("25000.00")),
+                new BenefitLine("Prescribed Medicines", new BigDecimal("300.00")),
+                new BenefitLine("Mental Illness", new BigDecimal("1000.00")),
+                new BenefitLine("Repatriation of Mortal Remains", new BigDecimal("5000.00"))),
+                logoUrl, esignUrl);
+
+        byte[] pdf = renderer.renderPdf(data);
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            assertThat(document.getNumberOfPages()).isEqualTo(1);
+        }
+    }
+
+    private String serveSizedPngImage(String path, int width, int height) throws IOException {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream pngBytes = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", pngBytes);
+        byte[] png = pngBytes.toByteArray();
+
+        if (imageServer == null) {
+            imageServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+            imageServer.start();
+        }
+        imageServer.createContext(path, exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, png.length);
+            exchange.getResponseBody().write(png);
+            exchange.close();
+        });
+        return "http://localhost:" + imageServer.getAddress().getPort() + path;
+    }
+
+    @Test
     void rendersAsSinglePageForARealisticBenefitSchedule() throws IOException {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of(
