@@ -399,8 +399,9 @@ com.travel.insurance/
 │   ├── PremiumReceiptService.java          # Interface
 │   ├── PremiumReceiptServiceImpl.java
 │   ├── PremiumReceiptRepository.java
-│   ├── PremiumReceipt.java                 # totalPremium, pcfLevy, insurancePremiumLevy,
-│   │                                        # stampDuty, trainingLevy — one fixed row, no create/delete
+│   ├── PremiumReceipt.java                 # totalPremium/minorPremium/infantPremium (age-tiered),
+│   │                                        # pcfLevy, insurancePremiumLevy, stampDuty, trainingLevy
+│   │                                        # — one fixed row, no create/delete
 │   ├── PremiumReceiptMapper.java
 │   └── 📁 dto/
 │       ├── PremiumReceiptPatchRequest.java
@@ -1290,7 +1291,7 @@ URLs are configured yet):
   `openhtmltopdf` — from a `PremiumReceiptData` holder (visitor full name,
   passport number, certificate serial number, visitor address, visitor
   nationality, insurer name, insurer logo URL, insurer address, total
-  premium). `certificateSerialNumber` is `Visitor.certificateSerialNumber`
+  premium — now age-tiered, see below). `certificateSerialNumber` is `Visitor.certificateSerialNumber`
   (the same value shown on the policy certificate) reused as the receipt's
   "Receipt No." field; `visitorAddress`/`insurerAddress` are the plain
   `Visitor.address`/`Insurer.address` strings and `visitorNationality` is
@@ -1303,9 +1304,17 @@ URLs are configured yet):
   as "Account No." and `visitorFullName` as "Account Name" — no separate
   bank-account concept exists, these are the same visitor fields shown
   elsewhere on the receipt. `totalPremium` is the only levy-related value
-  still shown — it's `PremiumReceiptService.get().totalPremium()` (the same
-  singleton levy-rate config exposed by `GET /api/v1/premium-receipts`, see
-  [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)),
+  still shown, and unlike every other field on the receipt it's not a flat
+  echo of visitor/insurer data — `VisitorActivatedNotificationListener` calls
+  `PremiumReceiptService.calculateTotalPremium(visitor.getAgeAtTravel())`,
+  which resolves one of three age-tiered rates configured on the same
+  singleton config exposed by `GET /api/v1/premium-receipts` (see
+  [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)):
+  `infantPremium` for age 2 and below, `minorPremium` for ages 3–17, and
+  `totalPremium` (the pre-existing field) for age 18 and above.
+  `Visitor.getAgeAtTravel()` is a `@Transient` helper computing
+  `Period.between(dateOfBirth, dateIn).getYears()` — age as at the start of
+  cover (`dateIn`), not the visitor's current age — so the resolved rate is
   echoed unchanged in the bottom `TOTAL PREMIUM (USD)` row. The levy rate
   fields (`pcfLevy`, `insurancePremiumLevy`, `stampDuty`, `trainingLevy`) are
   fetched from that same config for the admin-facing API but are no longer
@@ -1489,8 +1498,9 @@ Design notes:
 ## Premium Receipt (Singleton Levy Rates)
 
 The `premiumreceipt` package holds the levy rates applied when computing a
-policy's premium: `totalPremium` (base rate, `BigDecimal`), `pcfLevy`,
-`insurancePremiumLevy`, `trainingLevy` (percentages expressed as `0`–`1`
+policy's premium: `totalPremium`, `minorPremium`, `infantPremium` (age-tiered
+base rates, `BigDecimal`, see below), `pcfLevy`, `insurancePremiumLevy`,
+`trainingLevy` (percentages expressed as `0`–`1`
 fractions), and `stampDuty` (a flat `BigDecimal` amount, not a percentage).
 Two endpoints, both under `/api/v1/premium-receipts` (no `{id}` path
 variable):
@@ -1512,8 +1522,20 @@ Design notes:
   instead of relying on `BaseEntity`'s `@UuidGenerator`. GET/PATCH always
   fetch by that fixed constant — no create-or-lookup branching needed.
 - Percentage fields are validated with `@DecimalMin("0")`/`@DecimalMax("1")`;
-  `totalPremium`/`stampDuty` with `@DecimalMin("0")` only, since they're
-  amounts, not fractions.
+  `totalPremium`/`minorPremium`/`infantPremium`/`stampDuty` with
+  `@DecimalMin("0")` only, since they're amounts, not fractions.
+- **Age-tiered premium.** `totalPremium` (18+), `minorPremium` (ages 3–17,
+  default 22) and `infantPremium` (age 2 and below, default 0) are three
+  independently admin-editable rates rather than one flat figure —
+  added by `V202609081352__premium_receipt_age_tiers.sql` (`alter table ...
+  add column ... default`, so the existing singleton row picked up the
+  defaults without a separate data migration). `PremiumReceiptService
+  .calculateTotalPremium(int ageInYears)` resolves the applicable rate; the
+  only caller is `VisitorActivatedNotificationListener`, which passes
+  `visitor.getAgeAtTravel()` (age as at `Visitor.dateIn`, not the visitor's
+  current age) when building the activation email's premium receipt PDF.
+  The plain `GET`/`PATCH` endpoints above still return/accept all three rate
+  fields unchanged — there is no per-visitor calculation endpoint.
 
 ## Claims Reports
 
