@@ -195,6 +195,61 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
+    void marksPrescribedMedicinesAndMentalIllnessAsSubBenefitsOfMedicalExpenses() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")),
+                new BenefitLine("Prescribed Medicines", new BigDecimal("300.00")),
+                new BenefitLine("Mental Illness", new BigDecimal("1000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("Prescribed Medicines*");
+        assertThat(html).contains("Mental Illness*");
+        assertThat(html).contains("Prescribed Medicines and Mental Illness are sub benefits of Medical Expenses");
+    }
+
+    @Test
+    void doesNotAddAsteriskToOtherBenefits() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).doesNotContain("Medical Expenses*");
+    }
+
+    @Test
+    void rendersUpdatedWhatThisPolicyCoversList() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("Emergency treatment for sudden, unforeseen, catastrophic medical or accidental events.");
+        assertThat(html).contains("Local emergency medical evacuation by air or road ambulance to the nearest suitable facility.");
+        assertThat(html).contains("Outpatient care and hospitalization for emergency medical conditions within the medical expenses limit.");
+        assertThat(html).contains("Prescribed medicines for covered conditions, within the medical expenses limit.");
+        assertThat(html).contains("Emergency Mental Health Treatment for acute mental illness, within the medical expenses limit.");
+        assertThat(html).contains("Repatriation or transport of mortal remains to the designated port of entry in their home country.");
+        assertThat(html).contains("*Treatment, medication or other expenses relating to pre-existing conditions and chronic illnesses are not expressly covered");
+        assertThat(html).doesNotContain("Personal accident leading to death or permanent total disability");
+    }
+
+    @Test
+    void rendersHotlineNumberInBoldRed() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("class=\"hotline\"");
+    }
+
+    @Test
     void rendersPlaceholderWhenNoBenefitsAssigned() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of());
