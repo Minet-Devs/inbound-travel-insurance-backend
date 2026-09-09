@@ -60,7 +60,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class VisitorActivatedNotificationListener {
 
     private static final String POLICY_DOCUMENT_RESOURCE = "templates/Policy_Document_July_2026.pdf";
-    private static final String POLICY_DOCUMENT_ATTACHMENT_NAME = "Policy_Document_July_2026.pdf";
+    private static final String POLICY_DOCUMENT_ATTACHMENT_NAME = "Policy Document.pdf";
     private static final String WELCOME_PACK_RESOURCE = "templates/Inbound-Travel-Health-Welcome-Pack.pdf";
     private static final String WELCOME_PACK_ATTACHMENT_NAME = "Inbound-Travel-Health-Welcome-Pack.pdf";
 
@@ -157,8 +157,7 @@ public class VisitorActivatedNotificationListener {
 
         byte[] combinedPdf = renderer.mergePdfs(pdf, premiumReceiptPdf);
         List<EmailAttachment> attachments = new ArrayList<>();
-        attachments.add(new EmailAttachment(
-                "policy-certificate-" + visitor.getPassportNumber() + ".pdf", combinedPdf));
+        attachments.add(new EmailAttachment("Insurance Policy.pdf", combinedPdf));
 
         byte[] brandedPolicyDocument = loadBrandedPolicyDocument(insurer.getId(), underwriterLogoUrl, esignatureUrl);
         if (brandedPolicyDocument != null) {

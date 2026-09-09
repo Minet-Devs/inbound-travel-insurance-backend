@@ -1258,9 +1258,9 @@ URLs are configured yet):
   the verification copy ("Verify this certificate at kenyacares.go.ke/verify
   using the Certificate Serial Number above").
 - The activation email carries up to three attachments: a single
-  `policy-certificate-<passportNumber>.pdf`, the policy wording
-  `templates/Policy_Document_July_2026.pdf`, and the bundled
-  `templates/Inbound-Travel-Health-Welcome-Pack.pdf`. The base wording PDF
+  `Insurance Policy.pdf` (the certificate), the policy wording sent as
+  `Policy Document.pdf` (rendered from `templates/Policy_Document_July_2026.pdf`),
+  and the bundled `templates/Inbound-Travel-Health-Welcome-Pack.pdf`. The base wording PDF
   and the Welcome Pack PDF are each loaded once from the classpath and cached
   (`rawPolicyDocumentCache`, `welcomePackPdfCache`); if either bundled
   document can't be read, that load is logged and skipped so the rest of the

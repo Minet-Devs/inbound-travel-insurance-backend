@@ -193,7 +193,7 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(bodyCaptor.getValue()).contains("Dear Jane,").contains("+254 719 044 777");
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
-                .containsExactly("policy-certificate-P1234567.pdf", "Policy_Document_July_2026.pdf",
+                .containsExactly("Insurance Policy.pdf", "Policy Document.pdf",
                         "Inbound-Travel-Health-Welcome-Pack.pdf");
         assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-MERGED".getBytes());
         assertThat(attachmentsCaptor.getValue().get(1).content()).isEqualTo("%PDF-AGREEMENT-FILLED".getBytes());
@@ -325,7 +325,7 @@ class VisitorActivatedNotificationListenerTest {
         verify(emailService).send(any(), anyString(), anyString(), anyString(), anyString(), attachmentsCaptor.capture());
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
-                .contains("Policy_Document_July_2026.pdf");
+                .contains("Policy Document.pdf");
         verify(renderer, never()).brandPolicyWording(any(), any(), any());
     }
 
@@ -349,7 +349,7 @@ class VisitorActivatedNotificationListenerTest {
         verify(emailService).send(any(), anyString(), anyString(), anyString(), anyString(), attachmentsCaptor.capture());
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
-                .contains("Policy_Document_July_2026.pdf");
+                .contains("Policy Document.pdf");
     }
 
     @Test
@@ -374,7 +374,7 @@ class VisitorActivatedNotificationListenerTest {
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
         verify(emailService).send(any(), anyString(), anyString(), anyString(), anyString(), attachmentsCaptor.capture());
         assertThat(attachmentsCaptor.getValue())
-                .filteredOn(attachment -> attachment.filename().equals("Policy_Document_July_2026.pdf"))
+                .filteredOn(attachment -> attachment.filename().equals("Policy Document.pdf"))
                 .extracting(EmailAttachment::content)
                 .singleElement()
                 .isEqualTo("%PDF-BRANDED".getBytes());
