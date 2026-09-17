@@ -32,6 +32,13 @@ services:
       timeout: 5s
       retries: 10
 
+  backend:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: mishobo/inbound-travel-insurance-backend:20260914.1
+    image: mishobo/inbound-travel-insurance-backend:20260914.1
+
 
 
 volumes:

@@ -15,7 +15,7 @@ contributing.
 
 ```bash
 # 1. Start PostgreSQL and RabbitMQ
-docker compose up -d
+docker compose up -d postgres rabbitmq
 
 # 2. Configure environment
 cp .env.example .env          # then set a real JWT_SECRET (openssl rand -base64 48)
