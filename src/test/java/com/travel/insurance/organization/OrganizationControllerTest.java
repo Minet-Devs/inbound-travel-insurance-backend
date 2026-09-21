@@ -47,8 +47,8 @@ class OrganizationControllerTest {
 
     private OrganizationResponse sampleResponse() {
         return new OrganizationResponse(organizationId, "Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
-                "0700000000", "123 Main St", "Nairobi", "https://cdn.example/acme.png", 123456L, "notify@acme.com",
-                "smtp.acme.com", 587, "signature-data", null, null, Instant.now(), Instant.now());
+                "0700000000", "123 Main St", "Nairobi", "Nairobi", "https://cdn.example/acme.png", 123456L,
+                "notify@acme.com", "smtp.acme.com", 587, "signature-data", null, null, Instant.now(), Instant.now());
     }
 
     @Test
@@ -62,7 +62,8 @@ class OrganizationControllerTest {
                 .andExpect(jsonPath("$.name").value("Acme Ltd"))
                 .andExpect(jsonPath("$.organizationType").value("INSURER"))
                 .andExpect(jsonPath("$.email").value("contact@acme.com"))
-                .andExpect(jsonPath("$.city").value("Nairobi"));
+                .andExpect(jsonPath("$.city").value("Nairobi"))
+                .andExpect(jsonPath("$.county").value("Nairobi"));
     }
 
     @Test
@@ -75,11 +76,12 @@ class OrganizationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new OrganizationRequest("Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
-                                        "0700000000", "123 Main St", "Nairobi", "https://cdn.example/acme.png",
-                                        123456L, "notify@acme.com", "s3cr3t", "smtp.acme.com", 587,
+                                        "0700000000", "123 Main St", "Nairobi", "Nairobi",
+                                        "https://cdn.example/acme.png", 123456L, "notify@acme.com", "s3cr3t", "smtp.acme.com", 587,
                                         "signature-data", null, null))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Acme Ltd"))
+                .andExpect(jsonPath("$.county").value("Nairobi"))
                 .andExpect(jsonPath("$.logoUrl").value("https://cdn.example/acme.png"))
                 .andExpect(jsonPath("$.policyToken").value(123456))
                 .andExpect(jsonPath("$.notificationEmail").value("notify@acme.com"))
@@ -97,7 +99,7 @@ class OrganizationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new OrganizationRequest("", null, "not-an-email", null, null, null, null, null, null,
-                                        null, null, null, null, null, null))))
+                                        null, null, null, null, null, null, null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation failed"));
     }

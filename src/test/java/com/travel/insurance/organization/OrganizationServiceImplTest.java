@@ -45,7 +45,7 @@ class OrganizationServiceImplTest {
     void setUp() {
         organizationService = new OrganizationServiceImpl(organizationRepository, organizationMapper, eventPublisher);
         request = new OrganizationRequest("Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
-                "0700000000", "123 Main St", "Nairobi", null, null, null, null, null, null, null, null, null);
+                "0700000000", "123 Main St", "Nairobi", null, null, null, null, null, null, null, null, null, null);
     }
 
     @Test
@@ -62,8 +62,53 @@ class OrganizationServiceImplTest {
         assertThat(response.phoneNumber()).isEqualTo("0700000000");
         assertThat(response.address()).isEqualTo("123 Main St");
         assertThat(response.city()).isEqualTo("Nairobi");
+        assertThat(response.county()).isNull();
         verify(organizationRepository).save(any(Organization.class));
         verify(eventPublisher).publishEvent(any(OrganizationCreatedEvent.class));
+    }
+
+    @Test
+    void createServiceProviderPersistsCounty() {
+        OrganizationRequest providerRequest = new OrganizationRequest("Beta Hospital",
+                OrganizationType.SERVICE_PROVIDER, "info@beta.com", "0711111111", "456 Side St", "Nairobi",
+                "Nairobi", null, null, null, null, null, null, null, null, null);
+        when(organizationRepository.existsByName("Beta Hospital")).thenReturn(false);
+        when(organizationRepository.save(any(Organization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrganizationResponse response = organizationService.create(providerRequest);
+
+        assertThat(response.county()).isEqualTo("Nairobi");
+        verify(eventPublisher).publishEvent(any(OrganizationCreatedEvent.class));
+    }
+
+    @Test
+    void createServiceProviderRejectsMissingCounty() {
+        OrganizationRequest providerRequest = new OrganizationRequest("Beta Hospital",
+                OrganizationType.SERVICE_PROVIDER, "info@beta.com", "0711111111", "456 Side St", "Nairobi",
+                "  ", null, null, null, null, null, null, null, null, null);
+        when(organizationRepository.existsByName("Beta Hospital")).thenReturn(false);
+
+        assertThatThrownBy(() -> organizationService.create(providerRequest))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("County is required");
+        verify(organizationRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void updateServiceProviderRejectsMissingCounty() {
+        UUID id = UUID.randomUUID();
+        Organization existing = organizationMapper.toEntity(request);
+        when(organizationRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(organizationRepository.existsByNameAndIdNot("Beta Hospital", id)).thenReturn(false);
+
+        assertThatThrownBy(() -> organizationService.update(id,
+                new OrganizationRequest("Beta Hospital", OrganizationType.SERVICE_PROVIDER, "info@beta.com",
+                        null, null, null, null, null, null, null, null, null, null, null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("County is required");
+        verify(organizationRepository, never()).save(any());
     }
 
     @Test
@@ -72,7 +117,7 @@ class OrganizationServiceImplTest {
         java.math.BigDecimal latitude = new java.math.BigDecimal("-1.292066");
         OrganizationRequest withLocation =
                 new OrganizationRequest("Acme Ltd", OrganizationType.SERVICE_PROVIDER, "contact@acme.com",
-                        "0700000000", "123 Main St", "Nairobi", null, null, null, null, null, null, null,
+                        "0700000000", "123 Main St", "Nairobi", "Nairobi", null, null, null, null, null, null, null,
                         longitude, latitude);
         when(organizationRepository.existsByName("Acme Ltd")).thenReturn(false);
         when(organizationRepository.save(any(Organization.class)))
@@ -141,7 +186,7 @@ class OrganizationServiceImplTest {
         when(organizationRepository.findById(id)).thenReturn(Optional.of(existing));
         OrganizationRequest updateRequest =
                 new OrganizationRequest("Beta Ltd", OrganizationType.SERVICE_PROVIDER, "info@beta.com",
-                        "0711111111", "456 Side St", "Mombasa", null, null, null, null, null, null, null, null,
+                        "0711111111", "456 Side St", "Mombasa", "Mombasa", null, null, null, null, null, null, null, null,
                         null);
         when(organizationRepository.existsByNameAndIdNot("Beta Ltd", id)).thenReturn(false);
         when(organizationRepository.save(any(Organization.class)))
@@ -151,6 +196,7 @@ class OrganizationServiceImplTest {
 
         assertThat(response.name()).isEqualTo("Beta Ltd");
         assertThat(response.city()).isEqualTo("Mombasa");
+        assertThat(response.county()).isEqualTo("Mombasa");
         verify(eventPublisher).publishEvent(any(OrganizationUpdatedEvent.class));
     }
 
@@ -163,7 +209,7 @@ class OrganizationServiceImplTest {
 
         assertThatThrownBy(() -> organizationService.update(id,
                 new OrganizationRequest("Beta Ltd", OrganizationType.SERVICE_PROVIDER, "info@beta.com",
-                        null, null, null, null, null, null, null, null, null, null, null, null)))
+                        null, null, null, "Mombasa", null, null, null, null, null, null, null, null, null)))
                 .isInstanceOf(IllegalStateException.class);
         verify(organizationRepository, never()).save(any());
     }

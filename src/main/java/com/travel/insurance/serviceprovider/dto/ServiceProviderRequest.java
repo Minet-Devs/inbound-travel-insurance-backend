@@ -13,6 +13,7 @@ public record ServiceProviderRequest(
         @NotBlank @Email String contactEmail,
         String contactPhone,
         String address,
+        @NotBlank String county,
         UUID organizationId,
         @DecimalMin("-180") @DecimalMax("180") BigDecimal longitude,
         @DecimalMin("-90") @DecimalMax("90") BigDecimal latitude

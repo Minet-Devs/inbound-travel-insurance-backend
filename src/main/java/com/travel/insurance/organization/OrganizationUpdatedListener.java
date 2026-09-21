@@ -56,6 +56,7 @@ public class OrganizationUpdatedListener {
                                 organization.getEmail(),
                                 organization.getPhoneNumber(),
                                 organization.getAddress(),
+                                organization.getCounty(),
                                 organization.getId(),
                                 longitude,
                                 latitude));

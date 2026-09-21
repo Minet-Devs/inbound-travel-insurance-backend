@@ -45,7 +45,7 @@ class ServiceProviderServiceImplTest {
         serviceProviderService = new ServiceProviderServiceImpl(serviceProviderRepository, serviceProviderMapper,
                 organizationService);
         request = new ServiceProviderRequest("Nairobi Hospital", "contact@nairobihospital.example",
-                "+254700000000", "Argwings Kodhek Rd", null, new BigDecimal("36.821946"),
+                "+254700000000", "Argwings Kodhek Rd", "Nairobi", null, new BigDecimal("36.821946"),
                 new BigDecimal("-1.292066"));
     }
 
@@ -61,6 +61,7 @@ class ServiceProviderServiceImplTest {
         assertThat(response.contactEmail()).isEqualTo("contact@nairobihospital.example");
         assertThat(response.contactPhone()).isEqualTo("+254700000000");
         assertThat(response.address()).isEqualTo("Argwings Kodhek Rd");
+        assertThat(response.county()).isEqualTo("Nairobi");
         verify(serviceProviderRepository).save(any(ServiceProvider.class));
     }
 
@@ -78,7 +79,7 @@ class ServiceProviderServiceImplTest {
     void createRejectsUnknownOrganizationId() {
         UUID organizationId = UUID.randomUUID();
         ServiceProviderRequest withOrganization = new ServiceProviderRequest("Nairobi Hospital",
-                "contact@nairobihospital.example", null, null, organizationId, null, null);
+                "contact@nairobihospital.example", null, null, "Nairobi", organizationId, null, null);
         when(serviceProviderRepository.existsByName("Nairobi Hospital")).thenReturn(false);
         when(organizationService.getEntityById(organizationId))
                 .thenThrow(new ResourceNotFoundException("Organization", organizationId));
@@ -92,7 +93,7 @@ class ServiceProviderServiceImplTest {
     void createAcceptsExistingOrganizationId() {
         UUID organizationId = UUID.randomUUID();
         ServiceProviderRequest withOrganization = new ServiceProviderRequest("Nairobi Hospital",
-                "contact@nairobihospital.example", null, null, organizationId, null, null);
+                "contact@nairobihospital.example", null, null, "Nairobi", organizationId, null, null);
         when(serviceProviderRepository.existsByName("Nairobi Hospital")).thenReturn(false);
         when(organizationService.getEntityById(organizationId)).thenReturn(new Organization());
         when(serviceProviderRepository.save(any(ServiceProvider.class)))
@@ -121,13 +122,14 @@ class ServiceProviderServiceImplTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         ServiceProviderRequest update = new ServiceProviderRequest("Aga Khan Hospital",
-                "info@agakhan.example", null, null, null, null, null);
+                "info@agakhan.example", null, null, "Mombasa", null, null, null);
         ServiceProviderResponse response = serviceProviderService.update(id, update);
 
         assertThat(response.name()).isEqualTo("Aga Khan Hospital");
         assertThat(response.contactEmail()).isEqualTo("info@agakhan.example");
         assertThat(response.contactPhone()).isNull();
         assertThat(response.address()).isNull();
+        assertThat(response.county()).isEqualTo("Mombasa");
     }
 
     @Test
@@ -200,6 +202,28 @@ class ServiceProviderServiceImplTest {
 
         assertThat(results).isEmpty();
         verify(serviceProviderRepository, never()).findByNameContainingIgnoreCase(any(), any());
+    }
+
+    @Test
+    void searchByCountyReturnsMatchingProviders() {
+        ServiceProvider provider = serviceProviderMapper.toEntity(request);
+        provider.setId(UUID.randomUUID());
+        when(serviceProviderRepository.findByCountyContainingIgnoreCaseOrderByNameAsc("Nairobi"))
+                .thenReturn(List.of(provider));
+
+        List<ServiceProviderResponse> results = serviceProviderService.searchByCounty("  Nairobi ");
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).name()).isEqualTo("Nairobi Hospital");
+        assertThat(results.get(0).county()).isEqualTo("Nairobi");
+    }
+
+    @Test
+    void searchByCountyReturnsEmptyForBlankQuery() {
+        List<ServiceProviderResponse> results = serviceProviderService.searchByCounty("   ");
+
+        assertThat(results).isEmpty();
+        verify(serviceProviderRepository, never()).findByCountyContainingIgnoreCaseOrderByNameAsc(any());
     }
 
     @Test

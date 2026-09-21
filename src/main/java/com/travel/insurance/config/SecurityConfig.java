@@ -56,10 +56,10 @@ public class SecurityConfig {
                             .hasAnyRole("ADMIN", "PROVIDER_USER", "VISITOR");
                     auth.requestMatchers("/api/v1/service-providers/**").hasAnyRole("ADMIN", "PROVIDER_USER");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/icd11-codes/**").hasRole("ADMIN");
-                    auth.requestMatchers(HttpMethod.POST, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**").hasRole("ADMIN");
-                    auth.requestMatchers(HttpMethod.PUT, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**").hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**", "/api/v1/tourist-attractions/**").hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.PUT, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**", "/api/v1/tourist-attractions/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.PATCH, "/api/v1/organizations/**").hasRole("ADMIN");
-                    auth.requestMatchers(HttpMethod.DELETE, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**").hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.DELETE, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**", "/api/v1/tourist-attractions/**").hasRole("ADMIN");
                     auth.anyRequest().authenticated();
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

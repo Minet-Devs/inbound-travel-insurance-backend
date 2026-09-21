@@ -31,6 +31,8 @@ public interface ServiceProviderService {
 
     List<ServiceProviderResponse> searchByName(String name, int limit);
 
+    List<ServiceProviderResponse> searchByCounty(String county);
+
     Optional<UUID> findIdByOrganizationId(UUID organizationId);
 
     List<ServiceProviderNearbyResponse> findNearby(BigDecimal latitude, BigDecimal longitude, double radiusKm);

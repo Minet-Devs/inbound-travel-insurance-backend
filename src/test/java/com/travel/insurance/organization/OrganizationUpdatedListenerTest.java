@@ -45,6 +45,7 @@ class OrganizationUpdatedListenerTest {
         organization.setEmail("contact@acme.example");
         organization.setPhoneNumber("+254700000000");
         organization.setAddress("Nairobi");
+        organization.setCounty("Nairobi County");
         organization.setLogoUrl("https://cdn.example/acme.png");
         organization.setPolicyToken(123456L);
         organization.setNotificationEmail("notify@acme.example");
@@ -90,8 +91,8 @@ class OrganizationUpdatedListenerTest {
         when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
         when(serviceProviderService.findIdByOrganizationId(organization.getId())).thenReturn(Optional.of(providerId));
         when(serviceProviderService.getById(providerId)).thenReturn(new ServiceProviderResponse(providerId, "Acme",
-                "contact@acme.example", "+254700000000", "Nairobi", organization.getId(), null, null, Instant.now(),
-                Instant.now()));
+                "contact@acme.example", "+254700000000", "Nairobi", "Nairobi County", organization.getId(), null, null,
+                Instant.now(), Instant.now()));
         BigDecimal longitude = new BigDecimal("36.821946");
         BigDecimal latitude = new BigDecimal("-1.292066");
 
@@ -101,6 +102,7 @@ class OrganizationUpdatedListenerTest {
         verify(serviceProviderService).update(eq(providerId), captor.capture());
         assertThat(captor.getValue().name()).isEqualTo("Acme");
         assertThat(captor.getValue().contactEmail()).isEqualTo("contact@acme.example");
+        assertThat(captor.getValue().county()).isEqualTo("Nairobi County");
         assertThat(captor.getValue().organizationId()).isEqualTo(organization.getId());
         assertThat(captor.getValue().longitude()).isEqualTo(longitude);
         assertThat(captor.getValue().latitude()).isEqualTo(latitude);
@@ -117,8 +119,8 @@ class OrganizationUpdatedListenerTest {
         when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
         when(serviceProviderService.findIdByOrganizationId(organization.getId())).thenReturn(Optional.of(providerId));
         when(serviceProviderService.getById(providerId)).thenReturn(new ServiceProviderResponse(providerId, "Acme",
-                "contact@acme.example", "+254700000000", "Nairobi", organization.getId(), existingLongitude,
-                existingLatitude, Instant.now(), Instant.now()));
+                "contact@acme.example", "+254700000000", "Nairobi", "Nairobi County", organization.getId(),
+                existingLongitude, existingLatitude, Instant.now(), Instant.now()));
 
         listener.onOrganizationUpdated(new OrganizationUpdatedEvent(organization.getId(), null, null));
 

@@ -47,6 +47,7 @@ public class OrganizationCreatedListener {
                     organization.getEmail(),
                     organization.getPhoneNumber(),
                     organization.getAddress(),
+                    organization.getCounty(),
                     organization.getId(),
                     event.longitude(),
                     event.latitude()));

@@ -19,6 +19,7 @@ public class ServiceProviderMapper {
         provider.setContactEmail(request.contactEmail());
         provider.setContactPhone(request.contactPhone());
         provider.setAddress(request.address());
+        provider.setCounty(request.county());
         provider.setOrganizationId(request.organizationId());
         provider.setLongitude(request.longitude());
         provider.setLatitude(request.latitude());
@@ -31,6 +32,7 @@ public class ServiceProviderMapper {
                 provider.getContactEmail(),
                 provider.getContactPhone(),
                 provider.getAddress(),
+                provider.getCounty(),
                 provider.getOrganizationId(),
                 provider.getLongitude(),
                 provider.getLatitude(),

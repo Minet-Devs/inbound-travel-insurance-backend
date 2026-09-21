@@ -131,7 +131,8 @@ com.travel.insurance/
 │   ├── ServiceProviderServiceImpl.java
 │   ├── ServiceProviderRepository.java
 │   ├── ServiceProvider.java                # name (unique), contactEmail, contactPhone, address,
-│   │                                        # organizationId (nullable, → Organization),
+│   │                                        # county (required on create/update; nullable in the DB for
+│   │                                        # legacy rows), organizationId (nullable, → Organization),
 │   │                                        # longitude/latitude (nullable, BigDecimal(9,6))
 │   ├── ServiceProviderMapper.java
 │   └── 📁 dto/
@@ -303,13 +304,26 @@ com.travel.insurance/
 │       ├── DepartmentRequest.java
 │       └── DepartmentResponse.java
 │
-├── 📁 organization/                        # Feature: Organization directory (name, type, email, phone, address, city)
+├── 📁 touristattraction/                   # Feature: Tourist attractions (USSD "nearest attraction" lookup)
+│   ├── TouristAttractionController.java    # /api/v1/tourist-attractions (CRUD)
+│   ├── TouristAttractionService.java       # Interface (+ searchByName)
+│   ├── TouristAttractionServiceImpl.java   # Exact → contains → typo-tolerant ranked search
+│   ├── TouristAttractionRepository.java
+│   ├── TouristAttraction.java              # name (unique), county — both required
+│   ├── TouristAttractionMapper.java
+│   ├── NameMatcher.java                    # package-private: normalise + approximate-substring edit distance
+│   └── 📁 dto/
+│       ├── TouristAttractionRequest.java
+│       └── TouristAttractionResponse.java
+│
+├── 📁 organization/                        # Feature: Organization directory (name, type, email, phone, address, city, county)
 │   ├── OrganizationController.java
 │   ├── OrganizationService.java            # Interface
 │   ├── OrganizationServiceImpl.java
 │   ├── OrganizationRepository.java
 │   ├── Organization.java                   # name (unique), organizationType, email, phoneNumber, address,
-│   │                                        # city, logoUrl, policyToken, notificationEmail,
+│   │                                        # city, county (required for SERVICE_PROVIDER type),
+│   │                                        # logoUrl, policyToken, notificationEmail,
 │   │                                        # notificationEmailPassword (encrypted), host, port,
 │   │                                        # esignature, longitude/latitude (nullable, BigDecimal(9,6))
 │   │                                        # — all optional
@@ -383,14 +397,16 @@ com.travel.insurance/
 │   ├── 📁 domain/
 │   │   ├── UssdSession.java                # Redis-backed session state model
 │   │   └── ProviderPanelEntry.java         # POJO: area, town, county, providerName, address, services
+│   │                                       # (legacy Excel panel — no longer used by the USSD flow)
 │   ├── 📁 dto/
 │   │   ├── UssdRequest.java                # Gateway request payload
 │   │   └── UssdResponse.java               # CON / END response text
 │   ├── 📁 service/
 │   │   ├── UssdService.java                # Interface
-│   │   ├── UssdServiceImpl.java            # State machine (Find Hospital, Feedback)
-│   │   ├── ProviderPanelLoader.java        # Parses provider-panel.xlsx on startup (Apache POI)
-│   │   └── ProviderPanelService.java       # In-memory search by county/town
+│   │   ├── UssdServiceImpl.java            # State machine (Find Hospital, Feedback); Find Hospital
+│   │   │                                   # calls ServiceProviderService.searchByCounty
+│   │   ├── ProviderPanelLoader.java        # Legacy: parses provider-panel.xlsx on startup (unused by USSD)
+│   │   └── ProviderPanelService.java       # Legacy: in-memory Excel search (unused by USSD)
 │   └── 📁 utils/
 │       └── UssdSessionManager.java         # Redis session TTL (180s) & input tracker
 │
@@ -562,7 +578,7 @@ Policy
   `ADMIN`; reads are open to any authenticated user.
 - An **Organization** is a standalone directory entry — `name` (unique),
   `organizationType` (enum: `ADMIN`, `INSURER`, `SERVICE_PROVIDER`), `email`,
-  `phoneNumber`, `address`, `city` — with plain CRUD
+  `phoneNumber`, `address`, `city`, `county` — with plain CRUD
   (`/api/v1/organizations`), following the same shape as Department. It is
   unrelated to the `organizationId` column described in
   [Users, Roles & Organizations](#users-roles--organizations), which points at
@@ -581,7 +597,16 @@ Policy
   these (including `logoUrl` and `policyToken`) are carried across to the
   provisioned `Insurer` by `OrganizationCreatedListener` below;
   `ServiceProvider` has no equivalent fields, so `SERVICE_PROVIDER`
-  organizations don't carry any of this. `OrganizationRequest`/
+  organizations don't carry any of this. `county` is optional for other
+  types but **required for `SERVICE_PROVIDER`**: `OrganizationServiceImpl`
+  rejects a create/update of a `SERVICE_PROVIDER` organization with a
+  missing/blank `county` via `IllegalArgumentException` (→ 400). The
+  listener copies it onto the provisioned `ServiceProvider.county`, which is
+  what the USSD "Find Hospital" county search reads (see
+  [USSD Find Hospital](#ussd-provider-panel-find-hospital)).
+  `OrganizationUpdatedListener` re-syncs it on later `PUT`s
+  (`OrganizationPatchRequest` has no `county`, so `PATCH` can't change it).
+  `OrganizationRequest`/
   `OrganizationPatchRequest` also accept optional `longitude`/`latitude`
   (`@DecimalMin`/`@DecimalMax`-validated to the standard -180..180/-90..90
   ranges), persisted on `Organization` itself (`BigDecimal(9,6)`, nullable)
@@ -603,6 +628,22 @@ Policy
   the database — there's no PostGIS/spatial extension in this project.
   Access follows the rest of `/api/v1/service-providers/**`: `ADMIN` or
   `PROVIDER_USER` only (`SecurityConfig`).
+- A **TouristAttraction** (`name` unique, case-insensitively at the service
+  layer; `county`, both required) maps a park/reserve/landmark to the county it
+  sits in. It has plain CRUD at `/api/v1/tourist-attractions` — writes are
+  `ADMIN`-only (`SecurityConfig`), reads open to any authenticated user — and
+  exists to power the USSD "Nearest Tourist Attraction" search (see
+  [USSD Find Hospital](#ussd-provider-panel-find-hospital)).
+  `TouristAttractionService.searchByName(query, limit)` ranks matches: a
+  case-insensitive exact name wins outright; else names containing the query
+  (name order); else, for queries of 4+ characters, names within
+  `max(1, length/4)` edits of the query, closest first. The typo-tolerant step
+  uses approximate *substring* distance, so a misspelt partial name such as
+  "nakuru natonal" still finds "Lake Nakuru National Park". Matching runs in
+  memory over the (short) table, so no database extension (e.g. `pg_trgm`) is
+  needed. `county` is free text and is later matched against
+  `ServiceProvider.county` with a contains match, so keep the spelling
+  consistent between the two.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) and a
   denormalized `insurerId` (non-nullable `UUID`, mirroring `Claim.insurerId`),
@@ -1093,6 +1134,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Department        | `/api/v1/departments`         | `departments`       |
 | Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
 | Organization      | `/api/v1/organizations`       | `organizations`     |
+| Tourist Attraction | `/api/v1/tourist-attractions` | `tourist_attractions` |
 | OTP               | `/api/v1/otps`                | `otps`               |
 | Reports           | `/api/v1/reports`             | (reads from existing tables) |
 | Member Statement  | `/api/v1/member-statements`   | — (computed, see [Member Statement Report](#member-statement-report)) |
@@ -1684,65 +1726,88 @@ Composed entirely from existing feature services (`VisitorService`,
 ## USSD Provider Panel (Find Hospital)
 
 The USSD "Find Hospital" feature lets travellers search for in-network
-healthcare providers by **county** or **town/area**. Provider data is sourced
-from an Excel spreadsheet (`provider-panel.xlsx`, bundled in
-`src/main/resources/`) and loaded into memory at application startup — no
-database table backs this feature.
+healthcare providers by **county** or by **nearest tourist attraction**. Provider data comes from the
+`service_providers` table (the `serviceprovider` feature) — every service
+provider registered in the system is listed. There is no separate type flag,
+so all `ServiceProvider` rows are treated as hospitals.
 
 **Data source:**
 
-- `provider-panel.xlsx` contains two sheets:
-  - **NAIROBI COUNTY** — providers keyed by area/neighborhood (e.g. Karen,
-    Westlands, Upperhill). Columns: Area Name, Provider Name, Physical
-    Address, Services. The area doubles as the town; county is always
-    `NAIROBI`.
-  - **upcountry** — providers keyed by town and county. Columns: Town,
-    County, Provider Name, Physical Location, Services.
-- Apache POI parses both sheets on startup (`ProviderPanelLoader`,
-  `@PostConstruct`), producing a `List<ProviderPanelEntry>` held in memory.
-  Currently ~739 entries.
+- `ServiceProvider.county` (column `service_providers.county`, added by
+  migration `V202609211510`) is what the search matches on. It is required on
+  `ServiceProviderRequest` (`@NotBlank`) and, for `SERVICE_PROVIDER`-type
+  organizations, on `OrganizationRequest` (enforced in
+  `OrganizationServiceImpl`); the provisioning listener copies it across.
+  Providers created before this change have a null county and won't appear in
+  results until one is set.
+- The results and detail screens use `name`, `address`, `contactPhone` and
+  `county`. The old Excel data had a per-provider "services" field, which
+  `ServiceProvider` doesn't have, so it is no longer shown.
 
 **Architecture:**
 
 ```
-provider-panel.xlsx (classpath)
+service_providers (DB)
         │
         ▼
-ProviderPanelLoader        ← @PostConstruct, POI → List<ProviderPanelEntry>
+ServiceProviderRepository  ← findByCountyContainingIgnoreCaseOrderByNameAsc
         │
         ▼
-ProviderPanelService       ← searchByCounty(q), searchByTown(q)
-        │                   case-insensitive partial match (ILIKE-style)
+ServiceProviderService     ← searchByCounty(q): blank → empty list,
+        │                   case-insensitive partial match, sorted by name
         ▼
-UssdServiceImpl            ← wired into handlePromptCountyName / handlePromptTownName
-                            results paginated 5 per USSD screen
+UssdServiceImpl            ← handlePromptCountyName / handleCountyResults /
+                            handleProviderDetail; 3 results per USSD screen
+        ▲
+        │  attraction → county
+TouristAttractionService   ← searchByName(q, 3): exact → contains → typo-tolerant
 ```
+
+`UssdServiceImpl` depends on the `ServiceProviderService` and
+`TouristAttractionService` interfaces only, following the cross-feature rule
+(never the repositories).
 
 **USSD flow:**
 
 ```
 Main Menu → 1. Find Hospital
-  → 1. County → "Enter county name:" → user types query
-    → ProviderPanelService.searchByCounty(query)
-    → Paginated results (5 per screen), 9 = next page, 0 = back
-  → 2. Town → "Enter town name:" → user types query
-    → ProviderPanelService.searchByTown(query)
-    → Same paginated display
+  → 1. County → "Enter county name to search:" → user types query
+    → ServiceProviderService.searchByCounty(query)
+    → Paginated results (3 per screen), 9 = next page, 0 = back
+    → pick a number → detail (name, address, phone, county), 0 = back
+  → 2. Town (Coming Soon)
   → 3. Border Point (Coming Soon)
-  → 4. Nearest Tourist Attraction (Coming Soon)
+  → 4. Nearest Tourist Attraction → "Enter tourist attraction name:" → user types query
+    → TouristAttractionService.searchByName(query, 3)
+    → 0 matches: "No tourist attraction found for '{query}'." → sub-menu
+    → 1 match: straight to that attraction's county hospital list
+    → 2-3 matches: "Select attraction:" numbered list (ATTRACTION_CHOICES), 0 = back;
+      picking one goes to its county hospital list
+    → hospital list = the county results flow above, with the first screen headed
+      "{attraction} - {county}"; paging, detail and back work exactly as for County
+    → county has no providers: "No providers found near {attraction} ({county})."
   → 0. Main Menu
 ```
 
 **Key design decisions:**
 
-- **In-memory, not DB:** provider panel data changes infrequently; an
-  in-memory list avoids a DB table and keeps the USSD response latency
-  sub-millisecond after startup. To update providers, replace the Excel file
-  and restart.
-- **Search behaviour:** case-insensitive substring match on county/town name.
-  Partial matches are intentional — a user typing "Momb" finds Mombasa.
-- **Pagination:** 5 results per USSD screen (160-char limit). "9. Next page"
-  cycles through results; "0. Back" returns to the hospital sub-menu.
+- **DB-backed, live:** results reflect the current `service_providers` rows,
+  so adding or editing a provider takes effect immediately, with no
+  redeploy. The search re-queries on each pagination/back step rather than
+  caching results in the Redis session.
+- **Search behaviour:** case-insensitive substring match on county. Partial
+  matches are intentional — a user typing "Momb" finds Mombasa.
+- **Attraction → county → hospitals:** the attraction step only resolves a
+  county; it then seeds `countyQuery` in the session and reuses the county
+  results flow, so there is one hospital-listing code path. Only the top 3
+  attraction matches are offered (one USSD screen, matching the page size) —
+  a user with a vaguer query should refine it rather than page.
+- **Town search removed:** `ServiceProvider` carries no town/area field, so
+  the Town option is a "Coming Soon" placeholder, like Border Point.
+- **Excel panel retired, not deleted:** `provider-panel.xlsx`,
+  `ProviderPanelLoader`, `ProviderPanelService` and `ProviderPanelEntry` are
+  still in the repo (and the loader still runs at startup) but nothing in the
+  USSD flow calls them.
 - **No results:** returns to the sub-menu with "No providers found for
   '{query}'."
 

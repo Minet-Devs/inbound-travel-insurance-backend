@@ -10,6 +10,7 @@ public record ServiceProviderResponse(
         String contactEmail,
         String contactPhone,
         String address,
+        String county,
         UUID organizationId,
         BigDecimal longitude,
         BigDecimal latitude,

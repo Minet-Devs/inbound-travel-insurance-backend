@@ -14,6 +14,7 @@ public record OrganizationResponse(
         String phoneNumber,
         String address,
         String city,
+        String county,
         String logoUrl,
         Long policyToken,
         String notificationEmail,

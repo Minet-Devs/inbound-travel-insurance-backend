@@ -30,6 +30,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         if (organizationRepository.existsByName(request.name())) {
             throw new IllegalStateException("Organization already exists: " + request.name());
         }
+        validateCounty(request);
         Organization organization = organizationRepository.save(organizationMapper.toEntity(request));
         eventPublisher.publishEvent(
                 new OrganizationCreatedEvent(organization.getId(), request.longitude(), request.latitude()));
@@ -57,6 +58,7 @@ public class OrganizationServiceImpl implements OrganizationService {
         if (organizationRepository.existsByNameAndIdNot(request.name(), id)) {
             throw new IllegalStateException("Organization already exists: " + request.name());
         }
+        validateCounty(request);
         organizationMapper.updateEntity(organization, request);
         OrganizationResponse response = organizationMapper.toResponse(organizationRepository.save(organization));
         eventPublisher.publishEvent(new OrganizationUpdatedEvent(id, request.longitude(), request.latitude()));
@@ -73,6 +75,13 @@ public class OrganizationServiceImpl implements OrganizationService {
         OrganizationResponse response = organizationMapper.toResponse(organizationRepository.save(organization));
         eventPublisher.publishEvent(new OrganizationUpdatedEvent(id, request.longitude(), request.latitude()));
         return response;
+    }
+
+    private void validateCounty(OrganizationRequest request) {
+        if (request.organizationType() == OrganizationType.SERVICE_PROVIDER
+                && (request.county() == null || request.county().isBlank())) {
+            throw new IllegalArgumentException("County is required for service provider organizations");
+        }
     }
 
     @Override

@@ -32,6 +32,8 @@ public class ServiceProvider extends BaseEntity {
 
     private String address;
 
+    private String county;
+
     private UUID organizationId;
 
     @Column(precision = 9, scale = 6)
