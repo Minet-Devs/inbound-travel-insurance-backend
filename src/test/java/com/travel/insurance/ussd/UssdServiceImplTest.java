@@ -5,6 +5,8 @@ import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.config.UssdProperties;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
+import com.travel.insurance.touristattraction.TouristAttractionService;
+import com.travel.insurance.touristattraction.dto.TouristAttractionResponse;
 import com.travel.insurance.ussd.domain.UssdSession;
 import com.travel.insurance.ussd.dto.UssdResponse;
 import com.travel.insurance.ussd.service.UssdServiceImpl;
@@ -35,6 +37,9 @@ class UssdServiceImplTest {
     @Mock
     private ServiceProviderService serviceProviderService;
 
+    @Mock
+    private TouristAttractionService touristAttractionService;
+
     private MailProperties mailProperties;
     private UssdServiceImpl ussdService;
 
@@ -47,12 +52,17 @@ class UssdServiceImplTest {
         mailProperties.setEmergencyAssistance(ea);
 
         UssdProperties ussdProperties = new UssdProperties();
-        ussdService = new UssdServiceImpl(emailService, mailProperties, ussdProperties, serviceProviderService);
+        ussdService = new UssdServiceImpl(emailService, mailProperties, ussdProperties, serviceProviderService,
+                touristAttractionService);
     }
 
     private ServiceProviderResponse provider(String name, String address, String phone, String county) {
         return new ServiceProviderResponse(UUID.randomUUID(), name, name.toLowerCase().replace(" ", "") + "@example.com",
                 phone, address, county, null, Instant.now(), Instant.now());
+    }
+
+    private TouristAttractionResponse attraction(String name, String county) {
+        return new TouristAttractionResponse(UUID.randomUUID(), name, county, Instant.now(), Instant.now());
     }
 
     private UssdSession createSession(String step) {
@@ -193,6 +203,135 @@ class UssdServiceImplTest {
         assertThat(response.getText()).contains("This option is coming soon.");
         assertThat(response.getText()).contains("1. Find Hospital");
         assertThat(session.getCurrentStep()).isEqualTo("MAIN_MENU");
+    }
+
+    @Test
+    void hospitalSubMenuOffersTouristAttractionSearch() {
+        UssdSession session = createSession("HOSPITAL_SUB_MENU");
+
+        UssdResponse response = ussdService.processSessionStep(session, "4");
+
+        assertThat(response.getType()).isEqualTo("CON");
+        assertThat(response.getText()).contains("Enter tourist attraction name:");
+        assertThat(session.getCurrentStep()).isEqualTo("PROMPT_ATTRACTION_NAME");
+    }
+
+    @Test
+    void attractionPromptEmptyRePrompts() {
+        UssdSession session = createSession("PROMPT_ATTRACTION_NAME");
+
+        UssdResponse response = ussdService.processSessionStep(session, "  ");
+
+        assertThat(response.getText()).contains("Attraction name cannot be empty");
+        assertThat(session.getCurrentStep()).isEqualTo("PROMPT_ATTRACTION_NAME");
+    }
+
+    @Test
+    void attractionNotFoundReturnsToSubMenu() {
+        UssdSession session = createSession("PROMPT_ATTRACTION_NAME");
+        when(touristAttractionService.searchByName("Nowhere", 3)).thenReturn(Collections.emptyList());
+
+        UssdResponse response = ussdService.processSessionStep(session, "Nowhere");
+
+        assertThat(response.getType()).isEqualTo("CON");
+        assertThat(response.getText()).contains("No tourist attraction found for 'Nowhere'");
+        assertThat(response.getText()).contains("4. Nearest Tourist Attraction");
+        assertThat(session.getCurrentStep()).isEqualTo("HOSPITAL_SUB_MENU");
+    }
+
+    @Test
+    void singleAttractionMatchListsHospitalsInItsCounty() {
+        UssdSession session = createSession("PROMPT_ATTRACTION_NAME");
+        when(touristAttractionService.searchByName("nakuru natonal", 3))
+                .thenReturn(List.of(attraction("Lake Nakuru National Park", "Nakuru")));
+        when(serviceProviderService.searchByCounty("Nakuru")).thenReturn(List.of(
+                provider("Nakuru Level 5 Hospital", "Nakuru Town", "+254711000003", "Nakuru"),
+                provider("War Memorial Hospital", "Nakuru Town", "+254711000004", "Nakuru")));
+
+        UssdResponse response = ussdService.processSessionStep(session, "nakuru natonal");
+
+        assertThat(response.getType()).isEqualTo("CON");
+        assertThat(response.getText()).contains("Lake Nakuru National Park - Nakuru");
+        assertThat(response.getText()).contains("1-2/2:");
+        assertThat(response.getText()).contains("Nakuru Level 5 Hospital");
+        assertThat(response.getText()).contains("War Memorial Hospital");
+        assertThat(session.getCurrentStep()).isEqualTo("COUNTY_RESULTS");
+        assertThat(session.getCollectedData().get("countyQuery")).isEqualTo("Nakuru");
+        assertThat(session.getCollectedData().get("countyResultPage")).isEqualTo("0");
+    }
+
+    @Test
+    void attractionWithNoHospitalsInCountyReturnsToSubMenu() {
+        UssdSession session = createSession("PROMPT_ATTRACTION_NAME");
+        when(touristAttractionService.searchByName("Mara", 3))
+                .thenReturn(List.of(attraction("Maasai Mara National Reserve", "Narok")));
+        when(serviceProviderService.searchByCounty("Narok")).thenReturn(Collections.emptyList());
+
+        UssdResponse response = ussdService.processSessionStep(session, "Mara");
+
+        assertThat(response.getText()).contains("No providers found near Maasai Mara National Reserve (Narok)");
+        assertThat(session.getCurrentStep()).isEqualTo("HOSPITAL_SUB_MENU");
+    }
+
+    @Test
+    void multipleAttractionMatchesLetTheUserChoose() {
+        UssdSession session = createSession("PROMPT_ATTRACTION_NAME");
+        when(touristAttractionService.searchByName("park", 3)).thenReturn(List.of(
+                attraction("Amboseli National Park", "Kajiado"),
+                attraction("Lake Nakuru National Park", "Nakuru")));
+
+        UssdResponse response = ussdService.processSessionStep(session, "park");
+
+        assertThat(response.getType()).isEqualTo("CON");
+        assertThat(response.getText()).contains("Select attraction:");
+        assertThat(response.getText()).contains("1. Amboseli National Park");
+        assertThat(response.getText()).contains("2. Lake Nakuru National Park");
+        assertThat(session.getCurrentStep()).isEqualTo("ATTRACTION_CHOICES");
+        assertThat(session.getCollectedData().get("attractionQuery")).isEqualTo("park");
+    }
+
+    @Test
+    void choosingAnAttractionListsHospitalsInItsCounty() {
+        UssdSession session = createSession("ATTRACTION_CHOICES");
+        session.getCollectedData().put("attractionQuery", "park");
+        when(touristAttractionService.searchByName("park", 3)).thenReturn(List.of(
+                attraction("Amboseli National Park", "Kajiado"),
+                attraction("Lake Nakuru National Park", "Nakuru")));
+        when(serviceProviderService.searchByCounty("Nakuru")).thenReturn(List.of(
+                provider("Nakuru Level 5 Hospital", "Nakuru Town", "+254711000003", "Nakuru")));
+
+        UssdResponse response = ussdService.processSessionStep(session, "2");
+
+        assertThat(response.getText()).contains("Lake Nakuru National Park - Nakuru");
+        assertThat(response.getText()).contains("Nakuru Level 5 Hospital");
+        assertThat(session.getCurrentStep()).isEqualTo("COUNTY_RESULTS");
+        assertThat(session.getCollectedData().get("countyQuery")).isEqualTo("Nakuru");
+    }
+
+    @Test
+    void attractionChoiceOutOfRangeRePrompts() {
+        UssdSession session = createSession("ATTRACTION_CHOICES");
+        session.getCollectedData().put("attractionQuery", "park");
+        when(touristAttractionService.searchByName("park", 3)).thenReturn(List.of(
+                attraction("Amboseli National Park", "Kajiado"),
+                attraction("Lake Nakuru National Park", "Nakuru")));
+
+        UssdResponse response = ussdService.processSessionStep(session, "7");
+
+        assertThat(response.getText()).contains("Invalid choice");
+        assertThat(response.getText()).contains("Select attraction:");
+        assertThat(session.getCurrentStep()).isEqualTo("ATTRACTION_CHOICES");
+    }
+
+    @Test
+    void attractionChoicesBackReturnsToSubMenu() {
+        UssdSession session = createSession("ATTRACTION_CHOICES");
+        session.getCollectedData().put("attractionQuery", "park");
+
+        UssdResponse response = ussdService.processSessionStep(session, "0");
+
+        assertThat(response.getText()).contains("1. County");
+        assertThat(session.getCurrentStep()).isEqualTo("HOSPITAL_SUB_MENU");
     }
 
     @Test

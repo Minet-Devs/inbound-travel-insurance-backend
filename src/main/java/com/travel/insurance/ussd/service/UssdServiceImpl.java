@@ -5,6 +5,8 @@ import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.config.UssdProperties;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
+import com.travel.insurance.touristattraction.TouristAttractionService;
+import com.travel.insurance.touristattraction.dto.TouristAttractionResponse;
 import com.travel.insurance.ussd.domain.UssdSession;
 import com.travel.insurance.ussd.dto.UssdResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -31,11 +33,14 @@ public class UssdServiceImpl implements UssdService {
                     + "1. County\n"
                     + "2. Town (Coming Soon)\n"
                     + "3. Border Point (Coming Soon)\n"
-                    + "4. Nearest Tourist Attraction (Coming Soon)\n"
+                    + "4. Nearest Tourist Attraction\n"
                     + "0. Main Menu";
 
     private static final String PROMPT_COUNTY_NAME =
             "Enter county name to search:";
+
+    private static final String PROMPT_ATTRACTION_NAME =
+            "Enter tourist attraction name:";
 
     private static final String MSG_COMING_SOON =
             "This option is coming soon.\n";
@@ -49,15 +54,18 @@ public class UssdServiceImpl implements UssdService {
     private final MailProperties mailProperties;
     private final UssdProperties ussdProperties;
     private final ServiceProviderService serviceProviderService;
+    private final TouristAttractionService touristAttractionService;
 
     public UssdServiceImpl(EmailService emailService,
                            MailProperties mailProperties,
                            UssdProperties ussdProperties,
-                           ServiceProviderService serviceProviderService) {
+                           ServiceProviderService serviceProviderService,
+                           TouristAttractionService touristAttractionService) {
         this.emailService = emailService;
         this.mailProperties = mailProperties;
         this.ussdProperties = ussdProperties;
         this.serviceProviderService = serviceProviderService;
+        this.touristAttractionService = touristAttractionService;
     }
 
     @Override
@@ -69,6 +77,8 @@ public class UssdServiceImpl implements UssdService {
             case "MAIN_MENU" -> handleMainMenuDynamic(session, rawInput);
             case "HOSPITAL_SUB_MENU" -> handleHospitalSubMenu(session, rawInput);
             case "PROMPT_COUNTY_NAME" -> handlePromptCountyName(session, rawInput);
+            case "PROMPT_ATTRACTION_NAME" -> handlePromptAttractionName(session, rawInput);
+            case "ATTRACTION_CHOICES" -> handleAttractionChoices(session, rawInput);
             case "COUNTY_RESULTS" -> handleCountyResults(session, rawInput);
             case "PROVIDER_DETAIL" -> handleProviderDetail(session, rawInput);
             case "FEEDBACK_MESSAGE" -> handleFeedbackMessage(session, rawInput);
@@ -139,7 +149,11 @@ public class UssdServiceImpl implements UssdService {
                 session.setCurrentStep("PROMPT_COUNTY_NAME");
                 yield new UssdResponse(PROMPT_COUNTY_NAME, "CON");
             }
-            case "2", "3", "4" -> {
+            case "4" -> {
+                session.setCurrentStep("PROMPT_ATTRACTION_NAME");
+                yield new UssdResponse(PROMPT_ATTRACTION_NAME, "CON");
+            }
+            case "2", "3" -> {
                 session.setCurrentStep("MAIN_MENU");
                 session.setMenuMap(buildMenuMap());
                 yield new UssdResponse(MSG_COMING_SOON + buildMenuText(), "CON");
@@ -169,6 +183,84 @@ public class UssdServiceImpl implements UssdService {
         session.getCollectedData().put("countyQuery", countyName);
         session.getCollectedData().put("countyResultPage", "0");
         return formatCountyResults(session, results, 0);
+    }
+
+    private UssdResponse handlePromptAttractionName(UssdSession session, String rawInput) {
+        String attractionName = rawInput != null ? rawInput.trim() : "";
+        if (attractionName.isEmpty()) {
+            return new UssdResponse("Attraction name cannot be empty.\n" + PROMPT_ATTRACTION_NAME, "CON");
+        }
+
+        List<TouristAttractionResponse> matches =
+                touristAttractionService.searchByName(attractionName, USSD_MAX_RESULTS);
+
+        if (matches.isEmpty()) {
+            session.setCurrentStep("HOSPITAL_SUB_MENU");
+            return new UssdResponse("No tourist attraction found for '" + attractionName + "'.\n"
+                    + PROMPT_HOSPITAL_SUB_MENU, "CON");
+        }
+
+        if (matches.size() == 1) {
+            return showHospitalsNearAttraction(session, matches.get(0));
+        }
+
+        session.getCollectedData().put("attractionQuery", attractionName);
+        return formatAttractionChoices(session, matches);
+    }
+
+    private UssdResponse handleAttractionChoices(UssdSession session, String rawInput) {
+        String choice = rawInput != null ? rawInput.trim() : "";
+
+        if ("0".equals(choice)) {
+            session.setCurrentStep("HOSPITAL_SUB_MENU");
+            return new UssdResponse(PROMPT_HOSPITAL_SUB_MENU, "CON");
+        }
+
+        String query = session.getCollectedData().getOrDefault("attractionQuery", "");
+        List<TouristAttractionResponse> matches = touristAttractionService.searchByName(query, USSD_MAX_RESULTS);
+
+        try {
+            int selected = Integer.parseInt(choice);
+            if (selected >= 1 && selected <= matches.size()) {
+                return showHospitalsNearAttraction(session, matches.get(selected - 1));
+            }
+        } catch (NumberFormatException ignored) {
+        }
+
+        UssdResponse choices = formatAttractionChoices(session, matches);
+        return new UssdResponse(MSG_INVALID_CHOICE + choices.getText(), "CON");
+    }
+
+    private UssdResponse formatAttractionChoices(UssdSession session, List<TouristAttractionResponse> matches) {
+        session.setCurrentStep("ATTRACTION_CHOICES");
+
+        StringBuilder sb = new StringBuilder("Select attraction:\n");
+        for (int i = 0; i < matches.size(); i++) {
+            sb.append(i + 1).append(". ").append(truncate(matches.get(i).name(), 30)).append("\n");
+        }
+        sb.append("0.Back");
+
+        return new UssdResponse(sb.toString(), "CON");
+    }
+
+    /**
+     * Lists the hospitals in the attraction's county. Hands off to the county results flow
+     * (COUNTY_RESULTS / PROVIDER_DETAIL) by seeding its session state, so paging and
+     * "back" behave exactly as they do for a plain county search.
+     */
+    private UssdResponse showHospitalsNearAttraction(UssdSession session, TouristAttractionResponse attraction) {
+        List<ServiceProviderResponse> results = serviceProviderService.searchByCounty(attraction.county());
+
+        if (results.isEmpty()) {
+            session.setCurrentStep("HOSPITAL_SUB_MENU");
+            return new UssdResponse("No providers found near " + attraction.name()
+                    + " (" + attraction.county() + ").\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
+        }
+
+        session.getCollectedData().put("countyQuery", attraction.county());
+        UssdResponse page = formatCountyResults(session, results, 0);
+        return new UssdResponse(truncate(attraction.name(), 30) + " - " + attraction.county() + "\n"
+                + page.getText(), "CON");
     }
 
     private UssdResponse handleCountyResults(UssdSession session, String rawInput) {

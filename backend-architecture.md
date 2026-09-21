@@ -296,6 +296,18 @@ com.travel.insurance/
 │       ├── DepartmentRequest.java
 │       └── DepartmentResponse.java
 │
+├── 📁 touristattraction/                   # Feature: Tourist attractions (USSD "nearest attraction" lookup)
+│   ├── TouristAttractionController.java    # /api/v1/tourist-attractions (CRUD)
+│   ├── TouristAttractionService.java       # Interface (+ searchByName)
+│   ├── TouristAttractionServiceImpl.java   # Exact → contains → typo-tolerant ranked search
+│   ├── TouristAttractionRepository.java
+│   ├── TouristAttraction.java              # name (unique), county — both required
+│   ├── TouristAttractionMapper.java
+│   ├── NameMatcher.java                    # package-private: normalise + approximate-substring edit distance
+│   └── 📁 dto/
+│       ├── TouristAttractionRequest.java
+│       └── TouristAttractionResponse.java
+│
 ├── 📁 organization/                        # Feature: Organization directory (name, type, email, phone, address, city, county)
 │   ├── OrganizationController.java
 │   ├── OrganizationService.java            # Interface
@@ -561,6 +573,22 @@ Policy
   [USSD Find Hospital](#ussd-provider-panel-find-hospital)). The copy happens
   only at provisioning time — later edits to the organization's `county`
   (like its other fields) are not synced to the `ServiceProvider`.
+- A **TouristAttraction** (`name` unique, case-insensitively at the service
+  layer; `county`, both required) maps a park/reserve/landmark to the county it
+  sits in. It has plain CRUD at `/api/v1/tourist-attractions` — writes are
+  `ADMIN`-only (`SecurityConfig`), reads open to any authenticated user — and
+  exists to power the USSD "Nearest Tourist Attraction" search (see
+  [USSD Find Hospital](#ussd-provider-panel-find-hospital)).
+  `TouristAttractionService.searchByName(query, limit)` ranks matches: a
+  case-insensitive exact name wins outright; else names containing the query
+  (name order); else, for queries of 4+ characters, names within
+  `max(1, length/4)` edits of the query, closest first. The typo-tolerant step
+  uses approximate *substring* distance, so a misspelt partial name such as
+  "nakuru natonal" still finds "Lake Nakuru National Park". Matching runs in
+  memory over the (short) table, so no database extension (e.g. `pg_trgm`) is
+  needed. `county` is free text and is later matched against
+  `ServiceProvider.county` with a contains match, so keep the spelling
+  consistent between the two.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) and a
   denormalized `insurerId` (non-nullable `UUID`, mirroring `Claim.insurerId`),
@@ -1015,6 +1043,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Department        | `/api/v1/departments`         | `departments`       |
 | Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
 | Organization      | `/api/v1/organizations`       | `organizations`     |
+| Tourist Attraction | `/api/v1/tourist-attractions` | `tourist_attractions` |
 | Reports           | `/api/v1/reports`             | (reads from existing tables) |
 | Member Statement  | `/api/v1/member-statements`   | — (computed, see [Member Statement Report](#member-statement-report)) |
 
@@ -1305,7 +1334,7 @@ Composed entirely from existing feature services (`VisitorService`,
 ## USSD Provider Panel (Find Hospital)
 
 The USSD "Find Hospital" feature lets travellers search for in-network
-healthcare providers by **county**. Provider data comes from the
+healthcare providers by **county** or by **nearest tourist attraction**. Provider data comes from the
 `service_providers` table (the `serviceprovider` feature) — every service
 provider registered in the system is listed. There is no separate type flag,
 so all `ServiceProvider` rows are treated as hospitals.
@@ -1337,10 +1366,14 @@ ServiceProviderService     ← searchByCounty(q): blank → empty list,
         ▼
 UssdServiceImpl            ← handlePromptCountyName / handleCountyResults /
                             handleProviderDetail; 3 results per USSD screen
+        ▲
+        │  attraction → county
+TouristAttractionService   ← searchByName(q, 3): exact → contains → typo-tolerant
 ```
 
-`UssdServiceImpl` depends on the `ServiceProviderService` interface only,
-following the cross-feature rule (never the repository).
+`UssdServiceImpl` depends on the `ServiceProviderService` and
+`TouristAttractionService` interfaces only, following the cross-feature rule
+(never the repositories).
 
 **USSD flow:**
 
@@ -1352,7 +1385,15 @@ Main Menu → 1. Find Hospital
     → pick a number → detail (name, address, phone, county), 0 = back
   → 2. Town (Coming Soon)
   → 3. Border Point (Coming Soon)
-  → 4. Nearest Tourist Attraction (Coming Soon)
+  → 4. Nearest Tourist Attraction → "Enter tourist attraction name:" → user types query
+    → TouristAttractionService.searchByName(query, 3)
+    → 0 matches: "No tourist attraction found for '{query}'." → sub-menu
+    → 1 match: straight to that attraction's county hospital list
+    → 2-3 matches: "Select attraction:" numbered list (ATTRACTION_CHOICES), 0 = back;
+      picking one goes to its county hospital list
+    → hospital list = the county results flow above, with the first screen headed
+      "{attraction} - {county}"; paging, detail and back work exactly as for County
+    → county has no providers: "No providers found near {attraction} ({county})."
   → 0. Main Menu
 ```
 
@@ -1364,6 +1405,11 @@ Main Menu → 1. Find Hospital
   caching results in the Redis session.
 - **Search behaviour:** case-insensitive substring match on county. Partial
   matches are intentional — a user typing "Momb" finds Mombasa.
+- **Attraction → county → hospitals:** the attraction step only resolves a
+  county; it then seeds `countyQuery` in the session and reuses the county
+  results flow, so there is one hospital-listing code path. Only the top 3
+  attraction matches are offered (one USSD screen, matching the page size) —
+  a user with a vaguer query should refine it rather than page.
 - **Town search removed:** `ServiceProvider` carries no town/area field, so
   the Town option is a "Coming Soon" placeholder, like Border Point.
 - **Excel panel retired, not deleted:** `provider-panel.xlsx`,
