@@ -58,7 +58,7 @@ class UssdServiceImplTest {
 
     private ServiceProviderResponse provider(String name, String address, String phone, String county) {
         return new ServiceProviderResponse(UUID.randomUUID(), name, name.toLowerCase().replace(" ", "") + "@example.com",
-                phone, address, county, null, Instant.now(), Instant.now());
+                phone, address, county, null, null, null, Instant.now(), Instant.now());
     }
 
     private TouristAttractionResponse attraction(String name, String county) {

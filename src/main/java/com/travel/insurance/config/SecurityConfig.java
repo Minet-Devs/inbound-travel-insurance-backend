@@ -36,7 +36,8 @@ public class SecurityConfig {
                 .exceptionHandling(handling ->
                         handling.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> {
-                    auth.requestMatchers("/api/v1/auth/**", "/error", "/api/v1/ussd/**", "/ussd/**").permitAll();
+                    auth.requestMatchers("/api/v1/auth/**", "/api/v1/mobile/auth/**", "/error",
+                            "/api/v1/ussd/**", "/ussd/**").permitAll();
                     auth.requestMatchers("/api/v1/webhooks/biometric-verification").permitAll();
                     if (!environment.acceptsProfiles(Profiles.of("prod"))) {
                         auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
@@ -49,10 +50,15 @@ public class SecurityConfig {
                     // Disable POST create endpoint specifically — must come BEFORE the broader service-providers rule
                     // insurers & service-providers are now create through organization to enable role based system access
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/service-providers").denyAll();
+                    // Visitors on the mobile app only need /nearby — must come BEFORE the broader
+                    // service-providers rule, which keeps the rest of the CRUD surface ADMIN/PROVIDER_USER-only.
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/service-providers/nearby")
+                            .hasAnyRole("ADMIN", "PROVIDER_USER", "VISITOR");
                     auth.requestMatchers("/api/v1/service-providers/**").hasAnyRole("ADMIN", "PROVIDER_USER");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/icd11-codes/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**", "/api/v1/tourist-attractions/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.PUT, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**", "/api/v1/tourist-attractions/**").hasRole("ADMIN");
+                    auth.requestMatchers(HttpMethod.PATCH, "/api/v1/organizations/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.DELETE, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**", "/api/v1/tourist-attractions/**").hasRole("ADMIN");
                     auth.anyRequest().authenticated();
                 })

@@ -19,5 +19,7 @@ public interface ServiceProviderRepository extends JpaRepository<ServiceProvider
     List<ServiceProvider> findByCountyContainingIgnoreCaseOrderByNameAsc(String county);
 
     Optional<ServiceProvider> findFirstByOrganizationId(UUID organizationId);
+
+    List<ServiceProvider> findByLatitudeIsNotNullAndLongitudeIsNotNull();
 }
 

@@ -1,5 +1,6 @@
 package com.travel.insurance.organization;
 
+import com.travel.insurance.organization.dto.OrganizationPatchRequest;
 import com.travel.insurance.organization.dto.OrganizationRequest;
 import com.travel.insurance.organization.dto.OrganizationResponse;
 import jakarta.validation.Valid;
@@ -10,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -47,6 +49,12 @@ public class OrganizationController {
     public ResponseEntity<OrganizationResponse> update(@PathVariable UUID id,
                                                          @Valid @RequestBody OrganizationRequest request) {
         return ResponseEntity.ok(organizationService.update(id, request));
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<OrganizationResponse> patch(@PathVariable UUID id,
+                                                        @Valid @RequestBody OrganizationPatchRequest request) {
+        return ResponseEntity.ok(organizationService.patch(id, request));
     }
 
     @DeleteMapping("/{id}")

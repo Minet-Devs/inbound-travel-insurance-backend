@@ -13,7 +13,7 @@ import java.util.Map;
 
 /**
  * One-off startup job that encrypts pre-existing plaintext in sensitive
- * columns (and backfills the passport-number blind index) for environments
+ * columns (and backfills the passport-number and email blind indexes) for environments
  * that had visitor/claim/biometric data before field-level encryption was
  * introduced. Disabled by default; enable via
  * {@code app.encryption.backfill.enabled=true} for exactly one deploy, then
@@ -63,7 +63,7 @@ public class EncryptionBackfillRunner implements ApplicationRunner {
 
     private int backfillVisitors() {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "select id, passport_number, passport_number_hash, "
+                "select id, passport_number, passport_number_hash, email, email_hash, "
                         + String.join(", ", VISITOR_ENCRYPTED_COLUMNS) + " from visitors");
 
         int updated = 0;
@@ -78,6 +78,10 @@ public class EncryptionBackfillRunner implements ApplicationRunner {
             if (row.get("passport_number_hash") == null) {
                 String passportPlaintext = resolvePlaintext((String) row.get("passport_number"));
                 changes.put("passport_number_hash", blindIndexService.hmac(passportPlaintext));
+            }
+            if (row.get("email_hash") == null) {
+                String emailPlaintext = resolvePlaintext((String) row.get("email"));
+                changes.put("email_hash", blindIndexService.hmac(emailPlaintext));
             }
             if (!changes.isEmpty()) {
                 updateRow("visitors", row.get("id"), changes);

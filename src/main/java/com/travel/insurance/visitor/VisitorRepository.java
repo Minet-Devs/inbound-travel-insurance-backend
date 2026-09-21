@@ -17,6 +17,8 @@ public interface VisitorRepository extends JpaRepository<Visitor, UUID> {
 
     Optional<Visitor> findByPassportNumberHash(String passportNumberHash);
 
+    Optional<Visitor> findFirstByEmailHashOrderByCreatedDateDesc(String emailHash);
+
     boolean existsByPassportNumberHash(String passportNumberHash);
 
     boolean existsByPassportNumberHashAndIdNot(String passportNumberHash, UUID id);

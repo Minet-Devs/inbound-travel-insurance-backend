@@ -2,6 +2,7 @@ package com.travel.insurance.organization;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
+import com.travel.insurance.organization.dto.OrganizationPatchRequest;
 import com.travel.insurance.organization.dto.OrganizationRequest;
 import com.travel.insurance.organization.dto.OrganizationResponse;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -46,7 +48,7 @@ class OrganizationControllerTest {
     private OrganizationResponse sampleResponse() {
         return new OrganizationResponse(organizationId, "Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
                 "0700000000", "123 Main St", "Nairobi", "Nairobi", "https://cdn.example/acme.png", 123456L,
-                "notify@acme.com", "smtp.acme.com", 587, "signature-data", Instant.now(), Instant.now());
+                "notify@acme.com", "smtp.acme.com", 587, "signature-data", null, null, Instant.now(), Instant.now());
     }
 
     @Test
@@ -76,7 +78,7 @@ class OrganizationControllerTest {
                                 new OrganizationRequest("Acme Ltd", OrganizationType.INSURER, "contact@acme.com",
                                         "0700000000", "123 Main St", "Nairobi", "Nairobi",
                                         "https://cdn.example/acme.png", 123456L, "notify@acme.com", "s3cr3t", "smtp.acme.com", 587,
-                                        "signature-data"))))
+                                        "signature-data", null, null))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Acme Ltd"))
                 .andExpect(jsonPath("$.county").value("Nairobi"))
@@ -97,7 +99,7 @@ class OrganizationControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new OrganizationRequest("", null, "not-an-email", null, null, null, null, null, null,
-                                        null, null, null, null, null))))
+                                        null, null, null, null, null, null, null))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation failed"));
     }
@@ -111,6 +113,37 @@ class OrganizationControllerTest {
         mockMvc.perform(get("/api/v1/organizations").param("organizationType", "INSURER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].organizationType").value("INSURER"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void patchReturnsUpdatedOrganization() throws Exception {
+        when(organizationService.patch(eq(organizationId), any(OrganizationPatchRequest.class)))
+                .thenReturn(sampleResponse());
+        OrganizationPatchRequest patchRequest = new OrganizationPatchRequest(
+                null, null, null, null, null, "Nairobi", null, null, null, null, null, null, null, null, null);
+
+        mockMvc.perform(patch("/api/v1/organizations/{id}", organizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(patchRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.city").value("Nairobi"))
+                .andExpect(jsonPath("$.notificationEmailPassword").doesNotExist());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void patchRejectsInvalidEmail() throws Exception {
+        OrganizationPatchRequest patchRequest = new OrganizationPatchRequest(
+                null, null, "not-an-email", null, null, null, null, null, null, null, null, null, null, null, null);
+
+        mockMvc.perform(patch("/api/v1/organizations/{id}", organizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(patchRequest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"));
     }
 
     @Test

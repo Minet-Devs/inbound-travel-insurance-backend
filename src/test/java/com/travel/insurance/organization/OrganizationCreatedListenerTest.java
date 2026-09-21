@@ -57,7 +57,7 @@ class OrganizationCreatedListenerTest {
         Organization organization = organization(OrganizationType.INSURER);
         when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
 
-        listener.onOrganizationCreated(new OrganizationCreatedEvent(organization.getId()));
+        listener.onOrganizationCreated(new OrganizationCreatedEvent(organization.getId(), null, null));
 
         ArgumentCaptor<InsurerRequest> captor = ArgumentCaptor.forClass(InsurerRequest.class);
         verify(insurerService).create(captor.capture());
@@ -81,8 +81,10 @@ class OrganizationCreatedListenerTest {
         listener = new OrganizationCreatedListener(organizationService, insurerService, serviceProviderService);
         Organization organization = organization(OrganizationType.SERVICE_PROVIDER);
         when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
+        java.math.BigDecimal longitude = new java.math.BigDecimal("36.821946");
+        java.math.BigDecimal latitude = new java.math.BigDecimal("-1.292066");
 
-        listener.onOrganizationCreated(new OrganizationCreatedEvent(organization.getId()));
+        listener.onOrganizationCreated(new OrganizationCreatedEvent(organization.getId(), longitude, latitude));
 
         ArgumentCaptor<ServiceProviderRequest> captor = ArgumentCaptor.forClass(ServiceProviderRequest.class);
         verify(serviceProviderService).create(captor.capture());
@@ -90,6 +92,8 @@ class OrganizationCreatedListenerTest {
         assertThat(captor.getValue().contactEmail()).isEqualTo("contact@acme.example");
         assertThat(captor.getValue().county()).isEqualTo("Nairobi County");
         assertThat(captor.getValue().organizationId()).isEqualTo(organization.getId());
+        assertThat(captor.getValue().longitude()).isEqualTo(longitude);
+        assertThat(captor.getValue().latitude()).isEqualTo(latitude);
         verify(insurerService, never()).create(any());
     }
 
@@ -99,7 +103,7 @@ class OrganizationCreatedListenerTest {
         Organization organization = organization(OrganizationType.ADMIN);
         when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
 
-        listener.onOrganizationCreated(new OrganizationCreatedEvent(organization.getId()));
+        listener.onOrganizationCreated(new OrganizationCreatedEvent(organization.getId(), null, null));
 
         verify(insurerService, never()).create(any());
         verify(serviceProviderService, never()).create(any());
