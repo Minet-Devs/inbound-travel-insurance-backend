@@ -9,6 +9,7 @@ public record ServiceProviderResponse(
         String contactEmail,
         String contactPhone,
         String address,
+        String county,
         UUID organizationId,
         Instant createdDate,
         Instant updatedDate

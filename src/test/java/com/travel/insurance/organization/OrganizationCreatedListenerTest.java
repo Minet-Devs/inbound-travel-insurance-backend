@@ -40,6 +40,7 @@ class OrganizationCreatedListenerTest {
         organization.setEmail("contact@acme.example");
         organization.setPhoneNumber("+254700000000");
         organization.setAddress("Nairobi");
+        organization.setCounty("Nairobi County");
         organization.setLogoUrl("https://cdn.example/acme.png");
         organization.setPolicyToken(123456L);
         organization.setNotificationEmail("notify@acme.example");
@@ -87,6 +88,7 @@ class OrganizationCreatedListenerTest {
         verify(serviceProviderService).create(captor.capture());
         assertThat(captor.getValue().name()).isEqualTo("Acme");
         assertThat(captor.getValue().contactEmail()).isEqualTo("contact@acme.example");
+        assertThat(captor.getValue().county()).isEqualTo("Nairobi County");
         assertThat(captor.getValue().organizationId()).isEqualTo(organization.getId());
         verify(insurerService, never()).create(any());
     }

@@ -3,7 +3,8 @@ package com.travel.insurance.ussd.service;
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.config.UssdProperties;
-import com.travel.insurance.ussd.domain.ProviderPanelEntry;
+import com.travel.insurance.serviceprovider.ServiceProviderService;
+import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import com.travel.insurance.ussd.domain.UssdSession;
 import com.travel.insurance.ussd.dto.UssdResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -28,16 +29,13 @@ public class UssdServiceImpl implements UssdService {
     private static final String PROMPT_HOSPITAL_SUB_MENU =
             "Select search area:\n"
                     + "1. County\n"
-                    + "2. Town\n"
+                    + "2. Town (Coming Soon)\n"
                     + "3. Border Point (Coming Soon)\n"
                     + "4. Nearest Tourist Attraction (Coming Soon)\n"
                     + "0. Main Menu";
 
     private static final String PROMPT_COUNTY_NAME =
             "Enter county name to search:";
-
-    private static final String PROMPT_TOWN_NAME =
-            "Enter town name to search:";
 
     private static final String MSG_COMING_SOON =
             "This option is coming soon.\n";
@@ -50,16 +48,16 @@ public class UssdServiceImpl implements UssdService {
     private final EmailService emailService;
     private final MailProperties mailProperties;
     private final UssdProperties ussdProperties;
-    private final ProviderPanelService providerPanelService;
+    private final ServiceProviderService serviceProviderService;
 
     public UssdServiceImpl(EmailService emailService,
                            MailProperties mailProperties,
                            UssdProperties ussdProperties,
-                           ProviderPanelService providerPanelService) {
+                           ServiceProviderService serviceProviderService) {
         this.emailService = emailService;
         this.mailProperties = mailProperties;
         this.ussdProperties = ussdProperties;
-        this.providerPanelService = providerPanelService;
+        this.serviceProviderService = serviceProviderService;
     }
 
     @Override
@@ -71,9 +69,7 @@ public class UssdServiceImpl implements UssdService {
             case "MAIN_MENU" -> handleMainMenuDynamic(session, rawInput);
             case "HOSPITAL_SUB_MENU" -> handleHospitalSubMenu(session, rawInput);
             case "PROMPT_COUNTY_NAME" -> handlePromptCountyName(session, rawInput);
-            case "PROMPT_TOWN_NAME" -> handlePromptTownName(session, rawInput);
             case "COUNTY_RESULTS" -> handleCountyResults(session, rawInput);
-            case "TOWN_RESULTS" -> handleTownResults(session, rawInput);
             case "PROVIDER_DETAIL" -> handleProviderDetail(session, rawInput);
             case "FEEDBACK_MESSAGE" -> handleFeedbackMessage(session, rawInput);
             default -> {
@@ -143,16 +139,7 @@ public class UssdServiceImpl implements UssdService {
                 session.setCurrentStep("PROMPT_COUNTY_NAME");
                 yield new UssdResponse(PROMPT_COUNTY_NAME, "CON");
             }
-            case "2" -> {
-                session.setCurrentStep("PROMPT_TOWN_NAME");
-                yield new UssdResponse(PROMPT_TOWN_NAME, "CON");
-            }
-            case "3" -> {
-                session.setCurrentStep("MAIN_MENU");
-                session.setMenuMap(buildMenuMap());
-                yield new UssdResponse(MSG_COMING_SOON + buildMenuText(), "CON");
-            }
-            case "4" -> {
+            case "2", "3", "4" -> {
                 session.setCurrentStep("MAIN_MENU");
                 session.setMenuMap(buildMenuMap());
                 yield new UssdResponse(MSG_COMING_SOON + buildMenuText(), "CON");
@@ -172,7 +159,7 @@ public class UssdServiceImpl implements UssdService {
             return new UssdResponse("County name cannot be empty.\n" + PROMPT_COUNTY_NAME, "CON");
         }
 
-        List<ProviderPanelEntry> results = providerPanelService.searchByCounty(countyName);
+        List<ServiceProviderResponse> results = serviceProviderService.searchByCounty(countyName);
 
         if (results.isEmpty()) {
             session.setCurrentStep("HOSPITAL_SUB_MENU");
@@ -182,25 +169,6 @@ public class UssdServiceImpl implements UssdService {
         session.getCollectedData().put("countyQuery", countyName);
         session.getCollectedData().put("countyResultPage", "0");
         return formatCountyResults(session, results, 0);
-    }
-
-    private UssdResponse handlePromptTownName(UssdSession session, String rawInput) {
-        String townName = rawInput != null ? rawInput.trim() : "";
-        if (townName.isEmpty()) {
-            return new UssdResponse("Town name cannot be empty.\n" + PROMPT_TOWN_NAME, "CON");
-        }
-
-        List<ProviderPanelEntry> results = providerPanelService.searchByTown(townName);
-
-        if (results.isEmpty()) {
-            session.setCurrentStep("HOSPITAL_SUB_MENU");
-            return new UssdResponse("No providers found for '" + townName + "'.\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
-        }
-
-        session.getCollectedData().put("townQuery", townName);
-        session.getCollectedData().put("townResults", serializeResults(results));
-        session.getCollectedData().put("townResultPage", "0");
-        return formatTownResults(session, results, 0);
     }
 
     private UssdResponse handleCountyResults(UssdSession session, String rawInput) {
@@ -213,7 +181,7 @@ public class UssdServiceImpl implements UssdService {
 
         String query = session.getCollectedData().getOrDefault("countyQuery", "");
         int page = Integer.parseInt(session.getCollectedData().getOrDefault("countyResultPage", "0"));
-        List<ProviderPanelEntry> results = providerPanelService.searchByCounty(query);
+        List<ServiceProviderResponse> results = serviceProviderService.searchByCounty(query);
 
         if ("9".equals(choice)) {
             int nextPage = page + 1;
@@ -228,7 +196,7 @@ public class UssdServiceImpl implements UssdService {
             int selected = Integer.parseInt(choice);
             int index = (page * USSD_MAX_RESULTS) + (selected - 1);
             if (index >= 0 && index < results.size()) {
-                return showProviderDetail(session, results.get(index), "COUNTY_RESULTS");
+                return showProviderDetail(session, results.get(index));
             }
         } catch (NumberFormatException ignored) {
         }
@@ -236,54 +204,19 @@ public class UssdServiceImpl implements UssdService {
         return new UssdResponse("Enter 1-5 to view details, 9 for Next, or 0 for Menu:\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
     }
 
-    private UssdResponse handleTownResults(UssdSession session, String rawInput) {
-        String choice = rawInput != null ? rawInput.trim() : "";
-
-        if ("0".equals(choice)) {
-            session.setCurrentStep("HOSPITAL_SUB_MENU");
-            return new UssdResponse(PROMPT_HOSPITAL_SUB_MENU, "CON");
-        }
-
-        String query = session.getCollectedData().getOrDefault("townQuery", "");
-        int page = Integer.parseInt(session.getCollectedData().getOrDefault("townResultPage", "0"));
-        List<ProviderPanelEntry> results = providerPanelService.searchByTown(query);
-
-        if ("9".equals(choice)) {
-            int nextPage = page + 1;
-            int maxPage = (results.size() - 1) / USSD_MAX_RESULTS;
-            if (nextPage > maxPage) {
-                nextPage = 0;
-            }
-            return formatTownResults(session, results, nextPage);
-        }
-
-        try {
-            int selected = Integer.parseInt(choice);
-            int index = (page * USSD_MAX_RESULTS) + (selected - 1);
-            if (index >= 0 && index < results.size()) {
-                return showProviderDetail(session, results.get(index), "TOWN_RESULTS");
-            }
-        } catch (NumberFormatException ignored) {
-        }
-
-        return new UssdResponse("Enter 1-5 to view details, 9 for Next, or 0 for Menu:\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
-    }
-
-    private UssdResponse showProviderDetail(UssdSession session, ProviderPanelEntry entry, String returnStep) {
+    private UssdResponse showProviderDetail(UssdSession session, ServiceProviderResponse provider) {
         session.setCurrentStep("PROVIDER_DETAIL");
-        session.getCollectedData().put("detailReturnStep", returnStep);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("--- ").append(entry.getProviderName()).append(" ---\n");
-        if (entry.getAddress() != null && !entry.getAddress().isBlank()) {
-            sb.append("Address: ").append(entry.getAddress()).append("\n");
+        sb.append("--- ").append(provider.name()).append(" ---\n");
+        if (provider.address() != null && !provider.address().isBlank()) {
+            sb.append("Address: ").append(provider.address()).append("\n");
         }
-        if (entry.getServices() != null && !entry.getServices().isBlank()) {
-            sb.append("Services: ").append(entry.getServices()).append("\n");
+        if (provider.contactPhone() != null && !provider.contactPhone().isBlank()) {
+            sb.append("Phone: ").append(provider.contactPhone()).append("\n");
         }
-        if (entry.getArea() != null && !entry.getArea().isBlank()
-                && !entry.getArea().equalsIgnoreCase(entry.getTown())) {
-            sb.append("Area: ").append(entry.getArea()).append("\n");
+        if (provider.county() != null && !provider.county().isBlank()) {
+            sb.append("County: ").append(provider.county()).append("\n");
         }
         sb.append("0. Back to results");
 
@@ -294,27 +227,16 @@ public class UssdServiceImpl implements UssdService {
         String choice = rawInput != null ? rawInput.trim() : "";
 
         if ("0".equals(choice)) {
-            String returnStep = session.getCollectedData().getOrDefault("detailReturnStep", "COUNTY_RESULTS");
-            String query;
-            int page;
-
-            if ("TOWN_RESULTS".equals(returnStep)) {
-                query = session.getCollectedData().getOrDefault("townQuery", "");
-                page = Integer.parseInt(session.getCollectedData().getOrDefault("townResultPage", "0"));
-                List<ProviderPanelEntry> results = providerPanelService.searchByTown(query);
-                return formatTownResults(session, results, page);
-            } else {
-                query = session.getCollectedData().getOrDefault("countyQuery", "");
-                page = Integer.parseInt(session.getCollectedData().getOrDefault("countyResultPage", "0"));
-                List<ProviderPanelEntry> results = providerPanelService.searchByCounty(query);
-                return formatCountyResults(session, results, page);
-            }
+            String query = session.getCollectedData().getOrDefault("countyQuery", "");
+            int page = Integer.parseInt(session.getCollectedData().getOrDefault("countyResultPage", "0"));
+            List<ServiceProviderResponse> results = serviceProviderService.searchByCounty(query);
+            return formatCountyResults(session, results, page);
         }
 
         return new UssdResponse("0. Back to results", "CON");
     }
 
-    private UssdResponse formatCountyResults(UssdSession session, List<ProviderPanelEntry> results, int page) {
+    private UssdResponse formatCountyResults(UssdSession session, List<ServiceProviderResponse> results, int page) {
         session.setCurrentStep("COUNTY_RESULTS");
         session.getCollectedData().put("countyResultPage", String.valueOf(page));
 
@@ -326,40 +248,7 @@ public class UssdServiceImpl implements UssdService {
                 .append("/").append(results.size()).append(":\n");
 
         for (int i = start; i < end; i++) {
-            ProviderPanelEntry e = results.get(i);
-            sb.append(i + 1).append(". ").append(truncate(e.getProviderName(), 30));
-            if (e.getServices() != null && !e.getServices().isBlank()) {
-                sb.append(" - ").append(truncate(e.getServices(), 20));
-            }
-            sb.append("\n");
-        }
-
-        if (end < results.size()) {
-            sb.append("9.Next");
-        }
-        sb.append(" 0.Back");
-
-        return new UssdResponse(sb.toString(), "CON");
-    }
-
-    private UssdResponse formatTownResults(UssdSession session, List<ProviderPanelEntry> results, int page) {
-        session.setCurrentStep("TOWN_RESULTS");
-        session.getCollectedData().put("townResultPage", String.valueOf(page));
-
-        int start = page * USSD_MAX_RESULTS;
-        int end = Math.min(start + USSD_MAX_RESULTS, results.size());
-
-        StringBuilder sb = new StringBuilder();
-        sb.append(start + 1).append("-").append(end)
-                .append("/").append(results.size()).append(":\n");
-
-        for (int i = start; i < end; i++) {
-            ProviderPanelEntry e = results.get(i);
-            sb.append(i + 1).append(". ").append(truncate(e.getProviderName(), 30));
-            if (e.getServices() != null && !e.getServices().isBlank()) {
-                sb.append(" - ").append(truncate(e.getServices(), 20));
-            }
-            sb.append("\n");
+            sb.append(i + 1).append(". ").append(truncate(results.get(i).name(), 30)).append("\n");
         }
 
         if (end < results.size()) {
@@ -375,18 +264,6 @@ public class UssdServiceImpl implements UssdService {
             return "";
         }
         return value.length() <= maxLength ? value : value.substring(0, maxLength - 1) + "~";
-    }
-
-    private String serializeResults(List<ProviderPanelEntry> results) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < results.size(); i++) {
-            ProviderPanelEntry e = results.get(i);
-            sb.append(i).append("|").append(e.getProviderName())
-                    .append("|").append(e.getAddress())
-                    .append("|").append(e.getServices())
-                    .append(";");
-        }
-        return sb.toString();
     }
 
     private Map<String, String> buildMenuMap() {

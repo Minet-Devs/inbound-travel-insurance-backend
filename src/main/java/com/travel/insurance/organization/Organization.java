@@ -39,6 +39,8 @@ public class Organization extends BaseEntity {
 
     private String city;
 
+    private String county;
+
     private String logoUrl;
 
     private Long policyToken;

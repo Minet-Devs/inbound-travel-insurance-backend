@@ -31,5 +31,7 @@ public class ServiceProvider extends BaseEntity {
 
     private String address;
 
+    private String county;
+
     private UUID organizationId;
 }

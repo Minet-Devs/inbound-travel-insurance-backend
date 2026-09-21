@@ -42,7 +42,7 @@ class ServiceProviderControllerTest {
 
     private ServiceProviderResponse sampleResponse() {
         return new ServiceProviderResponse(providerId, "Nairobi Hospital", "contact@nairobihospital.example",
-                "+254700000000", "Argwings Kodhek Rd", null, Instant.now(), Instant.now());
+                "+254700000000", "Argwings Kodhek Rd", "Nairobi", null, Instant.now(), Instant.now());
     }
 
     @Test
@@ -62,7 +62,7 @@ class ServiceProviderControllerTest {
         when(serviceProviderService.create(any(ServiceProviderRequest.class))).thenReturn(sampleResponse());
 
         ServiceProviderRequest request = new ServiceProviderRequest("Nairobi Hospital",
-                "contact@nairobihospital.example", "+254700000000", "Argwings Kodhek Rd", null);
+                "contact@nairobihospital.example", "+254700000000", "Argwings Kodhek Rd", "Nairobi", null);
         mockMvc.perform(post("/api/v1/service-providers")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -70,13 +70,27 @@ class ServiceProviderControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Nairobi Hospital"))
                 .andExpect(jsonPath("$.contactEmail").value("contact@nairobihospital.example"))
-                .andExpect(jsonPath("$.address").value("Argwings Kodhek Rd"));
+                .andExpect(jsonPath("$.address").value("Argwings Kodhek Rd"))
+                .andExpect(jsonPath("$.county").value("Nairobi"));
     }
 
     @Test
     @WithMockUser(roles = "ADMIN")
     void createRejectsInvalidBody() throws Exception {
-        ServiceProviderRequest request = new ServiceProviderRequest("", "not-an-email", null, null, null);
+        ServiceProviderRequest request = new ServiceProviderRequest("", "not-an-email", null, null, null, null);
+        mockMvc.perform(post("/api/v1/service-providers")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Validation failed"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void createRejectsMissingCounty() throws Exception {
+        ServiceProviderRequest request = new ServiceProviderRequest("Nairobi Hospital",
+                "contact@nairobihospital.example", null, null, " ", null);
         mockMvc.perform(post("/api/v1/service-providers")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

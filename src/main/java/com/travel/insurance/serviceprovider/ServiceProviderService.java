@@ -29,5 +29,7 @@ public interface ServiceProviderService {
 
     List<ServiceProviderResponse> searchByName(String name, int limit);
 
+    List<ServiceProviderResponse> searchByCounty(String county);
+
     Optional<UUID> findIdByOrganizationId(UUID organizationId);
 }

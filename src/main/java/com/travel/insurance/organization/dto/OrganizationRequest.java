@@ -12,6 +12,7 @@ public record OrganizationRequest(
         String phoneNumber,
         String address,
         String city,
+        String county,
         String logoUrl,
         Long policyToken,
         @Email String notificationEmail,

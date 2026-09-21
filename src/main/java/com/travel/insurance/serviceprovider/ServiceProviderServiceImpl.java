@@ -97,6 +97,17 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
                 .getContent();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ServiceProviderResponse> searchByCounty(String county) {
+        if (county == null || county.isBlank()) {
+            return List.of();
+        }
+        return serviceProviderRepository.findByCountyContainingIgnoreCaseOrderByNameAsc(county.trim()).stream()
+                .map(serviceProviderMapper::toResponse)
+                .toList();
+    }
+
     private ServiceProvider getEntity(UUID id) {
         return serviceProviderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("ServiceProvider", id));

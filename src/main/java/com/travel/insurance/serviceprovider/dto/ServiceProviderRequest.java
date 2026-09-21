@@ -10,6 +10,7 @@ public record ServiceProviderRequest(
         @NotBlank @Email String contactEmail,
         String contactPhone,
         String address,
+        @NotBlank String county,
         UUID organizationId
 ) {
 }
