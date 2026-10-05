@@ -24,6 +24,7 @@ class CurrencyConversionServiceTest {
     @BeforeEach
     void setUp() {
         ExchangeRateProperties properties = new ExchangeRateProperties();
+        properties.setBaseUrl("https://v6.exchangerate-api.com/v6");
         properties.setApiKey("test-api-key");
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
@@ -70,6 +71,17 @@ class CurrencyConversionServiceTest {
     void throwsWhenApiKeyMissing() {
         CurrencyConversionService unconfigured =
                 new CurrencyConversionService(new ExchangeRateProperties(), RestClient.builder());
+
+        assertThatThrownBy(() -> unconfigured.getExchangeRate("KES", "USD"))
+                .isInstanceOf(ExchangeRateUnavailableException.class);
+    }
+
+    @Test
+    void throwsWhenBaseUrlMissing() {
+        ExchangeRateProperties properties = new ExchangeRateProperties();
+        properties.setApiKey("test-api-key");
+        CurrencyConversionService unconfigured =
+                new CurrencyConversionService(properties, RestClient.builder());
 
         assertThatThrownBy(() -> unconfigured.getExchangeRate("KES", "USD"))
                 .isInstanceOf(ExchangeRateUnavailableException.class);

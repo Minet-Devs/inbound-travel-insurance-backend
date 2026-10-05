@@ -35,8 +35,9 @@ public class CurrencyConversionService {
                 || fromCurrency.equalsIgnoreCase(toCurrency)) {
             return BigDecimal.ONE;
         }
-        if (properties.getApiKey() == null || properties.getApiKey().isBlank()) {
-            log.error("Exchange-rate API key is not configured");
+        if (properties.getApiKey() == null || properties.getApiKey().isBlank()
+                || properties.getBaseUrl() == null || properties.getBaseUrl().isBlank()) {
+            log.error("Exchange-rate API key or base URL is not configured");
             throw new ExchangeRateUnavailableException("Exchange-rate service is not configured");
         }
         String uri = properties.getBaseUrl() + "/" + properties.getApiKey() + "/pair/{from}/{to}";

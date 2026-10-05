@@ -91,6 +91,11 @@ app:
   exchangerate:
     base-url: ${EXCHANGE_RATE_BASE_URL:https://v6.exchangerate-api.com/v6}
     api-key: ${EXCHANGE_RATE_API_KEY:}
+  biometrics:
+    microservice:
+      base-url: ${BIOMETRICS_MICROSERVICE_BASE_URL:http://localhost:8080}
+      # Must match the micro's MINETCALLBACKSECRET; blank = all webhooks rejected.
+      webhook-secret: ${BIOMETRICS_WEBHOOK_SECRET:}
 
 procedure:
   upload:
