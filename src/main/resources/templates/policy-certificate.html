@@ -12,7 +12,7 @@
             color: #1a1a1a;
             margin: 0;
         }
-        .cert { border: 1.5pt solid rgba(26, 81, 177, 1); padding: 12pt; }
+        .cert { border: 1.5pt solid rgba(15, 59, 135, 1); padding: 12pt; }
 
         /* Masthead */
         .masthead { width: 100%; text-align: center; }
@@ -23,7 +23,7 @@
         }
         .logo-box div { padding-top: 17pt; }
         .logo-img { max-width: 130pt; max-height: 46pt; }
-        .esign-img { max-width: 140pt; max-height: 40pt; margin-bottom: 3pt; }
+        .esign-img { max-width: 140pt; max-height: 24pt; margin-bottom: 2pt; }
 
         /* Title band */
         .title-band { text-align: center; margin-top: 8pt; padding: 6pt 0; border-top: 0.75pt solid #cfcfcf; border-bottom: 0.75pt solid #cfcfcf; }
@@ -37,11 +37,11 @@
         .meta .v { font-size: 10.5pt; font-weight: bold; color: #111111; }
 
         /* Section headers */
-        .section { margin-top: 10pt; }
+        .section { margin-top: 7pt; }
         .section-title {
-            background-color: #e8edfa; color: rgba(26, 81, 177, 1);
+            background-color: #e8edf7; color: rgba(15, 59, 135, 1);
             font-size: 9pt; font-weight: bold; letter-spacing: 1.5pt;
-            padding: 4pt 8pt; border-left: 3pt solid rgba(26, 81, 177, 1);
+            padding: 4pt 8pt; border-left: 3pt solid rgba(15, 59, 135, 1);
         }
 
         /* Field grid */
@@ -53,13 +53,14 @@
         /* Benefits table */
         .benefits { width: 100%; border-collapse: collapse; margin-top: 6pt; }
         .benefits th {
-            background-color: rgba(26, 81, 177, 1); color: #ffffff;
+            background-color: rgba(15, 59, 135, 1); color: #ffffff;
             text-align: left; font-size: 8.5pt; letter-spacing: 0.5pt;
             padding: 5pt 8pt;
         }
         .benefits th.amt, .benefits td.amt { text-align: right; }
         .benefits td { border-bottom: 0.5pt solid #d8d8d8; padding: 5pt 8pt; font-size: 9.5pt; }
         .empty { color: #777777; font-style: italic; }
+        .benefit-note { font-size: 7.5pt; color: #555555; margin-top: 3pt; font-style: italic; }
 
         /* Covers list */
         .covers { margin: 6pt 0 0 0; padding-left: 16pt; }
@@ -68,14 +69,15 @@
         /* Assistance */
         .assist { margin-top: 6pt; line-height: 1.5; }
         .assist .lbl { font-weight: bold; }
+        .assist .hotline { font-weight: bold; color: #c00000; }
 
         /* Signature */
-        .sign { width: 100%; border-collapse: collapse; margin-top: 12pt; }
+        .sign { width: 100%; border-collapse: collapse; margin-top: 8pt; }
         .sign td { vertical-align: bottom; width: 50%; padding: 0 6pt; }
         .sign .line { border-top: 0.75pt solid #333333; padding-top: 4pt; font-size: 8.5pt; }
         .sign .sysgen { text-align: right; font-size: 8pt; color: #555555; }
 
-        .footer { margin-top: 10pt; padding-top: 6pt; border-top: 0.75pt solid #cfcfcf; font-size: 7.5pt; color: #666666; line-height: 1.4; }
+        .footer { margin-top: 6pt; padding-top: 4pt; border-top: 0.75pt solid #cfcfcf; font-size: 7.5pt; color: #666666; line-height: 1.4; }
     </style>
 </head>
 <body>
@@ -87,7 +89,7 @@
     </div>
 
     <div class="title-band">
-        <div class="t2">Mandatory Inbound Travel Health Insurance</div>
+        <div class="t2">Inbound Travel Health Insurance Policy</div>
         <div class="t3">Issued pursuant to Section 26(6) of the Social Health Insurance Act No. 16 of 2023</div>
     </div>
 
@@ -98,7 +100,7 @@
                 <div class="v" th:text="${issueDate}">08 August 2026</div>
             </td>
             <td>
-                <div class="k">Serial Number</div>
+                <div class="k">Policy No.</div>
                 <div class="v" th:text="${data.certificateSerialNumber}">ACME-2026-000123</div>
             </td>
         </tr>
@@ -143,24 +145,27 @@
                 <th class="amt">Insurable Limit (USD)</th>
             </tr>
             <tr th:each="line : ${benefitLines}">
-                <td th:text="${line.label}">Medical expenses (outpatient &amp; inpatient)</td>
+                <td th:text="${line.label == 'Prescribed Medicines' or line.label == 'Mental Illness'} ? ${line.label + '*'} : ${line.label}">Medical expenses (outpatient &amp; inpatient)</td>
                 <td class="amt" th:text="${#numbers.formatDecimal(line.limitAmount, 1, 'COMMA', 0, 'POINT')}">20,000</td>
             </tr>
             <tr th:if="${#lists.isEmpty(benefitLines)}">
                 <td colspan="2" class="empty">No benefits assigned yet.</td>
             </tr>
         </table>
+        <div class="benefit-note">Prescribed Medicines and Mental Illness are sub benefits of Medical Expenses</div>
     </div>
 
     <div class="section">
-        <div class="section-title">WHAT THIS CERTIFICATE COVERS</div>
-        <ul class="covers">
-            <li>Personal accident leading to death or permanent total disability</li>
-            <li>Emergency medical expenses, including hospitalization and out-patient care</li>
-            <li>Emergency medical evacuation to the nearest appropriate facility</li>
-            <li>Repatriation of mortal remains to the country of origin</li>
-            <li>Prescribed medication for an insured event</li>
-        </ul>
+        <div class="section-title">WHAT THIS POLICY COVERS</div>
+        <ol class="covers">
+            <li>Emergency treatment for sudden, unforeseen, catastrophic medical or accidental events.</li>
+            <li>Local emergency medical evacuation by air or road ambulance to the nearest suitable facility.</li>
+            <li>Outpatient care and hospitalization for emergency medical conditions within the medical expenses limit.</li>
+            <li>Prescribed medicines for covered conditions, within the medical expenses limit.</li>
+            <li>Emergency Mental Health Treatment for acute mental illness, within the medical expenses limit.</li>
+            <li>Repatriation or transport of mortal remains to the designated port of entry in their home country.</li>
+        </ol>
+        <div class="benefit-note">*Treatment, medication or other expenses relating to pre-existing conditions and chronic illnesses are not expressly covered</div>
     </div>
 
     <div class="section">
@@ -168,7 +173,7 @@
         <div class="assist">
             <div th:if="${not #strings.isEmpty(data.emergencyAssistancePhone)}">
                 <span class="lbl">Hotline:</span>
-                <span th:text="${data.emergencyAssistancePhone}">+254 719 044 777</span>
+                <span class="hotline" th:text="${data.emergencyAssistancePhone}">+254 719 044 777</span>
             </div>
             <div th:if="${not #strings.isEmpty(data.emergencyAssistanceEmail)}">
                 <span class="lbl">Email:</span>
@@ -184,7 +189,7 @@
                     <img th:if="${!#strings.isEmpty(esignatureUrl)}" class="esign-img" th:src="${esignatureUrl}" alt="Authorized signature"/><br th:if="${!#strings.isEmpty(esignatureUrl)}"/>
                     For and on behalf of
                     <strong th:text="${#strings.isEmpty(underwriterName)} ? 'the Underwriter' : ${underwriterName}">Acme Insurance</strong><br/>
-                    Authorized Signatory
+                    Authorized Signatory - Principal Officer
                 </div>
             </td>
             <td class="sysgen">

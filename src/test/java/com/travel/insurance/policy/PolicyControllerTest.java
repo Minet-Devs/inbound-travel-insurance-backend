@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.benefit.dto.BenefitResponse;
+import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.policy.dto.PolicyRequest;
 import com.travel.insurance.policy.dto.PolicyResponse;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -45,13 +47,17 @@ class PolicyControllerTest {
     private BenefitService benefitService;
 
     @MockBean
+    private InsurerService insurerService;
+
+    @MockBean
     private JwtTokenProvider jwtTokenProvider;
 
     private final UUID policyId = UUID.randomUUID();
+    private final UUID insurerId = UUID.randomUUID();
     private final UUID benefitId = UUID.randomUUID();
 
     private PolicyResponse samplePolicy() {
-        return new PolicyResponse(policyId, UUID.randomUUID(),
+        return new PolicyResponse(policyId, insurerId,
                 PolicyStatus.ACTIVE, Instant.now(), Instant.now());
     }
 
@@ -65,10 +71,12 @@ class PolicyControllerTest {
     void getByIdReturnsPolicyWithGlobalBenefits() throws Exception {
         when(policyService.getById(policyId)).thenReturn(samplePolicy());
         when(benefitService.listAll()).thenReturn(List.of(sampleBenefit()));
+        when(insurerService.namesByIds(List.of(insurerId))).thenReturn(Map.of(insurerId, "Sample Insurer"));
 
         mockMvc.perform(get("/api/v1/policies/{id}", policyId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(policyId.toString()))
+                .andExpect(jsonPath("$.insurerName").value("Sample Insurer"))
                 .andExpect(jsonPath("$.benefits[0].id").value(benefitId.toString()))
                 .andExpect(jsonPath("$.benefits[0].benefitName").value("Medical Expenses"))
                 .andExpect(jsonPath("$.benefits[0].limitAmount").value(20000.00));
@@ -80,10 +88,12 @@ class PolicyControllerTest {
         when(policyService.list(any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(samplePolicy())));
         when(benefitService.listAll()).thenReturn(List.of(sampleBenefit()));
+        when(insurerService.namesByIds(List.of(insurerId))).thenReturn(Map.of(insurerId, "Sample Insurer"));
 
         mockMvc.perform(get("/api/v1/policies"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(policyId.toString()))
+                .andExpect(jsonPath("$.content[0].insurerName").value("Sample Insurer"))
                 .andExpect(jsonPath("$.content[0].benefits[0].benefitName").value("Medical Expenses"))
                 .andExpect(jsonPath("$.content[0].benefits[0].limitAmount").value(20000.00));
     }

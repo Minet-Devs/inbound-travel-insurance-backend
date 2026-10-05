@@ -2,20 +2,29 @@ package com.travel.insurance.notification;
 
 import com.travel.insurance.notification.PolicyDocumentData.BenefitLine;
 import com.travel.insurance.visitor.Gender;
+import com.sun.net.httpserver.HttpServer;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 import org.thymeleaf.templatemode.TemplateMode;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
+import javax.imageio.ImageIO;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PolicyDocumentRendererTest {
 
@@ -75,7 +84,7 @@ class PolicyDocumentRendererTest {
         assertThat(html).contains("Medical Expenses");
         assertThat(html).contains("20,000");
         assertThat(html).contains("Acme Insurance");
-        assertThat(html).contains("Mandatory Inbound Travel Health Insurance");
+        assertThat(html).contains("Inbound Travel Health Insurance");
         assertThat(html).doesNotContain("CERTIFICATE OF INSURANCE");
         assertThat(html).doesNotContain("Kenya CARES Inbound Cover");
         assertThat(html).contains("Female");
@@ -102,7 +111,7 @@ class PolicyDocumentRendererTest {
 
         String html = renderer.renderHtml(data);
 
-        assertThat(html).contains("Serial Number");
+        assertThat(html).contains("Policy No.");
         assertThat(html).contains("ACME-2026-000123");
         assertThat(html).doesNotContain("Verify this certificate");
         assertThat(html).doesNotContain("Policy Number above");
@@ -187,6 +196,61 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
+    void marksPrescribedMedicinesAndMentalIllnessAsSubBenefitsOfMedicalExpenses() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")),
+                new BenefitLine("Prescribed Medicines", new BigDecimal("300.00")),
+                new BenefitLine("Mental Illness", new BigDecimal("1000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("Prescribed Medicines*");
+        assertThat(html).contains("Mental Illness*");
+        assertThat(html).contains("Prescribed Medicines and Mental Illness are sub benefits of Medical Expenses");
+    }
+
+    @Test
+    void doesNotAddAsteriskToOtherBenefits() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).doesNotContain("Medical Expenses*");
+    }
+
+    @Test
+    void rendersUpdatedWhatThisPolicyCoversList() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("Emergency treatment for sudden, unforeseen, catastrophic medical or accidental events.");
+        assertThat(html).contains("Local emergency medical evacuation by air or road ambulance to the nearest suitable facility.");
+        assertThat(html).contains("Outpatient care and hospitalization for emergency medical conditions within the medical expenses limit.");
+        assertThat(html).contains("Prescribed medicines for covered conditions, within the medical expenses limit.");
+        assertThat(html).contains("Emergency Mental Health Treatment for acute mental illness, within the medical expenses limit.");
+        assertThat(html).contains("Repatriation or transport of mortal remains to the designated port of entry in their home country.");
+        assertThat(html).contains("*Treatment, medication or other expenses relating to pre-existing conditions and chronic illnesses are not expressly covered");
+        assertThat(html).doesNotContain("Personal accident leading to death or permanent total disability");
+    }
+
+    @Test
+    void rendersHotlineNumberInBoldRed() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("class=\"hotline\"");
+    }
+
+    @Test
     void rendersPlaceholderWhenNoBenefitsAssigned() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of());
@@ -208,6 +272,168 @@ class PolicyDocumentRendererTest {
         assertThat(new String(pdf, 0, 4, StandardCharsets.US_ASCII)).isEqualTo("%PDF");
     }
 
+    private PremiumReceiptData samplePremiumReceiptData() {
+        return new PremiumReceiptData(
+                "Jane Traveler",
+                "P1234567",
+                "ACME-2026-000123",
+                "PO Box 100, Nairobi",
+                "Kenyan",
+                "Acme Insurance",
+                "https://example.com/acme-logo.png",
+                "PO Box 200, Nairobi",
+                new BigDecimal("44"));
+    }
+
+    @Test
+    void rendersPremiumReceiptHtmlWithKeyFields() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        String html = renderer.renderPremiumReceiptHtml(samplePremiumReceiptData());
+
+        assertThat(html).contains("Jane Traveler");
+        assertThat(html).contains("P1234567");
+        assertThat(html).contains("Acme Insurance");
+        assertThat(html).contains("PAYMENT RECEIPT");
+        assertThat(html).contains("THANK YOU");
+        assertThat(html).contains("https://example.com/acme-logo.png");
+    }
+
+    @Test
+    void showsCertificateSerialNumberAsTheReceiptNumber() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        String html = renderer.renderPremiumReceiptHtml(samplePremiumReceiptData());
+
+        assertThat(html).contains("Receipt No.");
+        assertThat(html).contains("ACME-2026-000123");
+    }
+
+    @Test
+    void showsPassportNumberAsAccountNoAndVisitorNameAsAccountName() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        String html = renderer.renderPremiumReceiptHtml(samplePremiumReceiptData());
+
+        assertThat(html).contains("Account No.");
+        assertThat(html).contains("Account Name");
+    }
+
+    @Test
+    void showsVisitorAndInsurerAddresses() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        String html = renderer.renderPremiumReceiptHtml(samplePremiumReceiptData());
+
+        assertThat(html).contains("RECEIVED FROM");
+        assertThat(html).contains("PO Box 100, Nairobi");
+        assertThat(html).contains("Kenyan");
+        assertThat(html).contains("PO Box 200, Nairobi, Kenya");
+    }
+
+    @Test
+    void omitsAddressLineWhenAddressIsMissing() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PremiumReceiptData data = new PremiumReceiptData(
+                "Jane Traveler", "P1234567", "ACME-2026-000123", null, null, "Acme Insurance",
+                "https://example.com/acme-logo.png", null,
+                new BigDecimal("44"));
+
+        String html = renderer.renderPremiumReceiptHtml(data);
+
+        assertThat(html).contains("RECEIVED FROM");
+        assertThat(html).contains("Jane Traveler");
+    }
+
+    @Test
+    void showsLogoPlaceholderWhenInsurerHasNoLogo() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PremiumReceiptData data = new PremiumReceiptData(
+                "Jane Traveler", "P1234567", "ACME-2026-000123", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance", null, "PO Box 200, Nairobi",
+                new BigDecimal("44"));
+
+        String html = renderer.renderPremiumReceiptHtml(data);
+
+        assertThat(html).contains("[ INSURER LOGO ]");
+    }
+
+    @Test
+    void showsTotalPremiumAsTheBottomTotal() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PremiumReceiptData data = new PremiumReceiptData(
+                "Jane Traveler", "P1234567", "ACME-2026-000123", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance",
+                "https://example.com/acme-logo.png", "PO Box 200, Nairobi",
+                new BigDecimal("44"));
+
+        String html = renderer.renderPremiumReceiptHtml(data);
+
+        assertThat(html).contains("TOTAL AMOUNT RECEIVED:");
+        assertThat(html).contains("USD 44.00");
+    }
+
+    @Test
+    void showsTotalPremiumInWordsBelowTheTotal() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PremiumReceiptData data = new PremiumReceiptData(
+                "Jane Traveler", "P1234567", "ACME-2026-000123", "PO Box 100, Nairobi", "Kenyan", "Acme Insurance",
+                "https://example.com/acme-logo.png", "PO Box 200, Nairobi",
+                new BigDecimal("68044"));
+
+        String html = renderer.renderPremiumReceiptHtml(data);
+
+        assertThat(html).contains("TOTAL AMOUNT RECEIVED IN WORDS:");
+        assertThat(html).contains("Sixty Eight Thousand and Forty Four Only");
+    }
+
+    @Test
+    void rendersPremiumReceiptPdfStartingWithPdfMagicHeader() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        byte[] pdf = renderer.renderPremiumReceiptPdf(samplePremiumReceiptData());
+
+        assertThat(pdf.length).isGreaterThan(4);
+        assertThat(new String(pdf, 0, 4, StandardCharsets.US_ASCII)).isEqualTo("%PDF");
+    }
+
+    @Test
+    void rendersAsSinglePageWithUnderwriterLogoAndEsignaturePresent() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        String logoUrl = serveSizedPngImage("/logo.png", 600, 200);
+        String esignUrl = serveSizedPngImage("/esign.png", 300, 300);
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")),
+                new BenefitLine("Emergency Medical Transportation/Evacuation", new BigDecimal("25000.00")),
+                new BenefitLine("Prescribed Medicines", new BigDecimal("300.00")),
+                new BenefitLine("Mental Illness", new BigDecimal("1000.00")),
+                new BenefitLine("Repatriation of Mortal Remains", new BigDecimal("5000.00"))),
+                logoUrl, esignUrl);
+
+        byte[] pdf = renderer.renderPdf(data);
+
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            assertThat(document.getNumberOfPages()).isEqualTo(1);
+        }
+    }
+
+    private String serveSizedPngImage(String path, int width, int height) throws IOException {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream pngBytes = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", pngBytes);
+        byte[] png = pngBytes.toByteArray();
+
+        if (imageServer == null) {
+            imageServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+            imageServer.start();
+        }
+        imageServer.createContext(path, exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, png.length);
+            exchange.getResponseBody().write(png);
+            exchange.close();
+        });
+        return "http://localhost:" + imageServer.getAddress().getPort() + path;
+    }
+
     @Test
     void rendersAsSinglePageForARealisticBenefitSchedule() throws IOException {
         PolicyDocumentRenderer renderer = newRenderer();
@@ -222,6 +448,183 @@ class PolicyDocumentRendererTest {
 
         try (PDDocument document = Loader.loadPDF(pdf)) {
             assertThat(document.getNumberOfPages()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void mergesCertificateAndPremiumReceiptIntoOneContinuousPdf() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] certificatePdf = renderer.renderPdf(sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")))));
+        byte[] premiumReceiptPdf = renderer.renderPremiumReceiptPdf(samplePremiumReceiptData());
+
+        byte[] merged = renderer.mergePdfs(certificatePdf, premiumReceiptPdf);
+
+        assertThat(new String(merged, 0, 4, StandardCharsets.US_ASCII)).isEqualTo("%PDF");
+        try (PDDocument certificate = Loader.loadPDF(certificatePdf);
+             PDDocument premiumReceipt = Loader.loadPDF(premiumReceiptPdf);
+             PDDocument combined = Loader.loadPDF(merged)) {
+            assertThat(combined.getNumberOfPages())
+                    .isEqualTo(certificate.getNumberOfPages() + premiumReceipt.getNumberOfPages());
+        }
+    }
+
+    private HttpServer imageServer;
+
+    @AfterEach
+    void stopImageServer() {
+        if (imageServer != null) {
+            imageServer.stop(0);
+            imageServer = null;
+        }
+    }
+
+    private String servePngImage() throws IOException {
+        BufferedImage image = new BufferedImage(40, 20, BufferedImage.TYPE_INT_RGB);
+        ByteArrayOutputStream pngBytes = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", pngBytes);
+        byte[] png = pngBytes.toByteArray();
+
+        imageServer = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
+        imageServer.createContext("/logo.png", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "image/png");
+            exchange.sendResponseHeaders(200, png.length);
+            exchange.getResponseBody().write(png);
+            exchange.close();
+        });
+        imageServer.start();
+        return "http://localhost:" + imageServer.getAddress().getPort() + "/logo.png";
+    }
+
+    private byte[] samplePolicyWordingPdf() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        return renderer.renderPdf(sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00")))));
+    }
+
+    @Test
+    void returnsDocumentUnchangedWhenNoLogoOrEsignatureUrlGiven() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdf();
+
+        byte[] branded = renderer.brandPolicyWording(pdf, null, null);
+
+        assertThat(branded).isSameAs(pdf);
+    }
+
+    @Test
+    void overlaysLogoOnFirstPageWithoutChangingPageCount() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdf();
+        String logoUrl = servePngImage();
+
+        byte[] branded = renderer.brandPolicyWording(pdf, logoUrl, null);
+
+        try (PDDocument original = Loader.loadPDF(pdf);
+             PDDocument brandedDocument = Loader.loadPDF(branded)) {
+            assertThat(brandedDocument.getNumberOfPages()).isEqualTo(original.getNumberOfPages());
+            PDPage firstPage = brandedDocument.getPage(0);
+            assertThat(firstPage.getResources().getXObjectNames()).isNotEmpty();
+        }
+    }
+
+    @Test
+    void overlaysEsignatureOnEveryPage() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = renderer.mergePdfs(samplePolicyWordingPdf(), samplePolicyWordingPdf());
+        String esignatureUrl = servePngImage();
+
+        byte[] branded = renderer.brandPolicyWording(pdf, null, esignatureUrl);
+
+        try (PDDocument brandedDocument = Loader.loadPDF(branded)) {
+            for (PDPage page : brandedDocument.getPages()) {
+                assertThat(page.getResources().getXObjectNames()).isNotEmpty();
+            }
+        }
+    }
+
+    @Test
+    void brandingFailsFastWhenImageUrlIsUnreachable() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdf();
+
+        assertThatThrownBy(() -> renderer.brandPolicyWording(pdf, "http://localhost:1/missing.png", null))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    private byte[] samplePolicyWordingPdfWithAtLeastThreePages() throws IOException {
+        byte[] onePage = samplePolicyWordingPdf();
+        PolicyDocumentRenderer renderer = newRenderer();
+        return renderer.mergePdfs(onePage, onePage, onePage);
+    }
+
+    private String textOfPage(byte[] pdf, int pageIndex) throws IOException {
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setStartPage(pageIndex + 1);
+            stripper.setEndPage(pageIndex + 1);
+            return stripper.getText(document);
+        }
+    }
+
+    @Test
+    void fillsPolicyAgreementDetailsOnPageThreeOnly() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdfWithAtLeastThreePages();
+
+        byte[] filled = renderer.fillPolicyAgreementDetails(
+                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler",
+                "jane.traveler@example.com", LocalDate.of(2026, 8, 8));
+
+        String pageThreeText = textOfPage(filled, 2);
+        assertThat(pageThreeText).contains("Acme Insurance");
+        assertThat(pageThreeText).contains("200");
+        assertThat(pageThreeText).contains("Jane Traveler");
+        assertThat(pageThreeText).contains("jane.traveler@example.com");
+        assertThat(pageThreeText).contains("Nairobi");
+        assertThat(pageThreeText).contains("08/08/26");
+        assertThat(pageThreeText).contains("08 Aug 2026");
+        assertThat(textOfPage(filled, 0)).doesNotContain("08/08/26");
+    }
+
+    @Test
+    void fillPolicyAgreementDetailsPreservesPageCount() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdfWithAtLeastThreePages();
+
+        byte[] filled = renderer.fillPolicyAgreementDetails(
+                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler",
+                "jane.traveler@example.com", LocalDate.of(2026, 8, 8));
+
+        try (PDDocument original = Loader.loadPDF(pdf);
+             PDDocument filledDocument = Loader.loadPDF(filled)) {
+            assertThat(filledDocument.getNumberOfPages()).isEqualTo(original.getNumberOfPages());
+        }
+    }
+
+    @Test
+    void fillPolicyAgreementDetailsReturnsInputUnchangedWhenDocumentHasFewerThanThreePages() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdf();
+
+        byte[] filled = renderer.fillPolicyAgreementDetails(
+                pdf, "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler",
+                "jane.traveler@example.com", LocalDate.of(2026, 8, 8));
+
+        assertThat(filled).isSameAs(pdf);
+    }
+
+    @Test
+    void overlaysEsignatureOnCompanySignatureLineOnPolicyAgreementPage() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdfWithAtLeastThreePages();
+        String esignatureUrl = servePngImage();
+
+        byte[] branded = renderer.brandPolicyWording(pdf, null, esignatureUrl);
+
+        try (PDDocument brandedDocument = Loader.loadPDF(branded)) {
+            PDPage policyAgreementPage = brandedDocument.getPage(2);
+            assertThat(policyAgreementPage.getResources().getXObjectNames()).isNotEmpty();
         }
     }
 }

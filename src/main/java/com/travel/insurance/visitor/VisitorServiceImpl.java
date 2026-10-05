@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -50,6 +51,7 @@ public class VisitorServiceImpl implements VisitorService {
         Visitor visitor = visitorMapper.toEntity(request);
         visitor.setInsurerId(policy.getInsurerId());
         visitor.setPassportNumberHash(passportNumberHash);
+        visitor.setEmailHash(blindIndexService.hmac(request.email()));
         if (visitor.getVisitorStatus() == VisitorStatus.ACTIVE) {
             visitor.setCertificateSerialNumber(certificateSerialNumberGenerator.next(insurer.getName()));
         }
@@ -103,6 +105,7 @@ public class VisitorServiceImpl implements VisitorService {
         visitorMapper.updateEntity(visitor, request);
         visitor.setInsurerId(policy.getInsurerId());
         visitor.setPassportNumberHash(passportNumberHash);
+        visitor.setEmailHash(blindIndexService.hmac(request.email()));
         return visitorMapper.toResponse(visitor);
     }
 
@@ -125,6 +128,12 @@ public class VisitorServiceImpl implements VisitorService {
     public Visitor getEntityByPassportNumber(String passportNumber) {
         return visitorRepository.findByPassportNumberHash(blindIndexService.hmac(passportNumber))
                 .orElseThrow(() -> new ResourceNotFoundException("Visitor", passportNumber));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Visitor> findByEmail(String email) {
+        return visitorRepository.findFirstByEmailHashOrderByCreatedDateDesc(blindIndexService.hmac(email));
     }
 
     @Override

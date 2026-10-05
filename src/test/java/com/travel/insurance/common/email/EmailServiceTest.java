@@ -6,12 +6,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.util.List;
 import java.util.Properties;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -20,7 +23,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class EmailServiceTest {
 
     @Mock
@@ -117,6 +120,24 @@ class EmailServiceTest {
 
         verify(customSender).send(message);
         verifyNoInteractions(mailSender);
+    }
+
+    @Test
+    void logsSmtpHostPortAndUsernameWhenCustomCredentialsProvided(CapturedOutput output) {
+        emailService = new EmailService(mailSender, smtpSenderFactory);
+        JavaMailSender customSender = mock(JavaMailSender.class);
+        MimeMessage message = newMimeMessage();
+        SmtpCredentials credentials = new SmtpCredentials("smtp.acme.example", 587, "notify@acme.example", "s3cr3t");
+        when(smtpSenderFactory.create(credentials)).thenReturn(customSender);
+        when(customSender.createMimeMessage()).thenReturn(message);
+
+        emailService.send(credentials, "notify@acme.example", "to@example.com", "Subject", "<p>Body</p>");
+
+        assertThat(output.getOut())
+                .contains("smtp.acme.example")
+                .contains("587")
+                .contains("notify@acme.example")
+                .doesNotContain("s3cr3t");
     }
 
     @Test

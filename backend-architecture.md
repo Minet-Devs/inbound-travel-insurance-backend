@@ -24,6 +24,9 @@ summary and the full requirement-vs-codebase gap analysis.
   - [REST Resources](#rest-resources)
   - [Messaging (RabbitMQ)](#messaging-rabbitmq)
   - [Notifications (Policy Document Email)](#notifications-policy-document-email)
+  - [OTP (Point-of-Service Verification)](#otp-point-of-service-verification)
+  - [Mobile Visitor Login (Email OTP)](#mobile-visitor-login-email-otp)
+  - [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)
   - [Member Statement Report](#member-statement-report)
   - [API Documentation (Swagger)](#api-documentation-swagger)
   - [Security](#security)
@@ -77,8 +80,10 @@ com.travel.insurance/
 │
 ├── 📁 notification/                        # Feature: Visitor-facing notifications
 │   ├── VisitorActivatedNotificationListener.java  # @TransactionalEventListener(AFTER_COMMIT)
-│   │                                       # on VisitorStatusChangedEvent; composes
-│   │                                       # Visitor+Policy+VisitorBenefit+Insurer data
+│   │                                       # on VisitorStatusChangedEvent / VisitorCreatedEvent;
+│   │                                       # composes Visitor+Policy+VisitorBenefit+Insurer data
+│   │                                       # and sends the visitor's single activation email
+│   │                                       # (certificate + Welcome Pack copy/attachment)
 │   ├── PolicyDocumentRenderer.java         # Thymeleaf → HTML → PDF (openhtmltopdf)
 │   └── PolicyDocumentData.java             # Internal template data holder (not a DTO)
 │
@@ -126,11 +131,15 @@ com.travel.insurance/
 │   ├── ServiceProviderServiceImpl.java
 │   ├── ServiceProviderRepository.java
 │   ├── ServiceProvider.java                # name (unique), contactEmail, contactPhone, address,
-│   │                                        # organizationId (nullable, → Organization)
+│   │                                        # county (required on create/update; nullable in the DB for
+│   │                                        # legacy rows), organizationId (nullable, → Organization),
+│   │                                        # longitude/latitude (nullable, BigDecimal(9,6))
 │   ├── ServiceProviderMapper.java
 │   └── 📁 dto/
 │       ├── ServiceProviderRequest.java
-│       └── ServiceProviderResponse.java
+│       ├── ServiceProviderResponse.java
+│       └── ServiceProviderNearbyResponse.java  # id, name, longitude, latitude, contactEmail,
+│                                                 # contactPhone — GET .../nearby response shape
 │
 ├── 📁 policy/                              # Feature: Policy Management
 │   ├── PolicyController.java
@@ -295,21 +304,43 @@ com.travel.insurance/
 │       ├── DepartmentRequest.java
 │       └── DepartmentResponse.java
 │
-├── 📁 organization/                        # Feature: Organization directory (name, type, email, phone, address, city)
+├── 📁 touristattraction/                   # Feature: Tourist attractions (USSD "nearest attraction" lookup)
+│   ├── TouristAttractionController.java    # /api/v1/tourist-attractions (CRUD)
+│   ├── TouristAttractionService.java       # Interface (+ searchByName)
+│   ├── TouristAttractionServiceImpl.java   # Exact → contains → typo-tolerant ranked search
+│   ├── TouristAttractionRepository.java
+│   ├── TouristAttraction.java              # name (unique), county — both required
+│   ├── TouristAttractionMapper.java
+│   ├── NameMatcher.java                    # package-private: normalise + approximate-substring edit distance
+│   └── 📁 dto/
+│       ├── TouristAttractionRequest.java
+│       └── TouristAttractionResponse.java
+│
+├── 📁 organization/                        # Feature: Organization directory (name, type, email, phone, address, city, county)
 │   ├── OrganizationController.java
 │   ├── OrganizationService.java            # Interface
 │   ├── OrganizationServiceImpl.java
 │   ├── OrganizationRepository.java
 │   ├── Organization.java                   # name (unique), organizationType, email, phoneNumber, address,
-│   │                                        # city, logoUrl, policyToken, notificationEmail,
+│   │                                        # city, county (required for SERVICE_PROVIDER type),
+│   │                                        # logoUrl, policyToken, notificationEmail,
 │   │                                        # notificationEmailPassword (encrypted), host, port,
-│   │                                        # esignature — all optional
+│   │                                        # esignature, longitude/latitude (nullable, BigDecimal(9,6))
+│   │                                        # — all optional
 │   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER
 │   ├── OrganizationMapper.java
-│   ├── OrganizationCreatedEvent.java         # published on create; consumed below
+│   ├── OrganizationCreatedEvent.java         # organizationId + longitude/latitude (mirrors the
+│   │                                         # create request, see below); published on
+│   │                                         # create, consumed below
 │   ├── OrganizationCreatedListener.java      # @EventListener — provisions the matching
 │   │                                         # Insurer/ServiceProvider for organizationType
 │   │                                         # INSURER/SERVICE_PROVIDER (ADMIN is a no-op)
+│   ├── OrganizationUpdatedEvent.java         # organizationId + longitude/latitude (null = "leave
+│   │                                         # the linked ServiceProvider's location unchanged");
+│   │                                         # published on update/patch, consumed below
+│   ├── OrganizationUpdatedListener.java      # @EventListener — mirrors the update into the
+│   │                                         # matching Insurer/ServiceProvider (found via
+│   │                                         # organizationId), if one exists; no-op otherwise
 │   └── 📁 dto/
 │       ├── OrganizationRequest.java
 │       └── OrganizationResponse.java
@@ -366,16 +397,31 @@ com.travel.insurance/
 │   ├── 📁 domain/
 │   │   ├── UssdSession.java                # Redis-backed session state model
 │   │   └── ProviderPanelEntry.java         # POJO: area, town, county, providerName, address, services
+│   │                                       # (legacy Excel panel — no longer used by the USSD flow)
 │   ├── 📁 dto/
 │   │   ├── UssdRequest.java                # Gateway request payload
 │   │   └── UssdResponse.java               # CON / END response text
 │   ├── 📁 service/
 │   │   ├── UssdService.java                # Interface
-│   │   ├── UssdServiceImpl.java            # State machine (Find Hospital, Feedback)
-│   │   ├── ProviderPanelLoader.java        # Parses provider-panel.xlsx on startup (Apache POI)
-│   │   └── ProviderPanelService.java       # In-memory search by county/town
+│   │   ├── UssdServiceImpl.java            # State machine (Find Hospital, Feedback); Find Hospital
+│   │   │                                   # calls ServiceProviderService.searchByCounty
+│   │   ├── ProviderPanelLoader.java        # Legacy: parses provider-panel.xlsx on startup (unused by USSD)
+│   │   └── ProviderPanelService.java       # Legacy: in-memory Excel search (unused by USSD)
 │   └── 📁 utils/
 │       └── UssdSessionManager.java         # Redis session TTL (180s) & input tracker
+│
+├── 📁 premiumreceipt/                      # Feature: Premium Receipt (singleton levy rates)
+│   ├── PremiumReceiptController.java
+│   ├── PremiumReceiptService.java          # Interface
+│   ├── PremiumReceiptServiceImpl.java
+│   ├── PremiumReceiptRepository.java
+│   ├── PremiumReceipt.java                 # totalPremium/minorPremium/infantPremium (age-tiered),
+│   │                                        # pcfLevy, insurancePremiumLevy, stampDuty, trainingLevy
+│   │                                        # — one fixed row, no create/delete
+│   ├── PremiumReceiptMapper.java
+│   └── 📁 dto/
+│       ├── PremiumReceiptPatchRequest.java
+│       └── PremiumReceiptResponse.java
 │
 └── TravelInsuranceApplication.java         # @SpringBootApplication entry point
 ```
@@ -416,8 +462,11 @@ Policy
   `GET /api/v1/policies` return `PolicyDetailResponse` rows that embed the
   benefit catalog under `benefits`; since benefits are global (see below),
   every policy carries the whole catalog. `PolicyController` fetches it once
-  via `BenefitService.listAll()` and attaches it to each policy. Create/update
-  return plain `PolicyResponse` rows without benefits.
+  via `BenefitService.listAll()` and attaches it to each policy.
+  `PolicyDetailResponse` also carries `insurerName`, resolved via
+  `InsurerService.namesByIds` (batched across the page for the list endpoint
+  to avoid N+1 lookups). Create/update return plain `PolicyResponse` rows
+  without benefits or `insurerName`.
 - Since a policy backs exactly one insurer (`Policy.insurerId`), `InsurerResponse`
   (returned by `POST/GET/PUT /api/v1/insurers` and the paged `GET
   /api/v1/insurers`) carries a `policyId` field alongside the insurer's own
@@ -529,7 +578,7 @@ Policy
   `ADMIN`; reads are open to any authenticated user.
 - An **Organization** is a standalone directory entry — `name` (unique),
   `organizationType` (enum: `ADMIN`, `INSURER`, `SERVICE_PROVIDER`), `email`,
-  `phoneNumber`, `address`, `city` — with plain CRUD
+  `phoneNumber`, `address`, `city`, `county` — with plain CRUD
   (`/api/v1/organizations`), following the same shape as Department. It is
   unrelated to the `organizationId` column described in
   [Users, Roles & Organizations](#users-roles--organizations), which points at
@@ -548,7 +597,53 @@ Policy
   these (including `logoUrl` and `policyToken`) are carried across to the
   provisioned `Insurer` by `OrganizationCreatedListener` below;
   `ServiceProvider` has no equivalent fields, so `SERVICE_PROVIDER`
-  organizations don't carry any of this.
+  organizations don't carry any of this. `county` is optional for other
+  types but **required for `SERVICE_PROVIDER`**: `OrganizationServiceImpl`
+  rejects a create/update of a `SERVICE_PROVIDER` organization with a
+  missing/blank `county` via `IllegalArgumentException` (→ 400). The
+  listener copies it onto the provisioned `ServiceProvider.county`, which is
+  what the USSD "Find Hospital" county search reads (see
+  [USSD Find Hospital](#ussd-provider-panel-find-hospital)).
+  `OrganizationUpdatedListener` re-syncs it on later `PUT`s
+  (`OrganizationPatchRequest` has no `county`, so `PATCH` can't change it).
+  `OrganizationRequest`/
+  `OrganizationPatchRequest` also accept optional `longitude`/`latitude`
+  (`@DecimalMin`/`@DecimalMax`-validated to the standard -180..180/-90..90
+  ranges), persisted on `Organization` itself (`BigDecimal(9,6)`, nullable)
+  and exposed on `OrganizationResponse` — meaningful only for
+  `SERVICE_PROVIDER`-type organizations, and also propagated to the linked
+  `ServiceProvider`; see the `Organization` → `Insurer`/`ServiceProvider`
+  provisioning notes below.
+- A **ServiceProvider** carries `longitude`/`latitude`
+  (`BigDecimal(9,6)`, nullable — set via its own `ServiceProviderRequest`, or
+  indirectly through a linked `SERVICE_PROVIDER`-type `Organization`, see
+  above). `GET /api/v1/service-providers/nearby?lat=…&lng=…&radiusKm=…`
+  (`@DecimalMin`/`@DecimalMax`-validated the same way, `radiusKm` must be
+  `> 0`) returns every non-deleted `ServiceProvider` with both coordinates
+  set whose great-circle (Haversine) distance from `(lat, lng)` is within
+  `radiusKm`, closest first, as a list of `ServiceProviderNearbyResponse`
+  (`id`, `name`, `longitude`, `latitude`, `contactEmail`, `contactPhone`) —
+  `200` with an empty list when nothing matches, never `404`. Distance is
+  computed in-app (`ServiceProviderServiceImpl.findNearby`) rather than in
+  the database — there's no PostGIS/spatial extension in this project.
+  Access follows the rest of `/api/v1/service-providers/**`: `ADMIN` or
+  `PROVIDER_USER` only (`SecurityConfig`).
+- A **TouristAttraction** (`name` unique, case-insensitively at the service
+  layer; `county`, both required) maps a park/reserve/landmark to the county it
+  sits in. It has plain CRUD at `/api/v1/tourist-attractions` — writes are
+  `ADMIN`-only (`SecurityConfig`), reads open to any authenticated user — and
+  exists to power the USSD "Nearest Tourist Attraction" search (see
+  [USSD Find Hospital](#ussd-provider-panel-find-hospital)).
+  `TouristAttractionService.searchByName(query, limit)` ranks matches: a
+  case-insensitive exact name wins outright; else names containing the query
+  (name order); else, for queries of 4+ characters, names within
+  `max(1, length/4)` edits of the query, closest first. The typo-tolerant step
+  uses approximate *substring* distance, so a misspelt partial name such as
+  "nakuru natonal" still finds "Lake Nakuru National Park". Matching runs in
+  memory over the (short) table, so no database extension (e.g. `pg_trgm`) is
+  needed. `county` is free text and is later matched against
+  `ServiceProvider.county` with a contains match, so keep the spelling
+  consistent between the two.
 - A **Visitor** is an insured traveler behind a policy. It carries a
   `policyId` (ID-only reference — one policy may cover many visitors) and a
   denormalized `insurerId` (non-nullable `UUID`, mirroring `Claim.insurerId`),
@@ -902,6 +997,12 @@ entities:
   `ServiceProviderService.create` (`name`/`email`/`phoneNumber`/`address`
   copied across; insurer-only fields like `policyToken`/`host`/`esignature`
   are left `null`), and `ADMIN` is a no-op — there's no entity to create.
+  `ServiceProvider.longitude`/`latitude` are populated from
+  `OrganizationCreatedEvent.longitude`/`latitude`, which mirror the
+  `OrganizationRequest.longitude`/`latitude` submitted on the originating
+  `POST /api/v1/organizations` call. `Organization` itself now persists
+  these too (`OrganizationResponse` exposes them), so the `Organization`
+  row and its linked `ServiceProvider` end up with the same values.
   Either create call is passed the originating `Organization.id` as
   `organizationId`, so the new `Insurer`/`ServiceProvider` is linked back in
   the same step (no separate "assign" call). Because the listener runs in
@@ -909,6 +1010,29 @@ entities:
   `Insurer`/`ServiceProvider` name collision) rolls back the organization
   creation too. Creating an `Insurer`/`ServiceProvider` directly (with or
   without an `organizationId`) does **not** create an `Organization`.
+- `PUT /api/v1/organizations/{id}` and `PATCH /api/v1/organizations/{id}`
+  mirror edits the same way: after saving, `OrganizationServiceImpl.update`/
+  `.patch` both publish the same `OrganizationUpdatedEvent`, and
+  `organization.OrganizationUpdatedListener` looks up the matching
+  `Insurer`/`ServiceProvider` via `findIdByOrganizationId` and, if one is
+  found, calls its `update` with the fresh `Organization` fields read back
+  through `OrganizationService.getEntityById` (same field mapping as the
+  create-time listener) — for PATCH this is the already-merged entity, so a
+  partial patch still produces a full, correct `Insurer`/`ServiceProvider`
+  update. If no matching entity exists yet (e.g. it predates this linkage,
+  or `organizationType` is `ADMIN`), the listener is a no-op — it never
+  creates one. Directly updating an `Insurer`/`ServiceProvider` does **not**
+  update the `Organization` it's linked to; propagation only runs
+  `Organization` → `Insurer`/`ServiceProvider`. For `SERVICE_PROVIDER`, the
+  `longitude`/`latitude` carried on `OrganizationUpdatedEvent` (from the
+  `PUT`/`PATCH` request body) follow a different rule than the rest of the
+  fields: a `null` on the event means "not supplied on this request"
+  rather than "clear it" (this matters most for `PATCH`, where the field is
+  simply omitted from the request) — `OrganizationUpdatedListener` fetches
+  the linked `ServiceProvider`'s current `longitude`/`latitude` first and
+  only overwrites the ones the event actually supplied, so an unrelated
+  `Organization` edit (e.g. just `city`) can't silently wipe out a
+  previously-set location.
 - Provisioning continues one hop further: `InsurerServiceImpl.create`
   publishes an in-process `InsurerCreatedEvent` (via `ApplicationEventPublisher`,
   synchronously within the same transaction) after saving.
@@ -978,6 +1102,13 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
   non-ISO date, an unparsable UUID, an unknown enum constant) → 400. Without
   the last of these, a malformed query param falls through to the catch-all
   `Exception` handler and reports a misleading 500 instead of a 400.
+- `PATCH` endpoints are partial updates: every field on the patch DTO is
+  optional, and only fields present (non-null) in the request are applied —
+  unlike `PUT`, which requires the full resource and replaces every field.
+  (`OrganizationController.patch`/`OrganizationPatchRequest` is the reference
+  implementation; other `PATCH` endpoints in this codebase, e.g. `Visitor`'s
+  `/status` and `/entry-exit`, are narrower single-purpose actions rather than
+  general partial updates.)
 - Database schema changes ship as Flyway migrations
   (`src/main/resources/db/migration/`); Hibernate `ddl-auto` is never used to
   manage the schema. See [Database Migrations (Flyway)](#database-migrations-flyway)
@@ -1003,6 +1134,8 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Department        | `/api/v1/departments`         | `departments`       |
 | Medical Service   | `/api/v1/medical-services`    | `medical_services`  |
 | Organization      | `/api/v1/organizations`       | `organizations`     |
+| Tourist Attraction | `/api/v1/tourist-attractions` | `tourist_attractions` |
+| OTP               | `/api/v1/otps`                | `otps`               |
 | Reports           | `/api/v1/reports`             | (reads from existing tables) |
 | Member Statement  | `/api/v1/member-statements`   | — (computed, see [Member Statement Report](#member-statement-report)) |
 
@@ -1095,8 +1228,20 @@ POST /api/v1/visitors
 
 ## Notifications (Policy Document Email)
 
-When a `Visitor`'s cover becomes `ACTIVE`, the `notification` package
-emails them a personalized policy certificate as a PDF attachment:
+When a `Visitor`'s cover becomes `ACTIVE`, the `notification` package sends
+them a single email — their personalized policy certificate plus the "Welcome
+to Kenya" Welcome Pack copy and attachment. This used to be two separate
+emails (a policy-document email from this listener and a second, independent
+"Welcome Pack" email from `WelcomePackNotificationListener`); the two were
+folded into one so the visitor gets exactly one activation email, per
+`prompts.md`. The subject line and HTML body are the former Welcome Pack
+copy (`Welcome to Kenya – Your Medical Cover Is Now Active`, minus the "RE:"
+prefix it carried when it was a follow-up to a separate first email — with
+only one email now, "RE:" no longer applies), covering emergency contacts,
+cover benefits, accredited-hospital lookup instructions, and mobile app
+download links (the app store links are literal `[Insert Google Play link]`
+/ `[Insert Apple App Store link]` placeholders in the copy; no app store
+URLs are configured yet):
 
 - `VisitorActivatedNotificationListener` sends the certificate on two paths,
   both gated on `ACTIVE`: `VisitorStatusChangedEvent` with `newStatus == ACTIVE`
@@ -1154,11 +1299,112 @@ emails them a personalized policy certificate as a PDF attachment:
   re-sent. It's rendered in the certificate's `.meta` strip and referenced by
   the verification copy ("Verify this certificate at kenyacares.go.ke/verify
   using the Certificate Serial Number above").
-- The activation email carries two attachments: the personalized
-  `policy-certificate-<passportNumber>.pdf` (rendered per visitor) and the static
-  policy wording `templates/Policy_Document_July_2026.pdf`, loaded once from the
-  classpath and cached. If the bundled document can't be read it is logged and
-  skipped so the certificate still goes out.
+- The activation email carries up to three attachments: a single
+  `Insurance Policy.pdf` (the certificate), the policy wording sent as
+  `Policy Document.pdf` (rendered from `templates/Policy_Document_July_2026.pdf`),
+  and the bundled `templates/Inbound-Travel-Health-Welcome-Pack.pdf`. The base wording PDF
+  and the Welcome Pack PDF are each loaded once from the classpath and cached
+  (`rawPolicyDocumentCache`, `welcomePackPdfCache`); if either bundled
+  document can't be read, that load is logged and skipped so the rest of the
+  email still goes out. When the backing insurer has a logo and/or e-signature URL,
+  `PolicyDocumentRenderer.brandPolicyWording` overlays the logo, horizontally
+  centered near the top of page 1, and the e-signature on every page, via
+  PDFBox (`PDPageContentStream` + `PDImageXObject`, aspect ratio preserved).
+  On every page except the "POLICY AGREEMENT" page (page 3) the e-signature
+  is horizontally centered near the bottom, scaled to fit a 150×60pt box with
+  a 36pt margin from the bottom edge; on page 3 it's instead placed directly
+  on the "For and Behalf of the Company" / "Signature:" line (scaled to fit a
+  130×22pt box), since that's the actual signature the document calls for.
+  The branded result is cached per insurer (`brandedPolicyDocumentCache`,
+  keyed by `Insurer.id`), since the wording document is no longer identical
+  for every insurer. Both overlay URLs are optional and independent — an
+  insurer with only a logo gets just the page-1 overlay, and vice versa — and
+  a branding failure (unreachable logo/e-signature URL) falls back to the
+  unbranded wording PDF rather than dropping the attachment.
+- Page 3 of the wording PDF ("POLICY AGREEMENT") is a recital and signature
+  block full of pre-printed blank underscores. After the (cached, insurer-only)
+  branding step, `PolicyDocumentRenderer.fillPolicyAgreementDetails` draws the
+  Company (insurer) and Insured (visitor) details onto those blanks via the
+  same PDFBox content-stream approach, using `PDType1Font`/`showText` at
+  coordinates measured against the bundled PDF's fixed layout: the insurer's
+  name (recital + signature block), a short PO Box number extracted from
+  `Insurer.address`, "Nairobi" as the signing location, the visitor's full
+  name (signature block), and the issue date (both a compact `dd/MM/yy` form
+  for the narrow recital blank and the full `dd MMM yyyy` form in the
+  signature block, matching each blank's available width). The visitor has no
+  e-signature image on file — only the insurer does, applied in
+  `brandPolicyWording` above — so the visitor's email address is written onto
+  the Insured's "Signature:" line as their signature-in-lieu. The recital's
+  brief inline mentions of the Insured's name/PO Box sit in only a few points
+  of blank space between underscores — too narrow for a real name or address
+  — so those two are deliberately left blank; the Insured's name is instead
+  filled into the much wider signature-block "Name:" line. Unlike
+  `brandPolicyWording`, this step is **never cached**: it's called fresh for
+  every visitor, after the per-insurer cache lookup, because it carries
+  visitor PII (the visitor's name and email) that must not be reused across
+  visitors of the same insurer. A failure here logs and falls back to the
+  branded-but-unfilled document rather than dropping the attachment. The
+  first attachment is itself the policy certificate and the premium receipt
+  (see below) merged into one
+  continuous multi-page PDF — `PolicyDocumentRenderer.mergePdfs(byte[]...)`
+  concatenates the two already-rendered PDF byte arrays via PDFBox's
+  `PDFMergerUtility` (PDFBox is already a transitive dependency of
+  `openhtmltopdf-pdfbox`; no new library was added), rather than combining
+  the two Thymeleaf templates into one HTML document — each page keeps its
+  own independent layout/margins, and the certificate/receipt templates
+  didn't need to change.
+- The premium receipt is rendered the same way as the certificate —
+  `PolicyDocumentRenderer.renderPremiumReceiptPdf` processes
+  `templates/premium-receipt.html` (Thymeleaf) to HTML then to PDF via
+  `openhtmltopdf` — from a `PremiumReceiptData` holder (visitor full name,
+  passport number, certificate serial number, visitor address, visitor
+  nationality, insurer name, insurer logo URL, insurer address, total
+  premium — now age-tiered, see below). `certificateSerialNumber` is `Visitor.certificateSerialNumber`
+  (the same value shown on the policy certificate) reused as the receipt's
+  "Receipt No." field; `visitorAddress`/`insurerAddress` are the plain
+  `Visitor.address`/`Insurer.address` strings and `visitorNationality` is
+  `Visitor.nationality` (country of origin), all unstructured and possibly
+  empty, rendered in a "RECEIVED FROM" / "INSURER" two-column address block
+  immediately below the banner (nationality as an extra line under the
+  visitor's address; the insurer's address line has a hardcoded ", Kenya"
+  suffix appended in the template — the insurer is always Kenya-based), each
+  line only shown when non-empty. The meta strip also reuses `passportNumber`
+  as "Account No." and `visitorFullName` as "Account Name" — no separate
+  bank-account concept exists, these are the same visitor fields shown
+  elsewhere on the receipt. `totalPremium` is the only levy-related value
+  still shown, and unlike every other field on the receipt it's not a flat
+  echo of visitor/insurer data — `VisitorActivatedNotificationListener` calls
+  `PremiumReceiptService.calculateTotalPremium(visitor.getAgeAtTravel())`,
+  which resolves one of three age-tiered rates configured on the same
+  singleton config exposed by `GET /api/v1/premium-receipts` (see
+  [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)):
+  `infantPremium` for age 2 and below, `minorPremium` for ages 3–17, and
+  `totalPremium` (the pre-existing field) for age 18 and above.
+  `Visitor.getAgeAtTravel()` is a `@Transient` helper computing
+  `Period.between(dateOfBirth, dateIn).getYears()` — age as at the start of
+  cover (`dateIn`), not the visitor's current age — so the resolved rate is
+  echoed unchanged in the bottom `TOTAL PREMIUM (USD)` row. The levy rate
+  fields (`pcfLevy`, `insurancePremiumLevy`, `stampDuty`, `trainingLevy`) are
+  fetched from that same config for the admin-facing API but are no longer
+  passed into `PremiumReceiptData` or shown on the receipt — there is no
+  breakdown section any more, only the total. Directly below the total,
+  `common/util/AmountInWordsConverter.toWords` spells `totalPremium` out
+  (e.g. `68044.00` → "Sixty Eight Thousand and Forty Four Only", with a
+  "and NN/100" fraction appended only when cents are non-zero) — computed by
+  `PolicyDocumentRenderer.renderPremiumReceiptHtml` and passed as
+  `totalPremiumInWords`, shown under a "TOTAL AMOUNT RECEIVED IN WORDS:"
+  label matching the wording style on Minet's cheque/receipt vouchers. Like
+  the rest of this listener, a failure anywhere in this path (including
+  rendering) is caught by the same top-level try/catch and blocks the whole
+  activation email rather than partially sending it.
+- The template is styled as a boxed A4 voucher (red banner title, bordered
+  meta/address tables) matching the other certificate/claim receipt
+  templates' layout conventions, rather than the earlier narrow thermal
+  cash-register mockup. At the top of the receipt, the same `Insurer.logoUrl`
+  used on the certificate (already normalized by `LogoUrlNormalizer`) is
+  rendered as a centered `<img>`, falling back to a dashed
+  `[ INSURER LOGO ]` placeholder box when the insurer has no logo —
+  mirroring the certificate masthead's img/placeholder pattern.
 - `common/email/EmailService` is a thin, domain-agnostic wrapper over
   `JavaMailSender` (mirrors `common/messaging/EventPublisher`'s catch-and-log
   style) — it never logs the email body or PDF bytes, only the outcome. It
@@ -1171,6 +1417,193 @@ emails them a personalized policy certificate as a PDF attachment:
   every reference insurer hardcodes it too).
 - No "document sent" tracking column exists — a resend on re-activation is
   desired behavior, not a defect.
+
+## OTP (Point-of-Service Verification)
+
+The `otp` package issues six-digit email codes used to confirm a visitor's
+identity at the point of service (e.g. at a hospital reception), via two
+endpoints:
+
+- `POST /api/v1/otps/send` (`SendOtpRequest`: `email`, `serviceProviderId`) —
+  generates a code and emails it. Returns `202 Accepted`.
+- `POST /api/v1/otps/verify` (`VerifyOtpRequest`: `email`, `serviceProviderId`,
+  `otp`) — checks the code. Returns `200 OK` on success.
+
+Design notes:
+- `Otp` extends `BaseEntity` and is **deliberately standalone** — no FK to
+  `Visitor`/`User`. Columns are `otp` (stored **unhashed** — the code is
+  low-entropy and short-lived, so hashing adds little), `expiryTime`, `email`,
+  and `serviceProviderId` (validated against `ServiceProviderService.exists`,
+  but not otherwise related to the entity).
+- Codes expire 10 minutes after generation; verifying a code past that returns
+  a distinct `"Otp expired"` message. A wrong code or no matching record both
+  return a generic `"Invalid otp"` message, so a caller can't distinguish
+  "no OTP was ever sent" from "you guessed wrong" (both `409`, via
+  `IllegalStateException`, same as the rest of the API's conflict cases).
+- **Invalidation reuses the existing soft-delete convention** rather than a
+  new status column: a successfully verified OTP, and any OTP superseded by a
+  resend for the same `(email, serviceProviderId)` pair, is deleted via
+  `OtpRepository.delete(...)`, which — like every other entity in this
+  codebase — triggers `@SQLDelete` (`deleted = true`) instead of a hard
+  delete, so `@SQLRestriction("deleted = false")` makes it invisible to
+  subsequent lookups.
+- Lookups (both invalidating a prior code on resend, and matching a code on
+  verify) are scoped to `(email, serviceProviderId)` together, not `email`
+  alone — a visitor could plausibly have a live code at two different service
+  providers at once, and codes shouldn't cross between them.
+- **Sending follows the `AFTER_COMMIT` event pattern** used by
+  `VisitorActivatedNotificationListener`: `OtpServiceImpl.send()` persists the
+  `Otp` row and publishes `OtpGeneratedEvent`; `OtpNotificationListener`
+  (`@TransactionalEventListener(phase = AFTER_COMMIT)`) sends the email via
+  `EmailService` afterward, so a slow/unreachable mail server can never roll
+  back the OTP row. Failures are caught and logged, never propagated.
+- The sending mailbox is **not** derived from the visitor/policy (the `Otp`
+  entity has no path to an `Insurer`). It's resolved via
+  `OrganizationService.getEntityById` from a fixed organization id
+  (`OtpNotificationListener.OTP_SENDER_ORGANIZATION_ID`) — `Organization`
+  carries `host`/`port`/`notificationEmail`/`notificationEmailPassword`
+  directly, so this reads the mailbox straight off that entity rather than
+  hopping through `Insurer` (unlike
+  `VisitorActivatedNotificationListener.resolveMailSettings`, which is handed
+  an `Insurer` already resolved from the visitor's policy and has no
+  organization id to look up). Falls back to the global `MailProperties`
+  mailbox when the organization's SMTP fields aren't fully configured, or
+  when no organization matches the id (`ResourceNotFoundException` from
+  `getEntityById` is caught, not propagated). The id is hardcoded in source
+  rather than externalized to configuration — a known tradeoff, accepted for
+  now, that ties this behavior to whichever environment's database has a
+  matching organization row.
+- No rate limiting or max-attempts/lockout policy exists yet (no such
+  infrastructure — no Bucket4j/Resilience4j, no `@Scheduled` jobs — exists
+  anywhere else in this codebase either); this was explicitly deferred rather
+  than added speculatively.
+- Expired rows are not purged by a scheduled job; they're simply excluded from
+  matches by the expiry-time check in `OtpServiceImpl.verify` and superseded
+  by later resends, and accumulate in the table over time (same tradeoff as
+  every other soft-deleted entity in this codebase).
+- **Intentionally separate from Mobile Visitor Login (below)**: both features
+  send a six-digit code to an email address, but they serve different callers
+  (a service-provider-facing point-of-service check vs. a visitor's own mobile
+  app login) with different scoping (`(email, serviceProviderId)` vs. `email`
+  alone) and different consequences on success (no token issued here vs. a
+  JWT issued there). They deliberately use separate `Otp`/`VisitorOtp`
+  entities and tables rather than a shared, purpose-flagged one — see the
+  "Design notes" under Mobile Visitor Login for why.
+
+## Mobile Visitor Login (Email OTP)
+
+The `mobileauth` package lets a visitor log into the mobile app using only
+their registered email — no password exists for visitors, since visitor
+accounts are always system-provisioned from an existing `Visitor` record
+(created by staff via the `visitor` package) and never self-registered, so a
+persistent, visitor-chosen credential would be unnecessary attack surface.
+Two endpoints:
+
+- `POST /api/v1/mobile/auth/otp/request` (`RequestVisitorOtpRequest`: `email`)
+  — generates a code and emails it if `email` matches a `Visitor`. Always
+  returns `202 Accepted`, whether or not a match was found (see "No
+  enumeration" below).
+- `POST /api/v1/mobile/auth/otp/verify` (`VerifyVisitorOtpRequest`: `email`,
+  `otp`) — checks the code and, on success, issues a visitor-specific
+  access/refresh token pair (`VisitorTokenResponse`, shaped like
+  `auth.dto.TokenResponse`). Returns `200 OK` on success, `409 Conflict` on
+  any failure.
+
+Design notes:
+- **Deliberately not built on `/auth/login` or the `user`/`User` table.**
+  `JwtAuthenticationFilter` builds its `AuthenticatedUser` principal purely
+  from JWT claims (`sub`, `organizationId`, `role`) and never loads a `User`
+  row from the database, so nothing in the filter chain requires the
+  authenticated principal to be `User`-backed. The visitor token is minted
+  directly from the `Visitor` entity (`JwtTokenProvider.createVisitorAccessToken`/
+  `createVisitorRefreshToken`, a separate method pair from the existing
+  `createToken(User, ...)` path, so staff token minting for
+  ADMIN/INSURER_USER/PROVIDER_USER is untouched). Claims: `sub` = visitor id,
+  `visitorId` = visitor id, `passportNumber` = `Visitor.passportNumber`
+  (`JwtTokenProvider.CLAIM_PASSPORT_NUMBER`), `role` = the literal string
+  `"VISITOR"` (not added to `user.Role`, which stays staff-only) — `JwtAuthenticationFilter` already
+  builds `ROLE_<claim>` generically, so `hasRole("VISITOR")` works on future
+  visitor-only endpoints without further filter changes.
+- **Deliberately not a generalization of the `otp` package** — see the note
+  under OTP (Point-of-Service Verification) above. `Otp` hardcodes
+  `serviceProviderId` as non-nullable with no purpose discriminator;
+  retrofitting it would touch already-shipped provider-facing endpoints for
+  an unrelated use case. `VisitorOtp` is `Otp`'s shape minus
+  `serviceProviderId`, in its own `visitor_otps` table.
+- **Visitor email lookup**: `visitors.email` is AES-encrypted
+  (`EncryptedStringConverter`) and can't be queried by value directly, same as
+  `passportNumber`. A parallel deterministic HMAC blind-index column,
+  `emailHash` (`Visitor.emailHash`, populated via `BlindIndexService.hmac` on
+  create/update, same as `passportNumberHash`), backs
+  `VisitorRepository.findFirstByEmailHashOrderByCreatedDateDesc` /
+  `VisitorService.findByEmail`. Unlike passport number, email is **not**
+  treated as unique per visitor — `emailHash` has no unique constraint,
+  and the repository method returns the most recently created match, since
+  nothing else in the `visitor` package enforces email uniqueness.
+- **No enumeration**: `requestOtp` silently no-ops (still `202`) when the
+  email doesn't match any visitor, and `verifyOtp` returns the same generic
+  `"Invalid or expired code"` message (`409`, via `IllegalStateException`)
+  whether the code was wrong, expired, never issued, or the matching visitor
+  has since been deleted — a caller can't distinguish "this email isn't
+  registered" from "you guessed wrong," since this endpoint (unlike
+  `/otps/verify`) issues an identity-bearing token on success.
+- **Resend cooldown**: a lightweight 60-second minimum interval between OTP
+  sends to the same email (checked against the prior `VisitorOtp`'s
+  `createdDate`, `MobileAuthServiceImpl.RESEND_COOLDOWN`) — the only
+  throttling added, no new dependency, consistent with the `otp` package
+  having none at all.
+- Codes expire 10 minutes after generation and are invalidated via the same
+  soft-delete-on-`delete()` convention as `Otp`. Sending follows the same
+  `AFTER_COMMIT` event pattern (`VisitorOtpGeneratedEvent` /
+  `VisitorOtpNotificationListener`, mirroring `OtpNotificationListener`
+  exactly, including the sender-mailbox resolution logic).
+- `/api/v1/mobile/auth/**` is `permitAll` in `SecurityConfig` (alongside
+  `/api/v1/auth/**`), since a visitor has no credentials yet at the point they
+  call these endpoints. Any future visitor-only endpoints (e.g. "my policy" on
+  mobile) should require `hasRole("VISITOR")` and stay behind
+  `anyRequest().authenticated()`.
+
+## Premium Receipt (Singleton Levy Rates)
+
+The `premiumreceipt` package holds the levy rates applied when computing a
+policy's premium: `totalPremium`, `minorPremium`, `infantPremium` (age-tiered
+base rates, `BigDecimal`, see below), `pcfLevy`, `insurancePremiumLevy`,
+`trainingLevy` (percentages expressed as `0`–`1`
+fractions), and `stampDuty` (a flat `BigDecimal` amount, not a percentage).
+Two endpoints, both under `/api/v1/premium-receipts` (no `{id}` path
+variable):
+
+- `GET /api/v1/premium-receipts` — any authenticated user.
+- `PATCH /api/v1/premium-receipts` — `ADMIN` only (`@PreAuthorize`), partial
+  update: only non-null fields in `PremiumReceiptPatchRequest` are applied,
+  matching the `Organization` PATCH convention.
+
+Design notes:
+- **Exactly one row ever exists, and there is no `POST`/`DELETE` endpoint.**
+  A Flyway migration (`V202608302028__create_premium_receipts.sql`) creates
+  the table together with a unique expression index
+  (`CREATE UNIQUE INDEX one_row_only ON premium_receipts ((true))`), so a
+  second row can never be inserted even by future/manual SQL. A second
+  migration (`V202608302029__seed_premium_receipt.sql`) inserts the single
+  row with a hardcoded UUID
+  (`PremiumReceiptServiceImpl.SINGLETON_ID = 00000000-0000-0000-0000-000000000001`)
+  instead of relying on `BaseEntity`'s `@UuidGenerator`. GET/PATCH always
+  fetch by that fixed constant — no create-or-lookup branching needed.
+- Percentage fields are validated with `@DecimalMin("0")`/`@DecimalMax("1")`;
+  `totalPremium`/`minorPremium`/`infantPremium`/`stampDuty` with
+  `@DecimalMin("0")` only, since they're amounts, not fractions.
+- **Age-tiered premium.** `totalPremium` (18+), `minorPremium` (ages 3–17,
+  default 22) and `infantPremium` (age 2 and below, default 0) are three
+  independently admin-editable rates rather than one flat figure —
+  added by `V202609081352__premium_receipt_age_tiers.sql` (`alter table ...
+  add column ... default`, so the existing singleton row picked up the
+  defaults without a separate data migration). `PremiumReceiptService
+  .calculateTotalPremium(int ageInYears)` resolves the applicable rate; the
+  only caller is `VisitorActivatedNotificationListener`, which passes
+  `visitor.getAgeAtTravel()` (age as at `Visitor.dateIn`, not the visitor's
+  current age) when building the activation email's premium receipt PDF.
+  The plain `GET`/`PATCH` endpoints above still return/accept all three rate
+  fields unchanged — there is no per-visitor calculation endpoint.
 
 ## Claims Reports
 
@@ -1293,65 +1726,88 @@ Composed entirely from existing feature services (`VisitorService`,
 ## USSD Provider Panel (Find Hospital)
 
 The USSD "Find Hospital" feature lets travellers search for in-network
-healthcare providers by **county** or **town/area**. Provider data is sourced
-from an Excel spreadsheet (`provider-panel.xlsx`, bundled in
-`src/main/resources/`) and loaded into memory at application startup — no
-database table backs this feature.
+healthcare providers by **county** or by **nearest tourist attraction**. Provider data comes from the
+`service_providers` table (the `serviceprovider` feature) — every service
+provider registered in the system is listed. There is no separate type flag,
+so all `ServiceProvider` rows are treated as hospitals.
 
 **Data source:**
 
-- `provider-panel.xlsx` contains two sheets:
-  - **NAIROBI COUNTY** — providers keyed by area/neighborhood (e.g. Karen,
-    Westlands, Upperhill). Columns: Area Name, Provider Name, Physical
-    Address, Services. The area doubles as the town; county is always
-    `NAIROBI`.
-  - **upcountry** — providers keyed by town and county. Columns: Town,
-    County, Provider Name, Physical Location, Services.
-- Apache POI parses both sheets on startup (`ProviderPanelLoader`,
-  `@PostConstruct`), producing a `List<ProviderPanelEntry>` held in memory.
-  Currently ~739 entries.
+- `ServiceProvider.county` (column `service_providers.county`, added by
+  migration `V202609211510`) is what the search matches on. It is required on
+  `ServiceProviderRequest` (`@NotBlank`) and, for `SERVICE_PROVIDER`-type
+  organizations, on `OrganizationRequest` (enforced in
+  `OrganizationServiceImpl`); the provisioning listener copies it across.
+  Providers created before this change have a null county and won't appear in
+  results until one is set.
+- The results and detail screens use `name`, `address`, `contactPhone` and
+  `county`. The old Excel data had a per-provider "services" field, which
+  `ServiceProvider` doesn't have, so it is no longer shown.
 
 **Architecture:**
 
 ```
-provider-panel.xlsx (classpath)
+service_providers (DB)
         │
         ▼
-ProviderPanelLoader        ← @PostConstruct, POI → List<ProviderPanelEntry>
+ServiceProviderRepository  ← findByCountyContainingIgnoreCaseOrderByNameAsc
         │
         ▼
-ProviderPanelService       ← searchByCounty(q), searchByTown(q)
-        │                   case-insensitive partial match (ILIKE-style)
+ServiceProviderService     ← searchByCounty(q): blank → empty list,
+        │                   case-insensitive partial match, sorted by name
         ▼
-UssdServiceImpl            ← wired into handlePromptCountyName / handlePromptTownName
-                            results paginated 5 per USSD screen
+UssdServiceImpl            ← handlePromptCountyName / handleCountyResults /
+                            handleProviderDetail; 3 results per USSD screen
+        ▲
+        │  attraction → county
+TouristAttractionService   ← searchByName(q, 3): exact → contains → typo-tolerant
 ```
+
+`UssdServiceImpl` depends on the `ServiceProviderService` and
+`TouristAttractionService` interfaces only, following the cross-feature rule
+(never the repositories).
 
 **USSD flow:**
 
 ```
 Main Menu → 1. Find Hospital
-  → 1. County → "Enter county name:" → user types query
-    → ProviderPanelService.searchByCounty(query)
-    → Paginated results (5 per screen), 9 = next page, 0 = back
-  → 2. Town → "Enter town name:" → user types query
-    → ProviderPanelService.searchByTown(query)
-    → Same paginated display
+  → 1. County → "Enter county name to search:" → user types query
+    → ServiceProviderService.searchByCounty(query)
+    → Paginated results (3 per screen), 9 = next page, 0 = back
+    → pick a number → detail (name, address, phone, county), 0 = back
+  → 2. Town (Coming Soon)
   → 3. Border Point (Coming Soon)
-  → 4. Nearest Tourist Attraction (Coming Soon)
+  → 4. Nearest Tourist Attraction → "Enter tourist attraction name:" → user types query
+    → TouristAttractionService.searchByName(query, 3)
+    → 0 matches: "No tourist attraction found for '{query}'." → sub-menu
+    → 1 match: straight to that attraction's county hospital list
+    → 2-3 matches: "Select attraction:" numbered list (ATTRACTION_CHOICES), 0 = back;
+      picking one goes to its county hospital list
+    → hospital list = the county results flow above, with the first screen headed
+      "{attraction} - {county}"; paging, detail and back work exactly as for County
+    → county has no providers: "No providers found near {attraction} ({county})."
   → 0. Main Menu
 ```
 
 **Key design decisions:**
 
-- **In-memory, not DB:** provider panel data changes infrequently; an
-  in-memory list avoids a DB table and keeps the USSD response latency
-  sub-millisecond after startup. To update providers, replace the Excel file
-  and restart.
-- **Search behaviour:** case-insensitive substring match on county/town name.
-  Partial matches are intentional — a user typing "Momb" finds Mombasa.
-- **Pagination:** 5 results per USSD screen (160-char limit). "9. Next page"
-  cycles through results; "0. Back" returns to the hospital sub-menu.
+- **DB-backed, live:** results reflect the current `service_providers` rows,
+  so adding or editing a provider takes effect immediately, with no
+  redeploy. The search re-queries on each pagination/back step rather than
+  caching results in the Redis session.
+- **Search behaviour:** case-insensitive substring match on county. Partial
+  matches are intentional — a user typing "Momb" finds Mombasa.
+- **Attraction → county → hospitals:** the attraction step only resolves a
+  county; it then seeds `countyQuery` in the session and reuses the county
+  results flow, so there is one hospital-listing code path. Only the top 3
+  attraction matches are offered (one USSD screen, matching the page size) —
+  a user with a vaguer query should refine it rather than page.
+- **Town search removed:** `ServiceProvider` carries no town/area field, so
+  the Town option is a "Coming Soon" placeholder, like Border Point.
+- **Excel panel retired, not deleted:** `provider-panel.xlsx`,
+  `ProviderPanelLoader`, `ProviderPanelService` and `ProviderPanelEntry` are
+  still in the repo (and the loader still runs at startup) but nothing in the
+  USSD flow calls them.
 - **No results:** returns to the sub-menu with "No providers found for
   '{query}'."
 
@@ -1400,7 +1856,11 @@ Main Menu → 1. Find Hospital
     index" computed by `BlindIndexService` over the trimmed/uppercased
     passport number — is stored alongside the encrypted value and used for
     all lookup/uniqueness checks instead. `VisitorServiceImpl` computes and
-    sets it on every create/update.
+    sets it on every create/update. `Visitor.email` gets the same treatment
+    via `emailHash` (`V202608312003__visitor_email_hash.sql`), added for
+    Mobile Visitor Login's OTP-by-email lookup — unlike passport number,
+    email is not treated as unique, so `emailHash` carries no unique
+    constraint.
   - **Keys:** `APP_ENCRYPTION_KEY` (AES data key) and
     `APP_ENCRYPTION_BLIND_INDEX_KEY` (HMAC key) are separate base64-encoded
     256-bit secrets supplied via env vars (`app.encryption.*` in
@@ -1422,7 +1882,8 @@ Main Menu → 1. Find Hospital
     1. Deploy with `APP_ENCRYPTION_BACKFILL_ENABLED=true` for exactly one
        run. `EncryptionBackfillRunner` (`common/crypto`) reads existing
        plaintext via raw JDBC (bypassing JPA, since the converters assume
-       ciphertext), encrypts it, and computes `passport_number_hash` for
+       ciphertext), encrypts it, and computes `passport_number_hash` (and,
+       since `V202608312003__visitor_email_hash.sql`, `email_hash`) for
        rows still missing it. It's idempotent (columns that already
        decrypt successfully are left alone), so it's safe to re-run if
        interrupted. Set the flag back to `false` afterward.

@@ -1,5 +1,6 @@
 package com.travel.insurance.serviceprovider;
 
+import com.travel.insurance.serviceprovider.dto.ServiceProviderNearbyResponse;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderRequest;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import org.springframework.stereotype.Component;
@@ -18,7 +19,10 @@ public class ServiceProviderMapper {
         provider.setContactEmail(request.contactEmail());
         provider.setContactPhone(request.contactPhone());
         provider.setAddress(request.address());
+        provider.setCounty(request.county());
         provider.setOrganizationId(request.organizationId());
+        provider.setLongitude(request.longitude());
+        provider.setLatitude(request.latitude());
     }
 
     public ServiceProviderResponse toResponse(ServiceProvider provider) {
@@ -28,9 +32,23 @@ public class ServiceProviderMapper {
                 provider.getContactEmail(),
                 provider.getContactPhone(),
                 provider.getAddress(),
+                provider.getCounty(),
                 provider.getOrganizationId(),
+                provider.getLongitude(),
+                provider.getLatitude(),
                 provider.getCreatedDate(),
                 provider.getUpdatedDate()
+        );
+    }
+
+    public ServiceProviderNearbyResponse toNearbyResponse(ServiceProvider provider) {
+        return new ServiceProviderNearbyResponse(
+                provider.getId(),
+                provider.getName(),
+                provider.getLongitude(),
+                provider.getLatitude(),
+                provider.getContactEmail(),
+                provider.getContactPhone()
         );
     }
 }

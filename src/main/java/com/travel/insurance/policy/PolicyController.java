@@ -2,6 +2,7 @@ package com.travel.insurance.policy;
 
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.benefit.dto.BenefitResponse;
+import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.policy.dto.PolicyDetailResponse;
 import com.travel.insurance.policy.dto.PolicyRequest;
 import com.travel.insurance.policy.dto.PolicyResponse;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -30,6 +32,7 @@ public class PolicyController {
 
     private final PolicyService policyService;
     private final BenefitService benefitService;
+    private final InsurerService insurerService;
 
     @PostMapping
     public ResponseEntity<PolicyResponse> create(@Valid @RequestBody PolicyRequest request) {
@@ -39,14 +42,18 @@ public class PolicyController {
     @GetMapping("/{id}")
     public ResponseEntity<PolicyDetailResponse> getById(@PathVariable UUID id) {
         PolicyResponse policy = policyService.getById(id);
-        return ResponseEntity.ok(PolicyDetailResponse.of(policy, benefitService.listAll()));
+        String insurerName = insurerService.namesByIds(List.of(policy.insurerId())).get(policy.insurerId());
+        return ResponseEntity.ok(PolicyDetailResponse.of(policy, insurerName, benefitService.listAll()));
     }
 
     @GetMapping
     public ResponseEntity<Page<PolicyDetailResponse>> list(Pageable pageable) {
         List<BenefitResponse> benefits = benefitService.listAll();
-        return ResponseEntity.ok(policyService.list(pageable)
-                .map(policy -> PolicyDetailResponse.of(policy, benefits)));
+        Page<PolicyResponse> policies = policyService.list(pageable);
+        Map<UUID, String> insurerNamesById = insurerService.namesByIds(
+                policies.map(PolicyResponse::insurerId).toList());
+        return ResponseEntity.ok(policies
+                .map(policy -> PolicyDetailResponse.of(policy, insurerNamesById.get(policy.insurerId()), benefits)));
     }
 
     @PutMapping("/{id}")

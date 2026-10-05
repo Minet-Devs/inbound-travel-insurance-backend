@@ -1,6 +1,7 @@
 package com.travel.insurance.organization;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.organization.dto.OrganizationPatchRequest;
 import com.travel.insurance.organization.dto.OrganizationRequest;
 import com.travel.insurance.organization.dto.OrganizationResponse;
 import lombok.RequiredArgsConstructor;
@@ -29,8 +30,10 @@ public class OrganizationServiceImpl implements OrganizationService {
         if (organizationRepository.existsByName(request.name())) {
             throw new IllegalStateException("Organization already exists: " + request.name());
         }
+        validateCounty(request);
         Organization organization = organizationRepository.save(organizationMapper.toEntity(request));
-        eventPublisher.publishEvent(new OrganizationCreatedEvent(organization.getId()));
+        eventPublisher.publishEvent(
+                new OrganizationCreatedEvent(organization.getId(), request.longitude(), request.latitude()));
         return organizationMapper.toResponse(organization);
     }
 
@@ -55,8 +58,30 @@ public class OrganizationServiceImpl implements OrganizationService {
         if (organizationRepository.existsByNameAndIdNot(request.name(), id)) {
             throw new IllegalStateException("Organization already exists: " + request.name());
         }
+        validateCounty(request);
         organizationMapper.updateEntity(organization, request);
-        return organizationMapper.toResponse(organizationRepository.save(organization));
+        OrganizationResponse response = organizationMapper.toResponse(organizationRepository.save(organization));
+        eventPublisher.publishEvent(new OrganizationUpdatedEvent(id, request.longitude(), request.latitude()));
+        return response;
+    }
+
+    @Override
+    public OrganizationResponse patch(UUID id, OrganizationPatchRequest request) {
+        Organization organization = getEntityById(id);
+        if (request.name() != null && organizationRepository.existsByNameAndIdNot(request.name(), id)) {
+            throw new IllegalStateException("Organization already exists: " + request.name());
+        }
+        organizationMapper.patchEntity(organization, request);
+        OrganizationResponse response = organizationMapper.toResponse(organizationRepository.save(organization));
+        eventPublisher.publishEvent(new OrganizationUpdatedEvent(id, request.longitude(), request.latitude()));
+        return response;
+    }
+
+    private void validateCounty(OrganizationRequest request) {
+        if (request.organizationType() == OrganizationType.SERVICE_PROVIDER
+                && (request.county() == null || request.county().isBlank())) {
+            throw new IllegalArgumentException("County is required for service provider organizations");
+        }
     }
 
     @Override

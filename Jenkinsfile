@@ -47,7 +47,7 @@ pipeline {
                         branches: [[name: "*/${targetBranch}"]],
                         extensions: [[$class: 'CleanCheckout']],
                         userRemoteConfigs: [[
-                            url: 'https://github.com/mishobo/inbound-travel-medical-insurance-backend.git'
+                            url: 'https://github.com/Minet-Devs/inbound-travel-insurance-backend.git'
                         ]]
                     ])
                 }

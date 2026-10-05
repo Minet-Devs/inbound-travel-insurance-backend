@@ -54,7 +54,6 @@ spring:
           starttls:
             enable: true
             required: true
-
   data:
     redis:
       host: ${REDIS_HOST:localhost}

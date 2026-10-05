@@ -30,7 +30,7 @@ class EncryptionBackfillRunnerTest {
                     date_of_birth varchar(255), nationality varchar(255), address varchar(255),
                     email varchar(255), phone_number varchar(255), underlying_conditions varchar(255),
                     next_of_kin_name varchar(255), next_of_kin_phone varchar(255),
-                    passport_number_hash varchar(64))
+                    passport_number_hash varchar(64), email_hash varchar(64))
                 """);
         jdbcTemplate.execute("""
                 create table biometric_verifications (
@@ -77,7 +77,8 @@ class EncryptionBackfillRunnerTest {
         runner.run(null);
 
         Map<String, Object> row = jdbcTemplate.queryForMap(
-                "select full_name, passport_number, email, passport_number_hash from visitors where id = ?", id);
+                "select full_name, passport_number, email, passport_number_hash, email_hash "
+                        + "from visitors where id = ?", id);
 
         assertThat((String) row.get("full_name")).isNotEqualTo("Jane Traveler");
         assertThat((String) row.get("passport_number")).isNotEqualTo("P1234567");
@@ -85,6 +86,7 @@ class EncryptionBackfillRunnerTest {
         assertThat(fieldEncryptionService.decrypt((String) row.get("full_name"))).isEqualTo("Jane Traveler");
         assertThat(fieldEncryptionService.decrypt((String) row.get("passport_number"))).isEqualTo("P1234567");
         assertThat((String) row.get("passport_number_hash")).isEqualTo(blindIndexService.hmac("P1234567"));
+        assertThat((String) row.get("email_hash")).isEqualTo(blindIndexService.hmac("jane.traveler@example.com"));
     }
 
     @Test

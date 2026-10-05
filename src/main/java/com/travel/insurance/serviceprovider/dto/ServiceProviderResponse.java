@@ -1,5 +1,6 @@
 package com.travel.insurance.serviceprovider.dto;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -9,7 +10,10 @@ public record ServiceProviderResponse(
         String contactEmail,
         String contactPhone,
         String address,
+        String county,
         UUID organizationId,
+        BigDecimal longitude,
+        BigDecimal latitude,
         Instant createdDate,
         Instant updatedDate
 ) {
