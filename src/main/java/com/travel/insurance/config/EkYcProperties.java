@@ -13,9 +13,9 @@ public class EkYcProperties {
 
     private String clientId;
     private String clientSecret;
-    private String accessTokenUrl = "https://dev.hakika.ecs.africa/api/v2/auth/access-token";
-    private String verificationUrl = "https://dev.hakika.ecs.africa/api/v3/requests/embeded";
-    private String callbackResendUrl = "https://dev.hakika.ecs.africa/api/v3/requests/callback/resend";
+    private String accessTokenUrl;
+    private String verificationUrl;
+    private String callbackResendUrl;
     private String notificationCallbackUrl;
-    private List<String> callbackAllowedIps = List.of("167.71.142.137", "167.71.128.93");
+    private List<String> callbackAllowedIps = List.of();
 }

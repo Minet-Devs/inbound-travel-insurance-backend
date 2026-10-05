@@ -47,4 +47,12 @@ class BiometricMicroservicePropertiesTest {
         assertThat(properties.getBaseUrl()).isEqualTo("http://biometric-ms:9090");
         assertThat(properties.getWebhookSecret()).isEqualTo("hook-secret-2");
     }
+
+    @Test
+    void hasNoHardcodedDefaults() {
+        BiometricMicroserviceProperties properties = new BiometricMicroserviceProperties();
+
+        assertThat(properties.getBaseUrl()).isNull();
+        assertThat(properties.getWebhookSecret()).isNull();
+    }
 }

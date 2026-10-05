@@ -19,6 +19,6 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.biometrics.microservice")
 public class BiometricMicroserviceProperties {
 
-    private String baseUrl = "http://localhost:8080";
+    private String baseUrl;
     private String webhookSecret;
 }

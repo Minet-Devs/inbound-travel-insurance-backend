@@ -9,6 +9,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.exchangerate")
 public class ExchangeRateProperties {
 
-    private String baseUrl = "https://v6.exchangerate-api.com/v6";
+    private String baseUrl;
     private String apiKey;
 }
