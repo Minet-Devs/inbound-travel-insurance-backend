@@ -36,8 +36,8 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile
-    container_name: mishobo/inbound-travel-insurance-backend:20260914.1
-    image: mishobo/inbound-travel-insurance-backend:20260914.1
+    container_name: mishobo/inbound-travel-insurance-backend:20261006.1
+    image: mishobo/inbound-travel-insurance-backend:20261006.1
 
 
 
