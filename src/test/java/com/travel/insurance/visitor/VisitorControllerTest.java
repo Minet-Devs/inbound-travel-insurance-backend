@@ -61,7 +61,7 @@ class VisitorControllerTest {
                 "jane.traveler@example.com", "+254700000000",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1), LocalDate.of(2027, 8, 1),
                 MaritalStatus.SINGLE, "Tourism", "https://storage.example.com/photos/jane.jpg", null,
-                VisitorStatus.PENDING, "John Traveler", "+254711111111",
+                VisitorStatus.PENDING_ACTIVATION, "John Traveler", "+254711111111",
                 null, null, null, null, null, null,
                 Instant.now(), Instant.now());
     }
@@ -79,7 +79,7 @@ class VisitorControllerTest {
     private VisitorBenefitResponse sampleBenefit() {
         return new VisitorBenefitResponse(UUID.randomUUID(), visitorId, benefitId,
                 "Medical Expenses", new BigDecimal("100000.00"), BigDecimal.ZERO,
-                new BigDecimal("100000.00"), VisitorStatus.PENDING,
+                new BigDecimal("100000.00"), VisitorStatus.PENDING_ACTIVATION,
                 Instant.now(), Instant.now());
     }
 
