@@ -699,7 +699,7 @@ Policy
   dependencies acyclic. The paged list and create/update endpoints return
   plain `VisitorResponse` rows without benefits.
 - A visitor carries a `VisitorStatus` with guarded transitions
-  (`canTransitionTo`). A newly created visitor defaults to `ACTIVE`. It is updated via
+  (`canTransitionTo`). A newly created visitor starts `PENDING_ACTIVATION` (lifecycle `PENDING_ACTIVATION → ACTIVE`, `ACTIVE ↔ SUSPENDED`, `DEACTIVATED` terminal); it is updated via
   `PATCH /api/v1/visitors/{id}/status` or
   `PATCH /api/v1/visitors/by-passport/status?passportNumber=…`, both taking a
   `VisitorStatusUpdate` body; an allowed transition publishes a
@@ -708,7 +708,7 @@ Policy
   `VisitorServiceImpl` publishes an in-process `VisitorCreatedEvent`, which
   `visitorbenefit.VisitorCreatedListener` consumes to create one
   `VisitorBenefit` per global `Benefit` (each snapshotting the catalog
-  `limitAmount` and taking the visitor's current status, `ACTIVE` by default).
+  `limitAmount` and taking the visitor's current status, `PENDING_ACTIVATION` for a new visitor). Every status change is mirrored onto the visitor's `VisitorBenefit` rows by `visitorbenefit.VisitorStatusChangedListener`, so activating a visitor activates all of its benefits.
   The listener skips benefits already
   assigned to the visitor, so it is idempotent. Further benefits can still be
   attached explicitly via the `VisitorBenefit` endpoints.
@@ -1246,8 +1246,8 @@ URLs are configured yet):
 - `VisitorActivatedNotificationListener` sends the certificate on two paths,
   both gated on `ACTIVE`: `VisitorStatusChangedEvent` with `newStatus == ACTIVE`
   (a transition), and `VisitorCreatedEvent` when the newly created visitor is
-  already `ACTIVE` (the default status), so visitors created active still get a
-  certificate without a separate activation step. Unlike
+  already `ACTIVE`. Since new visitors start `PENDING_ACTIVATION`, in practice the
+  certificate goes out on the activation transition. Unlike
   the sibling `visitorbenefit.VisitorStatusChangedListener` (which stays
   synchronous and in-transaction because it must mirror the status onto
   `VisitorBenefit` rows consistently), this listener uses
@@ -1292,7 +1292,7 @@ URLs are configured yet):
   with the first word of the issuing insurer's name uppercased as prefix and
   the mint-time calendar year as a label — the sequence itself is global and
   never resets). `VisitorServiceImpl` mints it once, the first time a visitor
-  transitions to `ACTIVE` (either at `create()` or via `applyStatusUpdate()`),
+  transitions to `ACTIVE` (via `applyStatusUpdate()`; `create()` only mints if a visitor is created already `ACTIVE`),
   and persists it on `Visitor`; it's left untouched on any later
   `SUSPENDED → ACTIVE` reactivation, so one visitor keeps the same serial for
   the life of their cover even though the certificate email itself is

@@ -110,7 +110,7 @@ public class Visitor extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private VisitorStatus visitorStatus = VisitorStatus.ACTIVE;
+    private VisitorStatus visitorStatus = VisitorStatus.PENDING_ACTIVATION;
 
     @Convert(converter = EncryptedStringConverter.class)
     @Column(columnDefinition = "text")

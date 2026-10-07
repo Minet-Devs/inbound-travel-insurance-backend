@@ -13,7 +13,7 @@ import static org.junit.jupiter.params.provider.Arguments.arguments;
 class VisitorStatusTest {
 
     private static final Set<String> ALLOWED = Set.of(
-            "PENDING->ACTIVE",
+            "PENDING_ACTIVATION->ACTIVE",
             "ACTIVE->SUSPENDED",
             "ACTIVE->DEACTIVATED",
             "SUSPENDED->ACTIVE",
