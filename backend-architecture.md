@@ -1353,6 +1353,11 @@ URLs are configured yet):
   the two Thymeleaf templates into one HTML document — each page keeps its
   own independent layout/margins, and the certificate/receipt templates
   didn't need to change.
+- Both the certificate and the premium receipt use the Minet red-themed design
+  (red `#e32727` accents, slab-serif font stack `Rockwell, 'Roboto Slab', Georgia, serif`)
+  and end with an "Administered by Minet Kenya Consulting" footer carrying the Minet
+  logo (`templates/assets/minet-logo.png`, loaded once by `PolicyDocumentRenderer`
+  and passed to both templates as the `minetLogoUrl` data URI).
 - The premium receipt is rendered the same way as the certificate —
   `PolicyDocumentRenderer.renderPremiumReceiptPdf` processes
   `templates/premium-receipt.html` (Thymeleaf) to HTML then to PDF via

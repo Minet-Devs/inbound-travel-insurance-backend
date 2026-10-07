@@ -272,6 +272,40 @@ class PolicyDocumentRendererTest {
         assertThat(new String(pdf, 0, 4, StandardCharsets.US_ASCII)).isEqualTo("%PDF");
     }
 
+    @Test
+    void certificateShowsMinetAdministratorFooterWithLogo() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("Administered by Minet Kenya Consulting");
+        assertThat(html).contains("src=\"data:image/png;base64,");
+    }
+
+    @Test
+    void certificateUsesRedBrandColour() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("#e32727").doesNotContain("rgba(15, 59, 135, 1)");
+    }
+
+    @Test
+    void premiumReceiptShowsMinetAdministratorFooterWithLogo() {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        String html = renderer.renderPremiumReceiptHtml(samplePremiumReceiptData());
+
+        assertThat(html).contains("Administered by Minet Kenya Consulting");
+        assertThat(html).contains("src=\"data:image/png;base64,");
+        assertThat(html).contains("#e32727");
+    }
+
     private PremiumReceiptData samplePremiumReceiptData() {
         return new PremiumReceiptData(
                 "Jane Traveler",

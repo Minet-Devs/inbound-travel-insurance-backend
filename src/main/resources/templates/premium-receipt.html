@@ -5,14 +5,14 @@
     <style>
         @page { size: A4; margin: 1.5cm; }
         * { box-sizing: border-box; }
-        body { font-family: Helvetica, Arial, sans-serif; font-size: 9pt; color: #1a1a1a; margin: 0; padding: 0; }
+        body { font-family: Rockwell, 'Roboto Slab', Georgia, serif; font-size: 9pt; color: #1a1a1a; margin: 0; padding: 0; }
         .voucher { border: 0.75pt solid #cccccc; }
         .masthead { padding: 12pt 14pt 0 14pt; text-align: center; }
         .logo-img { max-height: 34pt; max-width: 160pt; }
         .logo-box { width: 160pt; height: 34pt; margin: 0 auto; border: 0.75pt dashed #9a9a9a;
                     color: #9a9a9a; text-align: center; font-size: 7pt; letter-spacing: 1pt; }
         .logo-box div { padding-top: 12pt; }
-        .banner { background: #c8102e; color: #ffffff; font-size: 15pt; font-weight: bold;
+        .banner { background: #e32727; color: #ffffff; font-size: 15pt; font-weight: bold;
                    letter-spacing: 0.5pt; padding: 8pt 14pt; margin-top: 10pt; }
         .address-row { margin: 10pt 14pt 0 14pt; }
         .address-table { width: 100%; border-collapse: separate; border-spacing: 8pt 0; }
@@ -30,8 +30,12 @@
         .words-box { border: 0.5pt solid #cccccc; font-size: 8.5pt;
                      padding: 6pt 14pt; margin: 0 14pt 12pt 14pt; }
         .words-label { font-weight: bold; margin-right: 4pt; }
-        .thankyou { text-align: center; font-size: 9.5pt; font-weight: bold; letter-spacing: 1pt;
-                    padding: 0 0 12pt 0; }
+        .thankyou { text-align: center; font-size: 9.5pt; font-weight: bold; letter-spacing: 1pt; }
+        .admin { width: 100%; border-collapse: collapse; padding: 0 14pt 10pt 14pt; }
+        .admin td { vertical-align: middle; font-size: 7.5pt; color: #666666; padding: 0 14pt 10pt 14pt; width: 33%; }
+        .admin td.mid { text-align: center; }
+        .admin td.logo { text-align: right; }
+        .minet-logo { height: 20pt; }
     </style>
 </head>
 <body>
@@ -88,7 +92,13 @@
         <span th:text="${totalPremiumInWords}"></span>
     </div>
 
-    <div class="thankyou">THANK YOU</div>
+    <table class="admin">
+        <tr>
+            <td>Administered by Minet Kenya Consulting</td>
+            <td class="mid"><div class="thankyou">THANK YOU</div></td>
+            <td class="logo"><img class="minet-logo" th:src="${minetLogoUrl}" alt="Minet"/></td>
+        </tr>
+    </table>
 </div>
 </body>
 </html>

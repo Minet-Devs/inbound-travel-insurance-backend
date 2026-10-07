@@ -14,6 +14,7 @@ import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.context.Context;
 import org.thymeleaf.spring6.SpringTemplateEngine;
@@ -26,6 +27,7 @@ import java.net.URLConnection;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -57,6 +59,8 @@ public class PolicyDocumentRenderer {
     private static final int POLICY_AGREEMENT_PAGE_INDEX = 2;
     private static final float AGREEMENT_FONT_SIZE = 9.5f;
     private static final float AGREEMENT_TIGHT_FONT_SIZE = 7f;
+    private static final String MINET_LOGO_RESOURCE = "templates/assets/minet-logo.png";
+    private static final String MINET_LOGO_DATA_URI = loadMinetLogoDataUri();
     private static final PDFont AGREEMENT_FONT = new PDType1Font(Standard14Fonts.FontName.HELVETICA);
     private static final String SIGNED_AT_LOCATION = "Nairobi";
     private static final Pattern PO_BOX_NUMBER = Pattern.compile("(?i)\\bbox\\s*([\\w-]+)");
@@ -77,8 +81,17 @@ public class PolicyDocumentRenderer {
         this.templateEngine = templateEngine;
     }
 
+    private static String loadMinetLogoDataUri() {
+        try (var in = new ClassPathResource(MINET_LOGO_RESOURCE).getInputStream()) {
+            return "data:image/png;base64," + Base64.getEncoder().encodeToString(in.readAllBytes());
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to load " + MINET_LOGO_RESOURCE, ex);
+        }
+    }
+
     String renderHtml(PolicyDocumentData data) {
         Context context = new Context();
+        context.setVariable("minetLogoUrl", MINET_LOGO_DATA_URI);
         context.setVariable("data", data);
         context.setVariable("underwriterName", String.join(", ", data.insurerNames()));
         context.setVariable("underwriterLogoUrl", data.underwriterLogoUrl());
@@ -118,6 +131,7 @@ public class PolicyDocumentRenderer {
     String renderPremiumReceiptHtml(PremiumReceiptData data) {
         Context context = new Context();
         context.setVariable("receipt", data);
+        context.setVariable("minetLogoUrl", MINET_LOGO_DATA_URI);
         context.setVariable("generatedDate", LocalDate.now().format(SHORT_DATE));
         context.setVariable("insurerLogoUrl", data.insurerLogoUrl());
         context.setVariable("totalPremiumInWords", AmountInWordsConverter.toWords(data.totalPremium()));

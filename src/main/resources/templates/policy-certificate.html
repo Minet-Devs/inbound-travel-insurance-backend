@@ -7,12 +7,12 @@
         @page { size: A4; margin: 1cm; }
         * { box-sizing: border-box; }
         body {
-            font-family: Helvetica, Arial, sans-serif;
-            font-size: 9.5pt;
+            font-family: Rockwell, 'Roboto Slab', Georgia, serif;
+            font-size: 9pt;
             color: #1a1a1a;
             margin: 0;
         }
-        .cert { border: 1.5pt solid rgba(15, 59, 135, 1); padding: 12pt; }
+        .cert { border: 1.5pt solid #e32727; padding: 12pt; }
 
         /* Masthead */
         .masthead { width: 100%; text-align: center; }
@@ -27,7 +27,7 @@
 
         /* Title band */
         .title-band { text-align: center; margin-top: 8pt; padding: 6pt 0; border-top: 0.75pt solid #cfcfcf; border-bottom: 0.75pt solid #cfcfcf; }
-        .title-band .t2 { font-size: 9.5pt; margin-top: 3pt; }
+        .title-band .t2 { font-size: 9.5pt; font-weight: bold; margin-top: 3pt; }
         .title-band .t3 { font-size: 7.5pt; color: #555555; margin-top: 3pt; font-style: italic; }
 
         /* Meta strip */
@@ -39,43 +39,48 @@
         /* Section headers */
         .section { margin-top: 7pt; }
         .section-title {
-            background-color: #e8edf7; color: rgba(15, 59, 135, 1);
+            background-color: #fadcdc; color: #e32727;
             font-size: 9pt; font-weight: bold; letter-spacing: 1.5pt;
-            padding: 4pt 8pt; border-left: 3pt solid rgba(15, 59, 135, 1);
+            padding: 4pt 8pt; border-left: 3pt solid #e32727;
         }
 
         /* Field grid */
         .fields { width: 100%; border-collapse: collapse; margin-top: 6pt; }
-        .fields td { vertical-align: top; padding: 4pt 8pt; width: 50%; }
+        .fields td { vertical-align: top; padding: 2.5pt 8pt; width: 50%; }
         .fields .k { font-size: 7pt; letter-spacing: 0.5pt; color: #777777; text-transform: uppercase; display: block; }
-        .fields .v { font-size: 10pt; color: #111111; }
+        .fields .v { font-size: 10pt; font-weight: bold; color: #111111; }
 
         /* Benefits table */
         .benefits { width: 100%; border-collapse: collapse; margin-top: 6pt; }
         .benefits th {
-            background-color: rgba(15, 59, 135, 1); color: #ffffff;
+            background-color: #e32727; color: #ffffff;
             text-align: left; font-size: 8.5pt; letter-spacing: 0.5pt;
             padding: 5pt 8pt;
         }
         .benefits th.amt, .benefits td.amt { text-align: right; }
-        .benefits td { border-bottom: 0.5pt solid #d8d8d8; padding: 5pt 8pt; font-size: 9.5pt; }
+        .benefits td { border-bottom: 0.5pt solid #d8d8d8; padding: 3.5pt 8pt; font-size: 9pt; }
         .empty { color: #777777; font-style: italic; }
         .benefit-note { font-size: 7.5pt; color: #555555; margin-top: 3pt; font-style: italic; }
 
         /* Covers list */
         .covers { margin: 6pt 0 0 0; padding-left: 16pt; }
-        .covers li { margin-bottom: 2pt; }
+        .covers li { margin-bottom: 1pt; font-size: 8.5pt; font-weight: bold; }
 
         /* Assistance */
         .assist { margin-top: 6pt; line-height: 1.5; }
         .assist .lbl { font-weight: bold; }
-        .assist .hotline { font-weight: bold; color: #c00000; }
+        .assist .hotline { font-weight: bold; color: #e32727; }
 
         /* Signature */
         .sign { width: 100%; border-collapse: collapse; margin-top: 8pt; }
         .sign td { vertical-align: bottom; width: 50%; padding: 0 6pt; }
         .sign .line { border-top: 0.75pt solid #333333; padding-top: 4pt; font-size: 8.5pt; }
         .sign .sysgen { text-align: right; font-size: 8pt; color: #555555; }
+
+        .admin { width: 100%; border-collapse: collapse; margin-top: 6pt; }
+        .admin td { vertical-align: bottom; font-size: 7.5pt; color: #666666; }
+        .admin td.logo { text-align: right; }
+        .minet-logo { height: 20pt; }
 
         .footer { margin-top: 6pt; padding-top: 4pt; border-top: 0.75pt solid #cfcfcf; font-size: 7.5pt; color: #666666; line-height: 1.4; }
     </style>
@@ -206,6 +211,13 @@
         Personal data on this certificate is processed in accordance with the Data Protection Act
         No. 24 of 2019.
     </div>
+
+    <table class="admin">
+        <tr>
+            <td>Administered by Minet Kenya Consulting</td>
+            <td class="logo"><img class="minet-logo" th:src="${minetLogoUrl}" alt="Minet"/></td>
+        </tr>
+    </table>
 
 </div>
 </body>
