@@ -225,11 +225,11 @@ pipeline {
 def getBranchForEnvironment() {
     switch(env.ENVIRONMENT) {
         case 'dev':
-            return 'main'
+            return 'dev'
         case 'uat':
             return 'uat'
         case 'production':
-            return 'production'
+            return 'main'
         default:
             return 'master'
     }
