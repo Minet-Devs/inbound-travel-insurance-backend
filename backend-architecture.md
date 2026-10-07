@@ -1832,6 +1832,12 @@ Main Menu → 1. Find Hospital
   or `application.yml`.
 - Access tokens are short-lived and paired with refresh tokens (handled by the
   `auth` feature).
+- **CORS (`CorsConfig`):** browser origins allowed to call the API come from
+  `app.cors.allowed-origins` (env `CORS_ALLOWED_ORIGINS`, comma-separated;
+  defaults to the production web app plus localhost dev ports). Wired into
+  the filter chain with `http.cors(...)` so preflight `OPTIONS` requests are
+  answered before authentication. Allowed methods: GET, POST, PUT, PATCH,
+  DELETE, OPTIONS.
 - Passwords are hashed with BCrypt (`PasswordEncoder` bean in
   `SecurityConfig`).
 - **Field-level encryption at rest (`common/crypto`):** sensitive PII and
