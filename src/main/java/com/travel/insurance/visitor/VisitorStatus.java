@@ -5,14 +5,14 @@ import java.util.Map;
 import java.util.Set;
 
 public enum VisitorStatus {
-    PENDING_ACTIVATION,
+    PENDING,
     ACTIVE,
     DEACTIVATED,
     SUSPENDED;
 
-    // Lifecycle: PENDING_ACTIVATION -> ACTIVE, ACTIVE <-> SUSPENDED, and DEACTIVATED is terminal.
+    // Lifecycle: PENDING -> ACTIVE, ACTIVE <-> SUSPENDED, and DEACTIVATED is terminal.
     private static final Map<VisitorStatus, Set<VisitorStatus>> ALLOWED_TRANSITIONS = Map.of(
-            PENDING_ACTIVATION, EnumSet.of(ACTIVE),
+            PENDING, EnumSet.of(ACTIVE),
             ACTIVE, EnumSet.of(SUSPENDED, DEACTIVATED),
             SUSPENDED, EnumSet.of(ACTIVE, DEACTIVATED),
             DEACTIVATED, EnumSet.noneOf(VisitorStatus.class));

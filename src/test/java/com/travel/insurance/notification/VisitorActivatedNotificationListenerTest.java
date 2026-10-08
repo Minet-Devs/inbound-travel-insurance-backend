@@ -86,12 +86,6 @@ class VisitorActivatedNotificationListenerTest {
                 premiumReceiptService, renderer, emailService, mailProperties);
     }
 
-    private Visitor activeVisitor() {
-        Visitor visitor = sampleVisitor();
-        visitor.setVisitorStatus(VisitorStatus.ACTIVE);
-        return visitor;
-    }
-
     private Visitor sampleVisitor() {
         Visitor visitor = new Visitor();
         visitor.setId(visitorId);
@@ -258,7 +252,7 @@ class VisitorActivatedNotificationListenerTest {
 
     @Test
     void sendsCertificateWhenVisitorCreatedAlreadyActive() {
-        when(visitorService.getEntityById(visitorId)).thenReturn(activeVisitor());
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
@@ -274,7 +268,7 @@ class VisitorActivatedNotificationListenerTest {
     @Test
     void doesNotSendCertificateWhenCreatedVisitorNotActive() {
         Visitor pending = sampleVisitor();
-        pending.setVisitorStatus(VisitorStatus.PENDING_ACTIVATION);
+        pending.setVisitorStatus(VisitorStatus.PENDING);
         when(visitorService.getEntityById(visitorId)).thenReturn(pending);
 
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
