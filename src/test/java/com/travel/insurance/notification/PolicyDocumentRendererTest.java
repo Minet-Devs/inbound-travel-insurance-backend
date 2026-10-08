@@ -92,14 +92,16 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
-    void coverPeriodRunsFromDateInToPolicyExpiryDate() {
+    void coverPeriodShowsValidityAsPerEta() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of(
                 new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
 
         String html = renderer.renderHtml(data);
 
-        assertThat(html).contains("01 Aug 2026 — 01 Aug 2027 (365 days)");
+        assertThat(html).contains("On arrival (Validity as per ETA)");
+        assertThat(html).doesNotContain("01 Aug 2026 — 01 Aug 2027");
+        assertThat(html).doesNotContain("365 days");
         assertThat(html).doesNotContain("01 Nov 2026");
     }
 

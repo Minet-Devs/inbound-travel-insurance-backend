@@ -668,10 +668,10 @@ Policy
   is a derived, non-persisted (`@Transient`) property — always `dateIn` plus
   365 days, computed on read rather than stored, so it can never drift from
   `dateIn`. It's exposed on `VisitorResponse` and threaded through
-  `PolicyDocumentData` so the certificate's "Cover Period" shows `dateIn` to
-  `policyExpiryDate` (not `dateOut`, which remains the visitor's own declared
-  travel end date, used for the 1-to-365-day validation above and reporting —
-  the two dates serve different purposes and are allowed to differ). It also carries a
+  `PolicyDocumentData`. The certificate's "Cover Period" no longer renders
+  dates: it is the fixed text "On arrival (Validity as per ETA)" for every
+  policy. `dateOut` remains the visitor's own declared travel end date, used
+  for the 1-to-365-day validation above and reporting. It also carries a
   set of nullable border/payment-tracking attributes populated after
   onboarding: `paymentReference`, `etaReference` (eTA/authorization
   reference), `portOfEntry`, and `entryTimestamp`/`exitTimestamp` (actual

@@ -26,7 +26,6 @@ import java.net.URI;
 import java.net.URLConnection;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -101,13 +100,6 @@ public class PolicyDocumentRenderer {
         context.setVariable("issueDate", LocalDate.now().format(LONG_DATE));
         context.setVariable("dateOfBirthLabel",
                 data.dateOfBirth() != null ? data.dateOfBirth().format(LONG_DATE) : "");
-        context.setVariable("coverStart",
-                data.dateIn() != null ? data.dateIn().format(SHORT_DATE) : "");
-        context.setVariable("coverEnd",
-                data.policyExpiryDate() != null ? data.policyExpiryDate().format(SHORT_DATE) : "");
-        context.setVariable("coverDays",
-                data.dateIn() != null && data.policyExpiryDate() != null
-                        ? ChronoUnit.DAYS.between(data.dateIn(), data.policyExpiryDate()) : 0);
         context.setVariable("benefitLines", data.benefits().stream()
                 .map(line -> new BenefitLineView(line.benefitName(), line.limitAmount()))
                 .toList());
