@@ -59,7 +59,7 @@ com.travel.insurance/
 │   ├── JpaAuditingConfig.java              # @EnableJpaAuditing + AuditorAware
 │   ├── OpenApiConfig.java                  # Swagger/OpenAPI metadata
 │   ├── RabbitConfig.java                   # Exchanges, queues, bindings
-│   ├── MailProperties.java                 # app.mail.* (from address, emergency-assistance contact)
+│   ├── MailProperties.java                 # app.mail.* (from address, activation BCC list, emergency-assistance contact)
 │   └── UssdProperties.java                 # ussd.feedback.* (default-scheme-name, email.to)
 │
 ├── 📁 common/                              # Shared, feature-agnostic code
@@ -1243,6 +1243,11 @@ download links (a clickable Google Play badge image linking to
 `https://play.google.com/store/apps/details?id=com.kenyacares.mobile`, with the
 badge hosted on Dropbox and rewritten via `LogoUrlNormalizer`; the iPhone / App
 Store link is omitted until the app is approved):
+
+The activation email is also BCC'd to the internal recipients in
+`app.mail.activation-bcc` (env `ACTIVATION_BCC`, comma-separated; defaults to four
+Minet staff addresses). `EmailService` has a `send(...)` overload taking a BCC list;
+an empty list adds no BCC header.
 
 - `VisitorActivatedNotificationListener` sends the certificate on two paths,
   both gated on `ACTIVE`: `VisitorStatusChangedEvent` with `newStatus == ACTIVE`

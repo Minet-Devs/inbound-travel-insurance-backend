@@ -80,6 +80,7 @@ app:
       enabled: ${APP_ENCRYPTION_BACKFILL_ENABLED:false}
   mail:
     from: ${SMTP_USERNAME}
+    activation-bcc: ${ACTIVATION_BCC:hussein.mishobo@minet.co.ke,david.muiruri@minet.co.ke,Carolyne.Nekesa@minet.co.ke,Linus.Kemboi@minet.co.ke}
     emergency-assistance:
       phone: ${EMERGENCY_ASSISTANCE_PHONE:}
       email: ${EMERGENCY_ASSISTANCE_EMAIL:inbound.travel@minet.co.ke}

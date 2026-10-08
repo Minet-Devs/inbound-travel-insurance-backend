@@ -35,24 +35,29 @@ public class EmailService {
 
     public void send(String from, String to, String subject, String htmlBody,
                       List<EmailAttachment> attachments) {
-        sendVia(null, from, to, subject, htmlBody, attachments);
+        sendVia(null, from, to, List.of(), subject, htmlBody, attachments);
     }
 
     public void send(String from, String to, String subject, String htmlBody) {
-        sendVia(null, from, to, subject, htmlBody, List.of());
+        sendVia(null, from, to, List.of(), subject, htmlBody, List.of());
     }
 
     public void send(SmtpCredentials credentials, String from, String to, String subject, String htmlBody,
                       List<EmailAttachment> attachments) {
-        sendVia(credentials, from, to, subject, htmlBody, attachments);
+        sendVia(credentials, from, to, List.of(), subject, htmlBody, attachments);
+    }
+
+    public void send(SmtpCredentials credentials, String from, String to, List<String> bcc, String subject,
+                      String htmlBody, List<EmailAttachment> attachments) {
+        sendVia(credentials, from, to, bcc, subject, htmlBody, attachments);
     }
 
     public void send(SmtpCredentials credentials, String from, String to, String subject, String htmlBody) {
-        sendVia(credentials, from, to, subject, htmlBody, List.of());
+        sendVia(credentials, from, to, List.of(), subject, htmlBody, List.of());
     }
 
-    private void sendVia(SmtpCredentials credentials, String from, String to, String subject, String htmlBody,
-                          List<EmailAttachment> attachments) {
+    private void sendVia(SmtpCredentials credentials, String from, String to, List<String> bcc,
+                          String subject, String htmlBody, List<EmailAttachment> attachments) {
         try {
             if (credentials != null) {
                 log.info("Sending email via SMTP host [{}:{}] as user [{}]",
@@ -63,6 +68,9 @@ public class EmailService {
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(from);
             helper.setTo(to);
+            if (bcc != null && !bcc.isEmpty()) {
+                helper.setBcc(bcc.toArray(String[]::new));
+            }
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
             if (attachments != null) {
