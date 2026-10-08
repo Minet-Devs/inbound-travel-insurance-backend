@@ -93,6 +93,8 @@ class VisitorActivatedNotificationListenerTest {
         listener = new VisitorActivatedNotificationListener(
                 visitorService, policyService, visitorBenefitService, benefitService, insurerService,
                 premiumReceiptService, renderer, emailService, mailProperties);
+        lenient().when(emailService.send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList()))
+                .thenReturn(true);
         lenient().when(benefitService.listAll()).thenReturn(List.of(
                 new BenefitResponse(catalogBenefitId, "Medical Expenses", new BigDecimal("20000.00"),
                         Instant.now(), Instant.now())));
@@ -291,6 +293,37 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
         verifyNoInteractions(renderer, emailService);
+        verify(visitorService, never()).markActivationEmailSent(any());
+    }
+
+    @Test
+    void resendIfPendingSendsForActiveVisitorNeverEmailed() {
+        stubFullSend();
+
+        listener.resendActivationEmailIfPending(visitorId);
+
+        verify(visitorService).markActivationEmailSent(visitorId);
+    }
+
+    @Test
+    void resendIfPendingSkipsVisitorAlreadyEmailed() {
+        Visitor emailed = sampleVisitor();
+        emailed.setActivationEmailSentAt(Instant.now());
+        when(visitorService.getEntityById(visitorId)).thenReturn(emailed);
+
+        listener.resendActivationEmailIfPending(visitorId);
+
+        verifyNoInteractions(renderer, emailService);
+    }
+
+    @Test
+    void doesNotMarkActivationEmailSentWhenDeliveryFails() {
+        stubFullSend();
+        when(emailService.send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList()))
+                .thenReturn(false);
+
+        listener.onVisitorBenefitAssigned(new VisitorBenefitAssignedEvent(visitorId));
+
         verify(visitorService, never()).markActivationEmailSent(any());
     }
 

@@ -14,6 +14,7 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -145,6 +146,16 @@ public class VisitorServiceImpl implements VisitorService {
         Visitor visitor = getEntityById(id);
         visitor.setActivationEmailSentAt(Instant.now());
         visitorRepository.save(visitor);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> findIdsAwaitingActivationEmail(Instant createdAfter, Instant createdBefore, int limit) {
+        return visitorRepository
+                .findByVisitorStatusAndActivationEmailSentAtIsNullAndCreatedDateBetween(
+                        VisitorStatus.ACTIVE, createdAfter, createdBefore,
+                        PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdDate")))
+                .stream().map(Visitor::getId).toList();
     }
 
     @Override

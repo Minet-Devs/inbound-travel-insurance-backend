@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -577,6 +578,20 @@ class VisitorServiceImplTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).fullName()).isEqualTo("Jane Traveler");
+    }
+
+    @Test
+    void findIdsAwaitingActivationEmailReturnsIdsOfActiveUnemailedVisitors() {
+        Visitor visitor = new Visitor();
+        UUID id = UUID.randomUUID();
+        visitor.setId(id);
+        Instant after = Instant.now().minusSeconds(100);
+        Instant before = Instant.now();
+        when(visitorRepository.findByVisitorStatusAndActivationEmailSentAtIsNullAndCreatedDateBetween(
+                eq(VisitorStatus.ACTIVE), eq(after), eq(before), any(Pageable.class)))
+                .thenReturn(List.of(visitor));
+
+        assertThat(visitorService.findIdsAwaitingActivationEmail(after, before, 10)).containsExactly(id);
     }
 
     @Test

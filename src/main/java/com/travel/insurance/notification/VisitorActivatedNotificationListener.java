@@ -124,6 +124,19 @@ public class VisitorActivatedNotificationListener {
         sendActivationDocumentQuietly(event.visitorId());
     }
 
+    /**
+     * Re-attempts the activation email for a visitor that never got it (SMTP outage,
+     * incomplete benefits at the time). No-op unless the visitor is still ACTIVE and
+     * un-emailed, so it can never produce a duplicate.
+     */
+    public void resendActivationEmailIfPending(UUID visitorId) {
+        Visitor visitor = visitorService.getEntityById(visitorId);
+        if (visitor.getVisitorStatus() != VisitorStatus.ACTIVE || visitor.getActivationEmailSentAt() != null) {
+            return;
+        }
+        sendActivationDocumentQuietly(visitorId);
+    }
+
     private void sendActivationDocumentQuietly(UUID visitorId) {
         try {
             sendActivationDocument(visitorId);
@@ -202,7 +215,7 @@ public class VisitorActivatedNotificationListener {
             attachments.add(new EmailAttachment(WELCOME_PACK_ATTACHMENT_NAME, welcomePackPdf));
         }
         InsurerMailSettings mailSettings = resolveMailSettings(insurer);
-        emailService.send(
+        boolean sent = emailService.send(
                 mailSettings.credentials(),
                 mailSettings.from(),
                 visitor.getEmail(),
@@ -210,6 +223,11 @@ public class VisitorActivatedNotificationListener {
                 "Welcome to Kenya – Your Medical Cover Is Now Active",
                 buildActivationEmailHtml(firstNameOf(visitor.getFullName())),
                 attachments);
+        if (!sent) {
+            log.error("Activation email for visitor {} to {} was not delivered; leaving it unmarked so it can be re-sent",
+                    visitorId, visitor.getEmail());
+            return;
+        }
         visitorService.markActivationEmailSent(visitorId);
         log.info("Sent activation email for visitor {} to {}", visitorId, visitor.getEmail());
     }

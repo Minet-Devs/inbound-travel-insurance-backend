@@ -75,7 +75,9 @@ com.travel.insurance/
 │   ├── 📁 messaging/
 │   │   └── EventPublisher.java             # Thin wrapper over RabbitTemplate
 │   ├── 📁 email/
-│   │   └── EmailService.java               # Thin wrapper over JavaMailSender
+│   │   └── EmailService.java               # Thin wrapper over JavaMailSender; sends serialized,
+│   │                                       # retries transient SMTP 4xx (e.g. 432 concurrent limit)
+│   │                                       # up to 3x with backoff; 7-arg send returns delivered?
 │   └── 📁 util/
 │
 ├── 📁 notification/                        # Feature: Visitor-facing notifications
@@ -83,7 +85,11 @@ com.travel.insurance/
 │   │                                       # on VisitorStatusChangedEvent / VisitorCreatedEvent;
 │   │                                       # composes Visitor+Policy+VisitorBenefit+Insurer data
 │   │                                       # and sends the visitor's single activation email
+│   │                                       # (marked sent only if EmailService reports delivery)
 │   │                                       # (certificate + Welcome Pack copy/attachment)
+│   ├── ActivationEmailResendJob.java       # @Scheduled safety net: re-sends the activation email to
+│   │                                       # ACTIVE visitors with activationEmailSentAt null (app.mail.resend.*:
+│   │                                       # interval 10m, min-age 5m, max-age 7d, batch 50, enabled flag)
 │   ├── PolicyDocumentRenderer.java         # Thymeleaf → HTML → PDF (openhtmltopdf)
 │   └── PolicyDocumentData.java             # Internal template data holder (not a DTO)
 │
@@ -1273,6 +1279,16 @@ an empty list adds no BCC header.
   triggers a send once the last catalog benefit is assigned — only for an
   `ACTIVE` visitor whose `activationEmailSentAt` is null, so this path sends at
   most once.
+- `activationEmailSentAt` is only stamped when `EmailService` reports delivery
+  (it retries transient SMTP 4xx replies up to 3 times). Visitors still
+  unstamped — SMTP outage, or benefits incomplete at activation time — are
+  picked up by `ActivationEmailResendJob` (`@Scheduled`, `app.mail.resend.*`:
+  `interval` PT10M (ISO-8601), `min-age` PT5M so the AFTER_COMMIT listener goes first,
+  `max-age` P7D, `batch-size` 50, `enabled`). It calls
+  `VisitorActivatedNotificationListener.resendActivationEmailIfPending`, which
+  re-checks the visitor is still ACTIVE and un-emailed. Visitors created before
+  the `activation_email_sent_at` migration were back-filled as already emailed,
+  so they are never re-sent. Multi-instance deployments could rarely send twice.
 - The listener composes data via `VisitorService`, `PolicyService`,
   `VisitorBenefitService`, and `InsurerService` (the same "fan-in at a
   boundary" shape already used for `VisitorDetailResponse`), builds a
