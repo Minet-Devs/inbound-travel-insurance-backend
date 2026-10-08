@@ -1245,7 +1245,7 @@ badge hosted on Dropbox and rewritten via `LogoUrlNormalizer`; the iPhone / App
 Store link is omitted until the app is approved):
 
 The activation email is also BCC'd to the internal recipients in
-`app.mail.activation-bcc` (env `ACTIVATION_BCC`, comma-separated; defaults to four
+`app.mail.activation-bcc` (env `ACTIVATION_BCC`, comma-separated; defaults to two
 Minet staff addresses). `EmailService` has a `send(...)` overload taking a BCC list;
 an empty list adds no BCC header.
 
