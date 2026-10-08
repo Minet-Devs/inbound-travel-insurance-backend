@@ -7,6 +7,7 @@ import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +23,9 @@ public interface VisitorService {
     VisitorResponse getByPassportNumber(String passportNumber);
 
     Page<VisitorResponse> list(UUID insurerId, Pageable pageable);
+
+    List<VisitorResponse> listForExport(UUID insurerId, VisitorStatus status,
+                                        LocalDate dateFrom, LocalDate dateTo);
 
     VisitorResponse update(UUID id, VisitorRequest request);
 

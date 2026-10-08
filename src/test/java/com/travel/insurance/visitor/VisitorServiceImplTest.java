@@ -562,4 +562,20 @@ class VisitorServiceImplTest {
 
         assertThat(visitorService.findByEmail("unknown@example.com")).isEmpty();
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void listForExportMapsMatchingVisitors() {
+        Visitor visitor = new Visitor();
+        visitor.setId(UUID.randomUUID());
+        visitor.setFullName("Jane Traveler");
+        when(visitorRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class),
+                any(org.springframework.data.domain.Sort.class))).thenReturn(List.of(visitor));
+
+        List<VisitorResponse> result = visitorService.listForExport(
+                insurerId, VisitorStatus.ACTIVE, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).fullName()).isEqualTo("Jane Traveler");
+    }
 }

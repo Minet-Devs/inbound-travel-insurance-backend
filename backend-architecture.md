@@ -360,7 +360,7 @@ com.travel.insurance/
 │                                            # servicesInserted, servicesSkipped
 │
 ├── 📁 report/                               # Feature: Claim receipts & provider reports
-│   ├── ReportController.java                # /api/v1/reports — claim receipt + provider report
+│   ├── ReportController.java                # /api/v1/reports — claim receipt + provider report + visitor Excel export
 │   ├── ReportService.java                   # Interface
 │   ├── ReportServiceImpl.java               # PDF (Thymeleaf + openhtmltopdf), Excel (POI),
 │   │                                       # JSON paginated provider report
@@ -1670,6 +1670,23 @@ paginated JSON (for UI tables), PDF, or Excel.
   status/count breakdown table, no footer.
 - **Access**: all authenticated roles (USER, ADMIN, AGENT, PROVIDER_USER,
   INSURER_USER).
+
+### Visitor Excel Export
+
+- **Endpoint**: `GET /api/v1/reports/visitors/excel` — XLSX download
+  (`visitors-report.xlsx`, single `Visitors` sheet).
+- **Columns**: Visitor Name, Gender, Passport Number, Nationality, Travel
+  Dates (`yyyy-MM-dd to yyyy-MM-dd`, from `dateIn`/`dateOut`), Email,
+  Telephone, Insurer Name (resolved via `InsurerService.namesByIds`).
+- **Optional filters**: `insurerId`, `status` (`VisitorStatus`; unknown value
+  → 400), `dateFrom`/`dateTo` (inclusive, applied to `dateIn`). Rows are
+  ordered by `dateIn` descending (name/passport are encrypted so cannot be
+  sorted in SQL). Backed by `VisitorService.listForExport` (JPA
+  `Specification`; the repository now extends `JpaSpecificationExecutor`).
+- **Access**: any authenticated user, but `INSURER_USER` is always scoped to
+  their own insurer (the `insurerId` param is ignored; no linked insurer →
+  header-only sheet). ADMIN may export all or filter by insurer. Contains
+  decrypted PII (passport, email, phone).
 
 ## Member Statement Report
 
