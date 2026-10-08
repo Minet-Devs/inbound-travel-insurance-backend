@@ -191,6 +191,13 @@ class VisitorActivatedNotificationListenerTest {
                 attachmentsCaptor.capture());
         assertThat(subjectCaptor.getValue()).isEqualTo("Welcome to Kenya – Your Medical Cover Is Now Active");
         assertThat(bodyCaptor.getValue()).contains("Dear Jane,").contains("+254 719 044 777");
+        assertThat(bodyCaptor.getValue())
+                .contains("<a href=\"https://play.google.com/store/apps/details?id=com.kenyacares.mobile\">")
+                .contains("<img src=\"https://dl.dropboxusercontent.com/scl/fi/5vd3sslx6kqno56l2ipty/playstorelogo.png")
+                .contains("alt=\"Get it on Google Play\"")
+                .doesNotContain("iPhone")
+                .doesNotContain("App Store")
+                .doesNotContain("[Insert");
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .containsExactly("Insurance Policy.pdf", "Policy Document.pdf",

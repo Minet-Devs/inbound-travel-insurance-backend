@@ -1239,9 +1239,10 @@ copy (`Welcome to Kenya – Your Medical Cover Is Now Active`, minus the "RE:"
 prefix it carried when it was a follow-up to a separate first email — with
 only one email now, "RE:" no longer applies), covering emergency contacts,
 cover benefits, accredited-hospital lookup instructions, and mobile app
-download links (the app store links are literal `[Insert Google Play link]`
-/ `[Insert Apple App Store link]` placeholders in the copy; no app store
-URLs are configured yet):
+download links (a clickable Google Play badge image linking to
+`https://play.google.com/store/apps/details?id=com.kenyacares.mobile`, with the
+badge hosted on Dropbox and rewritten via `LogoUrlNormalizer`; the iPhone / App
+Store link is omitted until the app is approved):
 
 - `VisitorActivatedNotificationListener` sends the certificate on two paths,
   both gated on `ACTIVE`: `VisitorStatusChangedEvent` with `newStatus == ACTIVE`
