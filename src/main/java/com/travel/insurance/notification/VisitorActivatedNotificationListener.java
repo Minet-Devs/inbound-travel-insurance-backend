@@ -4,6 +4,8 @@ import com.travel.insurance.common.email.EmailAttachment;
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.common.util.LogoUrlNormalizer;
+import com.travel.insurance.benefit.BenefitService;
+import com.travel.insurance.benefit.dto.BenefitResponse;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerService;
@@ -16,6 +18,7 @@ import com.travel.insurance.visitor.VisitorCreatedEvent;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.VisitorStatus;
 import com.travel.insurance.visitor.VisitorStatusChangedEvent;
+import com.travel.insurance.visitorbenefit.VisitorBenefitAssignedEvent;
 import com.travel.insurance.visitorbenefit.VisitorBenefitService;
 import com.travel.insurance.visitorbenefit.dto.VisitorBenefitResponse;
 import lombok.RequiredArgsConstructor;
@@ -31,8 +34,10 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Emails the visitor their personalized policy certificate and Welcome Pack
@@ -52,8 +57,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * be able to affect the visitor status API's correctness. Re-activation
  * (e.g. ACTIVE → SUSPENDED → ACTIVE) intentionally re-sends the email;
  * that's treated as a new, valid activation rather than a duplicate to guard
- * against. No email is sent while the visitor has no benefits assigned, since
- * the certificate must carry a schedule of benefits.
+ * against. No email is sent until the visitor has every catalog benefit assigned,
+ * since the certificate must carry a full schedule of benefits; if it was held
+ * back, {@link #onVisitorBenefitAssigned} sends it once the schedule is complete
+ * (at most once, tracked by {@code Visitor.activationEmailSentAt}).
  */
 @Component
 @RequiredArgsConstructor
@@ -79,6 +86,7 @@ public class VisitorActivatedNotificationListener {
     private final VisitorService visitorService;
     private final PolicyService policyService;
     private final VisitorBenefitService visitorBenefitService;
+    private final BenefitService benefitService;
     private final InsurerService insurerService;
     private final PremiumReceiptService premiumReceiptService;
     private final PolicyDocumentRenderer renderer;
@@ -101,6 +109,21 @@ public class VisitorActivatedNotificationListener {
         sendActivationDocumentQuietly(event.visitorId());
     }
 
+    /**
+     * Covers visitors whose activation email was held back because their
+     * benefit schedule was incomplete: once the last catalog benefit is
+     * assigned, send it. Only fires for an ACTIVE visitor that has never been
+     * emailed, so a visitor who already got the email is never sent a second.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onVisitorBenefitAssigned(VisitorBenefitAssignedEvent event) {
+        Visitor visitor = visitorService.getEntityById(event.visitorId());
+        if (visitor.getVisitorStatus() != VisitorStatus.ACTIVE || visitor.getActivationEmailSentAt() != null) {
+            return;
+        }
+        sendActivationDocumentQuietly(event.visitorId());
+    }
+
     private void sendActivationDocumentQuietly(UUID visitorId) {
         try {
             sendActivationDocument(visitorId);
@@ -114,9 +137,9 @@ public class VisitorActivatedNotificationListener {
         Visitor visitor = visitorService.getEntityById(visitorId);
         Policy policy = policyService.getEntityById(visitor.getPolicyId());
         List<VisitorBenefitResponse> visitorBenefits = visitorBenefitService.listAllByVisitor(visitorId);
-        if (visitorBenefits.isEmpty()) {
-            log.warn("Visitor {} activated with no assigned benefits yet; not sending the certificate "
-                    + "because it would have an empty schedule of benefits", visitorId);
+        if (!hasEntireCatalog(visitorBenefits)) {
+            log.warn("Visitor {} does not have every catalog benefit assigned yet; not sending the certificate "
+                    + "because its schedule of benefits would be incomplete", visitorId);
             return;
         }
 
@@ -187,7 +210,16 @@ public class VisitorActivatedNotificationListener {
                 "Welcome to Kenya – Your Medical Cover Is Now Active",
                 buildActivationEmailHtml(firstNameOf(visitor.getFullName())),
                 attachments);
+        visitorService.markActivationEmailSent(visitorId);
         log.info("Sent activation email for visitor {} to {}", visitorId, visitor.getEmail());
+    }
+
+    private boolean hasEntireCatalog(List<VisitorBenefitResponse> visitorBenefits) {
+        Set<UUID> assigned = visitorBenefits.stream()
+                .map(VisitorBenefitResponse::benefitId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<BenefitResponse> catalog = benefitService.listAll();
+        return !catalog.isEmpty() && catalog.stream().allMatch(b -> assigned.contains(b.id()));
     }
 
     private static String firstNameOf(String fullName) {

@@ -1264,9 +1264,15 @@ an empty list adds no BCC header.
   broken mail server must never affect the visitor status API's correctness.
   Re-activation (e.g. `ACTIVE` → `SUSPENDED` → `ACTIVE`) intentionally
   re-sends the certificate; that's treated as a new, valid activation, not a
-  duplicate to guard against. If the visitor has no `VisitorBenefit` rows yet,
-  nothing is sent (logged at WARN) — the certificate must carry a schedule of
-  benefits, never "No benefits assigned yet."
+  duplicate to guard against. Nothing is sent (logged at WARN) until the
+  visitor holds a `VisitorBenefit` for every live catalog benefit — the
+  certificate must carry a full schedule of benefits, never "No benefits
+  assigned yet." When the email goes out, `Visitor.activationEmailSentAt`
+  (`visitors.activation_email_sent_at`) is stamped. If it was held back,
+  `VisitorBenefitAssignedEvent` (published by `VisitorBenefitService.create`)
+  triggers a send once the last catalog benefit is assigned — only for an
+  `ACTIVE` visitor whose `activationEmailSentAt` is null, so this path sends at
+  most once.
 - The listener composes data via `VisitorService`, `PolicyService`,
   `VisitorBenefitService`, and `InsurerService` (the same "fan-in at a
   boundary" shape already used for `VisitorDetailResponse`), builds a

@@ -20,6 +20,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -137,6 +138,13 @@ public class VisitorServiceImpl implements VisitorService {
         visitor.setPassportNumberHash(passportNumberHash);
         visitor.setEmailHash(blindIndexService.hmac(request.email()));
         return visitorMapper.toResponse(visitor);
+    }
+
+    @Override
+    public void markActivationEmailSent(UUID id) {
+        Visitor visitor = getEntityById(id);
+        visitor.setActivationEmailSentAt(Instant.now());
+        visitorRepository.save(visitor);
     }
 
     @Override

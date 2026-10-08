@@ -131,4 +131,7 @@ public class Visitor extends BaseEntity {
     private String portOfEntry;
 
     private String certificateSerialNumber;
+
+    /** Set when the activation email (certificate + welcome pack) has gone out. */
+    private Instant activationEmailSentAt;
 }

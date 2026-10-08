@@ -33,6 +33,8 @@ public interface VisitorService {
 
     Visitor getEntityById(UUID id);
 
+    void markActivationEmailSent(UUID id);
+
     Visitor getEntityByPassportNumber(String passportNumber);
 
     Optional<Visitor> findByEmail(String email);

@@ -578,4 +578,17 @@ class VisitorServiceImplTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).fullName()).isEqualTo("Jane Traveler");
     }
+
+    @Test
+    void markActivationEmailSentStampsTheVisitor() {
+        UUID id = UUID.randomUUID();
+        Visitor visitor = new Visitor();
+        visitor.setId(id);
+        when(visitorRepository.findById(id)).thenReturn(Optional.of(visitor));
+
+        visitorService.markActivationEmailSent(id);
+
+        assertThat(visitor.getActivationEmailSentAt()).isNotNull();
+        verify(visitorRepository).save(visitor);
+    }
 }
