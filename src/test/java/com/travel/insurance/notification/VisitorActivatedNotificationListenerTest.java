@@ -2,6 +2,7 @@ package com.travel.insurance.notification;
 
 import com.travel.insurance.common.email.EmailAttachment;
 import com.travel.insurance.common.email.EmailService;
+import com.travel.insurance.common.email.InlineImage;
 import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.benefit.dto.BenefitResponse;
@@ -86,14 +87,14 @@ class VisitorActivatedNotificationListenerTest {
     void setUp() {
         MailProperties mailProperties = new MailProperties();
         mailProperties.setFrom("no-reply@travelinsurance.example");
-        mailProperties.setActivationBcc(List.of("hussein.mishobo@minet.co.ke", "Linus.Kemboi@minet.co.ke"));
+        mailProperties.setActivationBcc(List.of("hussein.mishobo@minet.co.ke", "Linus.Kemboi@minet.co.ke", "Carolyne.Nekesa@minet.co.ke"));
         mailProperties.getEmergencyAssistance().setPhone("+254 700 000000");
         mailProperties.getEmergencyAssistance().setEmail("assistance@example.com");
 
         listener = new VisitorActivatedNotificationListener(
                 visitorService, policyService, visitorBenefitService, benefitService, insurerService,
                 premiumReceiptService, renderer, emailService, mailProperties);
-        lenient().when(emailService.send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList()))
+        lenient().when(emailService.send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList(), anyList()))
                 .thenReturn(true);
         lenient().when(benefitService.listAll()).thenReturn(List.of(
                 new BenefitResponse(catalogBenefitId, "Medical Expenses", new BigDecimal("20000.00"),
@@ -205,6 +206,7 @@ class VisitorActivatedNotificationListenerTest {
         ArgumentCaptor<String> subjectCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<InlineImage>> inlineImagesCaptor = ArgumentCaptor.forClass(List.class);
         verify(emailService).send(
                 isNull(),
                 eq("no-reply@travelinsurance.example"),
@@ -212,9 +214,16 @@ class VisitorActivatedNotificationListenerTest {
                 bccCaptor.capture(),
                 subjectCaptor.capture(),
                 bodyCaptor.capture(),
-                attachmentsCaptor.capture());
+                attachmentsCaptor.capture(),
+                inlineImagesCaptor.capture());
+        assertThat(bodyCaptor.getValue()).contains("<img src=\"cid:email-signature\"");
+        assertThat(inlineImagesCaptor.getValue()).singleElement().satisfies(image -> {
+            assertThat(image.contentId()).isEqualTo("email-signature");
+            assertThat(image.contentType()).isEqualTo("image/png");
+            assertThat(image.content()).isNotEmpty();
+        });
         assertThat(bccCaptor.getValue()).containsExactly(
-                "hussein.mishobo@minet.co.ke", "Linus.Kemboi@minet.co.ke");
+                "hussein.mishobo@minet.co.ke", "Linus.Kemboi@minet.co.ke", "Carolyne.Nekesa@minet.co.ke");
         assertThat(subjectCaptor.getValue()).isEqualTo("Welcome to Kenya – Your Medical Cover Is Now Active");
         assertThat(bodyCaptor.getValue()).contains("Dear Jane,").contains("+254 719 044 777");
         assertThat(bodyCaptor.getValue())
@@ -265,7 +274,7 @@ class VisitorActivatedNotificationListenerTest {
                 new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE)))
                 .doesNotThrowAnyException();
 
-        verify(emailService, never()).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList());
+        verify(emailService, never()).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList(), anyList());
     }
 
     @Test
@@ -319,7 +328,7 @@ class VisitorActivatedNotificationListenerTest {
     @Test
     void doesNotMarkActivationEmailSentWhenDeliveryFails() {
         stubFullSend();
-        when(emailService.send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList()))
+        when(emailService.send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList(), anyList()))
                 .thenReturn(false);
 
         listener.onVisitorBenefitAssigned(new VisitorBenefitAssignedEvent(visitorId));
@@ -333,7 +342,7 @@ class VisitorActivatedNotificationListenerTest {
 
         listener.onVisitorBenefitAssigned(new VisitorBenefitAssignedEvent(visitorId));
 
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList());
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList(), anyList());
         verify(visitorService).markActivationEmailSent(visitorId);
     }
 
@@ -381,7 +390,7 @@ class VisitorActivatedNotificationListenerTest {
 
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
 
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList());
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList(), anyList());
     }
 
     @Test
@@ -424,7 +433,7 @@ class VisitorActivatedNotificationListenerTest {
                 eq("notify@acme.example"),
                 eq("jane.traveler@example.com"),
                 anyList(),
-                anyString(), anyString(), anyList());
+                anyString(), anyString(), anyList(), anyList());
         assertThat(credentialsCaptor.getValue())
                 .isEqualTo(new SmtpCredentials("smtp.acme.example", 587, "notify@acme.example", "s3cr3t"));
     }
@@ -442,7 +451,7 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture());
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture(), anyList());
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .contains("Policy Document.pdf");
@@ -466,7 +475,7 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture());
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture(), anyList());
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .contains("Policy Document.pdf");
@@ -492,7 +501,7 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture());
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture(), anyList());
         assertThat(attachmentsCaptor.getValue())
                 .filteredOn(attachment -> attachment.filename().equals("Policy Document.pdf"))
                 .extracting(EmailAttachment::content)
@@ -513,7 +522,7 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture());
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture(), anyList());
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .contains("Inbound-Travel-Health-Welcome-Pack.pdf");
@@ -541,6 +550,6 @@ class VisitorActivatedNotificationListenerTest {
                 eq("no-reply@travelinsurance.example"),
                 eq("jane.traveler@example.com"),
                 anyList(),
-                anyString(), anyString(), anyList());
+                anyString(), anyString(), anyList(), anyList());
     }
 }

@@ -57,35 +57,42 @@ public class EmailService {
 
     public void send(String from, String to, String subject, String htmlBody,
                       List<EmailAttachment> attachments) {
-        sendVia(null, from, to, List.of(), subject, htmlBody, attachments);
+        sendVia(null, from, to, List.of(), subject, htmlBody, attachments, List.of());
     }
 
     public void send(String from, String to, String subject, String htmlBody) {
-        sendVia(null, from, to, List.of(), subject, htmlBody, List.of());
+        sendVia(null, from, to, List.of(), subject, htmlBody, List.of(), List.of());
     }
 
     public void send(SmtpCredentials credentials, String from, String to, String subject, String htmlBody,
                       List<EmailAttachment> attachments) {
-        sendVia(credentials, from, to, List.of(), subject, htmlBody, attachments);
+        sendVia(credentials, from, to, List.of(), subject, htmlBody, attachments, List.of());
     }
 
     /** @return {@code true} if the mail was accepted by the SMTP server, {@code false} if all attempts failed */
     public boolean send(SmtpCredentials credentials, String from, String to, List<String> bcc, String subject,
                          String htmlBody, List<EmailAttachment> attachments) {
-        return sendVia(credentials, from, to, bcc, subject, htmlBody, attachments);
+        return sendVia(credentials, from, to, bcc, subject, htmlBody, attachments, List.of());
+    }
+
+    /** As above, additionally embedding {@code inlineImages} for {@code cid:} references in the HTML body. */
+    public boolean send(SmtpCredentials credentials, String from, String to, List<String> bcc, String subject,
+                         String htmlBody, List<EmailAttachment> attachments, List<InlineImage> inlineImages) {
+        return sendVia(credentials, from, to, bcc, subject, htmlBody, attachments, inlineImages);
     }
 
     public void send(SmtpCredentials credentials, String from, String to, String subject, String htmlBody) {
-        sendVia(credentials, from, to, List.of(), subject, htmlBody, List.of());
+        sendVia(credentials, from, to, List.of(), subject, htmlBody, List.of(), List.of());
     }
 
     private boolean sendVia(SmtpCredentials credentials, String from, String to, List<String> bcc,
-                             String subject, String htmlBody, List<EmailAttachment> attachments) {
+                             String subject, String htmlBody, List<EmailAttachment> attachments,
+                             List<InlineImage> inlineImages) {
         sendLock.lock();
         try {
             for (int attempt = 1; ; attempt++) {
                 try {
-                    doSend(credentials, from, to, bcc, subject, htmlBody, attachments);
+                    doSend(credentials, from, to, bcc, subject, htmlBody, attachments, inlineImages);
                     return true;
                 } catch (Exception ex) {
                     if (attempt < MAX_ATTEMPTS && isTransient(ex)) {
@@ -107,7 +114,8 @@ public class EmailService {
     }
 
     private void doSend(SmtpCredentials credentials, String from, String to, List<String> bcc,
-                         String subject, String htmlBody, List<EmailAttachment> attachments) throws Exception {
+                         String subject, String htmlBody, List<EmailAttachment> attachments,
+                         List<InlineImage> inlineImages) throws Exception {
         if (credentials != null) {
             log.info("Sending email via SMTP host [{}:{}] as user [{}]",
                     credentials.host(), credentials.port(), credentials.username());
@@ -122,6 +130,13 @@ public class EmailService {
         }
         helper.setSubject(subject);
         helper.setText(htmlBody, true);
+        if (inlineImages != null) {
+            for (InlineImage image : inlineImages) {
+                if (image != null && image.content() != null) {
+                    helper.addInline(image.contentId(), new ByteArrayResource(image.content()), image.contentType());
+                }
+            }
+        }
         if (attachments != null) {
             for (EmailAttachment attachment : attachments) {
                 if (attachment != null && attachment.content() != null) {

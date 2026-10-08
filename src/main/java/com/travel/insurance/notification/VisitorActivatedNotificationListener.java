@@ -2,6 +2,7 @@ package com.travel.insurance.notification;
 
 import com.travel.insurance.common.email.EmailAttachment;
 import com.travel.insurance.common.email.EmailService;
+import com.travel.insurance.common.email.InlineImage;
 import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.common.util.LogoUrlNormalizer;
 import com.travel.insurance.benefit.BenefitService;
@@ -72,6 +73,9 @@ public class VisitorActivatedNotificationListener {
     private static final String WELCOME_PACK_RESOURCE = "templates/Inbound-Travel-Health-Insurance-Welcome-Pack.pdf";
     private static final String WELCOME_PACK_ATTACHMENT_NAME = "Inbound-Travel-Health-Welcome-Pack.pdf";
 
+    private static final String SIGNATURE_RESOURCE = "templates/Inbound-Travel-Health-Esignature.png";
+    private static final String SIGNATURE_CONTENT_ID = "email-signature";
+
     private static final String PLAY_STORE_URL =
             "https://play.google.com/store/apps/details?id=com.kenyacares.mobile";
     // Hosted on Dropbox; normalized to the direct-content host so mail clients get raw image bytes.
@@ -81,6 +85,7 @@ public class VisitorActivatedNotificationListener {
 
     private byte[] rawPolicyDocumentCache;
     private byte[] welcomePackPdfCache;
+    private byte[] signatureImageCache;
     private final Map<UUID, byte[]> brandedPolicyDocumentCache = new ConcurrentHashMap<>();
 
     private final VisitorService visitorService;
@@ -214,6 +219,10 @@ public class VisitorActivatedNotificationListener {
         if (welcomePackPdf != null) {
             attachments.add(new EmailAttachment(WELCOME_PACK_ATTACHMENT_NAME, welcomePackPdf));
         }
+        byte[] signatureImage = loadSignatureImage();
+        List<InlineImage> inlineImages = signatureImage == null
+                ? List.of()
+                : List.of(new InlineImage(SIGNATURE_CONTENT_ID, "image/png", signatureImage));
         InsurerMailSettings mailSettings = resolveMailSettings(insurer);
         boolean sent = emailService.send(
                 mailSettings.credentials(),
@@ -221,8 +230,9 @@ public class VisitorActivatedNotificationListener {
                 visitor.getEmail(),
                 mailProperties.getActivationBcc(),
                 "Welcome to Kenya – Your Medical Cover Is Now Active",
-                buildActivationEmailHtml(firstNameOf(visitor.getFullName())),
-                attachments);
+                buildActivationEmailHtml(firstNameOf(visitor.getFullName()), signatureImage != null),
+                attachments,
+                inlineImages);
         if (!sent) {
             log.error("Activation email for visitor {} to {} was not delivered; leaving it unmarked so it can be re-sent",
                     visitorId, visitor.getEmail());
@@ -249,7 +259,7 @@ public class VisitorActivatedNotificationListener {
 
     private static final String EMAIL_FONT_FAMILY = "Corbel, 'Segoe UI', Arial, sans-serif";
 
-    private static String buildActivationEmailHtml(String firstName) {
+    private static String buildActivationEmailHtml(String firstName, boolean includeSignatureImage) {
         return "<div style=\"font-family: " + EMAIL_FONT_FAMILY + ";\">"
                 + "<p>Dear " + firstName + ",</p>"
                 + "<p>Welcome to Kenya!</p>"
@@ -299,6 +309,10 @@ public class VisitorActivatedNotificationListener {
                 + "Minet Kenya<br>"
                 + "24/7 Assistance Centre: +254 719 044 777<br>"
                 + "Email: inbound.travel@minet.co.ke</p>"
+                + (includeSignatureImage
+                        ? "<p><img src=\"cid:" + SIGNATURE_CONTENT_ID + "\" alt=\"Inbound Travel Health Insurance\" "
+                                + "width=\"480\" border=\"0\" style=\"height:auto;border:0;\"></p>"
+                        : "")
                 + "</div>";
     }
 
@@ -317,6 +331,23 @@ public class VisitorActivatedNotificationListener {
             }
         }
         return welcomePackPdfCache;
+    }
+
+    /**
+     * Loads the bundled e-mail signature image from the classpath, cached after
+     * the first read. A load failure is logged and returns {@code null} so the
+     * email still goes out without the signature image.
+     */
+    private synchronized byte[] loadSignatureImage() {
+        if (signatureImageCache == null) {
+            try {
+                signatureImageCache = new ClassPathResource(SIGNATURE_RESOURCE).getInputStream().readAllBytes();
+            } catch (IOException ex) {
+                log.error("Could not load bundled email signature {}: {}", SIGNATURE_RESOURCE, ex.getMessage(), ex);
+                return null;
+            }
+        }
+        return signatureImageCache;
     }
 
     /**

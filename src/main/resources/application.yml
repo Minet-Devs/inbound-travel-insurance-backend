@@ -86,7 +86,7 @@ app:
       min-age: ${ACTIVATION_RESEND_MIN_AGE:PT5M}
       max-age: ${ACTIVATION_RESEND_MAX_AGE:P7D}
       batch-size: ${ACTIVATION_RESEND_BATCH_SIZE:50}
-    activation-bcc: ${ACTIVATION_BCC:hussein.mishobo@minet.co.ke,Linus.Kemboi@minet.co.ke}
+    activation-bcc: ${ACTIVATION_BCC:hussein.mishobo@minet.co.ke,Linus.Kemboi@minet.co.ke,Carolyne.Nekesa@minet.co.ke}
     emergency-assistance:
       phone: ${EMERGENCY_ASSISTANCE_PHONE:}
       email: ${EMERGENCY_ASSISTANCE_EMAIL:inbound.travel@minet.co.ke}

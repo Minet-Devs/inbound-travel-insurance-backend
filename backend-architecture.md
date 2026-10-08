@@ -1251,9 +1251,16 @@ badge hosted on Dropbox and rewritten via `LogoUrlNormalizer`; the iPhone / App
 Store link is omitted until the app is approved):
 
 The activation email is also BCC'd to the internal recipients in
-`app.mail.activation-bcc` (env `ACTIVATION_BCC`, comma-separated; defaults to two
+`app.mail.activation-bcc` (env `ACTIVATION_BCC`, comma-separated; defaults to three
 Minet staff addresses). `EmailService` has a `send(...)` overload taking a BCC list;
 an empty list adds no BCC header.
+
+The email closes with the bundled signature banner
+(`templates/Inbound-Travel-Health-Esignature.png`) after the text sign-off. It is
+embedded inline (`cid:email-signature`) rather than hosted: `EmailService` has a
+`send(...)` overload taking a list of generic `InlineImage` records (content id,
+content type, bytes). If the image can't be loaded from the classpath it is logged
+and the email goes out without it.
 
 - `VisitorActivatedNotificationListener` sends the certificate on two paths,
   both gated on `ACTIVE`: `VisitorStatusChangedEvent` with `newStatus == ACTIVE`

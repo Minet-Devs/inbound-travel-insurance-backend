@@ -53,6 +53,23 @@ class EmailServiceTest {
     }
 
     @Test
+    void sendsMimeMessageWithInlineImage() throws Exception {
+        emailService = new EmailService(mailSender, smtpSenderFactory);
+        MimeMessage message = newMimeMessage();
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        boolean sent = emailService.send(null, "from@example.com", "to@example.com", List.of(), "Subject",
+                "<img src=\"cid:sig\">", List.of(), List.of(new InlineImage("sig", "image/png", new byte[]{1, 2, 3})));
+
+        assertThat(sent).isTrue();
+        verify(mailSender).send(message);
+        message.saveChanges();
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        message.writeTo(out);
+        assertThat(out.toString()).contains("Content-ID: <sig>").contains("image/png");
+    }
+
+    @Test
     void sendsMimeMessageWithMultipleAttachments() {
         emailService = new EmailService(mailSender, smtpSenderFactory);
         MimeMessage message = newMimeMessage();
