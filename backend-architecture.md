@@ -1264,7 +1264,9 @@ an empty list adds no BCC header.
   broken mail server must never affect the visitor status API's correctness.
   Re-activation (e.g. `ACTIVE` → `SUSPENDED` → `ACTIVE`) intentionally
   re-sends the certificate; that's treated as a new, valid activation, not a
-  duplicate to guard against.
+  duplicate to guard against. If the visitor has no `VisitorBenefit` rows yet,
+  nothing is sent (logged at WARN) — the certificate must carry a schedule of
+  benefits, never "No benefits assigned yet."
 - The listener composes data via `VisitorService`, `PolicyService`,
   `VisitorBenefitService`, and `InsurerService` (the same "fan-in at a
   boundary" shape already used for `VisitorDetailResponse`), builds a
@@ -1992,6 +1994,10 @@ applies only to new migrations going forward. Flyway compares version
 numbers numerically (not by string length), so plain two/three-digit
 versions like `V032` sort before any 12-digit timestamp automatically; no
 renumbering or padding is needed.
+
+`V202610081611__backfill_missing_visitor_benefits.sql` back-fills `visitor_benefits`
+for live visitors missing a live row for any live catalog benefit (same limit/status
+rules as `VisitorCreatedListener`); it is idempotent and never touches existing rows.
 
 ## Code Practices
 

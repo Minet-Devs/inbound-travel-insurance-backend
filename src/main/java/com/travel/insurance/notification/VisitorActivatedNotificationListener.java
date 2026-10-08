@@ -52,7 +52,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * be able to affect the visitor status API's correctness. Re-activation
  * (e.g. ACTIVE → SUSPENDED → ACTIVE) intentionally re-sends the email;
  * that's treated as a new, valid activation rather than a duplicate to guard
- * against.
+ * against. No email is sent while the visitor has no benefits assigned, since
+ * the certificate must carry a schedule of benefits.
  */
 @Component
 @RequiredArgsConstructor
@@ -114,8 +115,9 @@ public class VisitorActivatedNotificationListener {
         Policy policy = policyService.getEntityById(visitor.getPolicyId());
         List<VisitorBenefitResponse> visitorBenefits = visitorBenefitService.listAllByVisitor(visitorId);
         if (visitorBenefits.isEmpty()) {
-            log.warn("Visitor {} activated with no assigned benefits yet; sending certificate without a schedule",
-                    visitorId);
+            log.warn("Visitor {} activated with no assigned benefits yet; not sending the certificate "
+                    + "because it would have an empty schedule of benefits", visitorId);
+            return;
         }
 
         Insurer insurer = insurerService.getEntityById(policy.getInsurerId());
