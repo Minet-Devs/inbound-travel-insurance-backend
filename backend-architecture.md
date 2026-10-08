@@ -1331,20 +1331,26 @@ an empty list adds no BCC header.
   using the Certificate Serial Number above").
 - The activation email carries up to three attachments: a single
   `Insurance Policy.pdf` (the certificate), the policy wording sent as
-  `Policy Document.pdf` (rendered from `templates/Policy_Document_July_2026.pdf`),
+  `Policy Document.pdf` (rendered from `templates/Inbound-Travel-Health-Policy-Document.pdf`),
   and the bundled `templates/Inbound-Travel-Health-Insurance-Welcome-Pack.pdf`. The base wording PDF
   and the Welcome Pack PDF are each loaded once from the classpath and cached
   (`rawPolicyDocumentCache`, `welcomePackPdfCache`); if either bundled
   document can't be read, that load is logged and skipped so the rest of the
   email still goes out. When the backing insurer has a logo and/or e-signature URL,
-  `PolicyDocumentRenderer.brandPolicyWording` overlays the logo, horizontally
-  centered near the top of page 1, and the e-signature on every page, via
+  `PolicyDocumentRenderer.brandPolicyWording` overlays the logo at the
+  top-right of page 1 (36pt margins), and the e-signature on every interior page
+  (not the full-bleed front and back covers), via
   PDFBox (`PDPageContentStream` + `PDImageXObject`, aspect ratio preserved).
-  On every page except the "POLICY AGREEMENT" page (page 3) the e-signature
-  is horizontally centered near the bottom, scaled to fit a 150×60pt box with
-  a 36pt margin from the bottom edge; on page 3 it's instead placed directly
+  On every interior page except the "POLICY AGREEMENT" page (page 3) the
+  e-signature is horizontally centered on the footer line (between the
+  "Administered by…" text and the Minet logo), scaled to fit a 150×22pt box
+  8pt above the bottom edge — body text on some pages runs down to ~38pt, so
+  nothing higher is free on every page; on page 3 it's instead placed directly
   on the "For and Behalf of the Company" / "Signature:" line (scaled to fit a
-  130×22pt box), since that's the actual signature the document calls for.
+  125×22pt box), since that's the actual signature the document calls for.
+  The page 3 blank positions are hardcoded for
+  `Inbound-Travel-Health-Policy-Document.pdf` and guarded by a test that fills
+  the real bundled PDF — re-measure them if the wording PDF is replaced.
   The branded result is cached per insurer (`brandedPolicyDocumentCache`,
   keyed by `Insurer.id`), since the wording document is no longer identical
   for every insurer. Both overlay URLs are optional and independent — an

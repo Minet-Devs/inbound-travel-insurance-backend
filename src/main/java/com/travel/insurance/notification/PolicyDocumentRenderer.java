@@ -51,7 +51,11 @@ public class PolicyDocumentRenderer {
     private static final float LOGO_MAX_WIDTH = 120f;
     private static final float LOGO_MAX_HEIGHT = 50f;
     private static final float SIGNATURE_MAX_WIDTH = 150f;
-    private static final float SIGNATURE_MAX_HEIGHT = 60f;
+    private static final float SIGNATURE_MAX_HEIGHT = 22f;
+    // Interior-page signature sits in the centre of the footer line, between the
+    // "Administered by" text (left) and the Minet logo (right). Body text on some pages runs
+    // down to ~38pt from the bottom, so nothing taller/higher is free on every page.
+    private static final float SIGNATURE_BOTTOM_MARGIN = 8f;
     private static final int IMAGE_FETCH_TIMEOUT_MILLIS = 5000;
 
     /** Zero-based index of the "POLICY AGREEMENT" page in the bundled policy wording PDF. */
@@ -65,14 +69,14 @@ public class PolicyDocumentRenderer {
     private static final Pattern PO_BOX_NUMBER = Pattern.compile("(?i)\\bbox\\s*([\\w-]+)");
 
     // Page 3 "For and Behalf of the Company" / "Signature:" blank.
-    private static final float COMPANY_SIGNATURE_X = 107f;
-    private static final float COMPANY_SIGNATURE_Y = 385f;
-    private static final float COMPANY_SIGNATURE_MAX_WIDTH = 130f;
+    private static final float COMPANY_SIGNATURE_X = 85f;
+    private static final float COMPANY_SIGNATURE_Y = 341.2f;
+    private static final float COMPANY_SIGNATURE_MAX_WIDTH = 125f;
     private static final float COMPANY_SIGNATURE_MAX_HEIGHT = 22f;
 
     // Page 3 "For and Behalf of the Insured" / "Signature:" blank.
-    private static final float INSURED_SIGNATURE_X = 107f;
-    private static final float INSURED_SIGNATURE_Y = 259.1f;
+    private static final float INSURED_SIGNATURE_X = 85f;
+    private static final float INSURED_SIGNATURE_Y = 269.2f;
 
     private final SpringTemplateEngine templateEngine;
 
@@ -166,10 +170,11 @@ public class PolicyDocumentRenderer {
     }
 
     /**
-     * Overlays the insurer's logo, horizontally centered near the top of the
+     * Overlays the insurer's logo, at the top-right of the
      * first page, and its e-signature, onto the bundled policy wording PDF.
-     * The e-signature is placed on every page: horizontally centered near
-     * the bottom on every page except the "POLICY AGREEMENT" page, where it
+     * The e-signature is placed on every interior page (not the full-bleed
+     * front and back covers): horizontally centered near the bottom on every
+     * page except the "POLICY AGREEMENT" page, where it
      * instead sits directly on the "For and Behalf of the Company" /
      * "Signature:" line, matching the signature actually required there.
      * Either URL may be null, in which case that overlay is skipped. Returns
@@ -186,8 +191,13 @@ public class PolicyDocumentRenderer {
             }
             if (esignatureUrl != null) {
                 byte[] esignatureBytes = fetchImageBytes(esignatureUrl);
-                for (int i = 0; i < document.getNumberOfPages(); i++) {
+                int lastPageIndex = document.getNumberOfPages() - 1;
+                for (int i = 0; i <= lastPageIndex; i++) {
                     PDPage page = document.getPage(i);
+                    if (i == 0 || i == lastPageIndex) {
+                        // Full-bleed front and back covers: no footer signature.
+                        continue;
+                    }
                     if (i == POLICY_AGREEMENT_PAGE_INDEX) {
                         overlayImageAt(document, page, esignatureBytes, COMPANY_SIGNATURE_X,
                                 COMPANY_SIGNATURE_Y, COMPANY_SIGNATURE_MAX_WIDTH, COMPANY_SIGNATURE_MAX_HEIGHT);
@@ -237,23 +247,23 @@ public class PolicyDocumentRenderer {
             try (PDPageContentStream contentStream = new PDPageContentStream(
                     document, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
                 // Recital: "THIS POLICY is made this ________ between ____________________, a limited..."
-                drawText(contentStream, compactDateText, 188f, 742.8f, AGREEMENT_FONT_SIZE);
-                drawText(contentStream, insurerName, 284f, 742.8f, AGREEMENT_FONT_SIZE);
+                drawText(contentStream, compactDateText, 149f, 672.8f, AGREEMENT_FONT_SIZE);
+                drawText(contentStream, insurerName, 231f, 672.8f, AGREEMENT_FONT_SIZE);
                 // Recital: "...of Post Office _____ Nairobi (hereinafter referred to as the Company)..."
                 // only a short PO Box number fits the underscore run; the visitor's name mention
                 // further down this recital has no usable room (a few points wide) and is
                 // intentionally left blank rather than overlaid illegibly or overlapping text.
-                drawText(contentStream, poBoxNumber, 276f, 726.9f, AGREEMENT_TIGHT_FONT_SIZE);
+                drawText(contentStream, poBoxNumber, 139f, 656.8f, AGREEMENT_TIGHT_FONT_SIZE);
                 // "In WITNESS WHEREOF this policy has been signed at_____."
-                drawText(contentStream, SIGNED_AT_LOCATION, 297f, 481.7f, AGREEMENT_TIGHT_FONT_SIZE);
+                drawText(contentStream, SIGNED_AT_LOCATION, 270f, 409.2f, AGREEMENT_TIGHT_FONT_SIZE);
                 // Signature block — Company
-                drawText(contentStream, insurerName, 90f, 413.7f, AGREEMENT_FONT_SIZE);
-                drawText(contentStream, issueDateText, 95f, 356.3f, AGREEMENT_FONT_SIZE);
+                drawText(contentStream, insurerName, 67f, 361.2f, AGREEMENT_FONT_SIZE);
+                drawText(contentStream, issueDateText, 243f, 341.2f, AGREEMENT_FONT_SIZE);
                 // Signature block — Insured
-                drawText(contentStream, insuredName, 90f, 281.9f, AGREEMENT_FONT_SIZE);
+                drawText(contentStream, insuredName, 67f, 289.2f, AGREEMENT_FONT_SIZE);
                 drawText(contentStream, insuredEmail, INSURED_SIGNATURE_X, INSURED_SIGNATURE_Y,
                         AGREEMENT_TIGHT_FONT_SIZE);
-                drawText(contentStream, issueDateText, 95f, 236.2f, AGREEMENT_FONT_SIZE);
+                drawText(contentStream, issueDateText, 279f, 269.2f, AGREEMENT_FONT_SIZE);
             }
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             document.save(out);
@@ -292,8 +302,8 @@ public class PolicyDocumentRenderer {
     }
 
     /**
-     * Draws an image horizontally centered near the top (logo) or bottom
-     * (signature) of a page, scaled down to fit within maxWidth/maxHeight
+     * Draws an image against the top-right corner (logo) or horizontally
+     * centered near the bottom (signature) of a page, scaled down to fit within maxWidth/maxHeight
      * while preserving aspect ratio.
      */
     private void overlayImage(PDDocument document, PDPage page, byte[] imageBytes,
@@ -303,10 +313,12 @@ public class PolicyDocumentRenderer {
         float width = image.getWidth() * scale;
         float height = image.getHeight() * scale;
         PDRectangle mediaBox = page.getMediaBox();
-        float x = mediaBox.getLowerLeftX() + (mediaBox.getWidth() - width) / 2f;
+        float x = atTop
+                ? mediaBox.getUpperRightX() - PAGE_MARGIN - width
+                : mediaBox.getLowerLeftX() + (mediaBox.getWidth() - width) / 2f;
         float y = atTop
                 ? mediaBox.getUpperRightY() - PAGE_MARGIN - height
-                : mediaBox.getLowerLeftY() + PAGE_MARGIN;
+                : mediaBox.getLowerLeftY() + SIGNATURE_BOTTOM_MARGIN;
         try (PDPageContentStream contentStream = new PDPageContentStream(
                 document, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
             contentStream.drawImage(image, x, y, width, height);
