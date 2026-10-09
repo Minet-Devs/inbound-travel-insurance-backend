@@ -145,6 +145,79 @@ class VisitorActivatedNotificationListenerTest {
     }
 
     @Test
+    void resendByPassportRejectsNonActiveVisitor() {
+        Visitor visitor = sampleVisitor();
+        visitor.setVisitorStatus(VisitorStatus.SUSPENDED);
+        when(visitorService.getEntityByPassportNumber("P1234567")).thenReturn(visitor);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> listener.resendActivationEmailByPassportNumber("P1234567"))
+                .isInstanceOf(IllegalStateException.class);
+
+        verifyNoInteractions(emailService);
+        verify(visitorService, never()).markActivationEmailSent(any());
+    }
+
+    @Test
+    void resendByPassportFailsWhenBenefitScheduleIncomplete() {
+        Visitor visitor = sampleVisitor();
+        visitor.setVisitorStatus(VisitorStatus.ACTIVE);
+        when(visitorService.getEntityByPassportNumber("P1234567")).thenReturn(visitor);
+        when(visitorService.getEntityById(visitorId)).thenReturn(visitor);
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> listener.resendActivationEmailByPassportNumber("P1234567"))
+                .isInstanceOf(IllegalStateException.class);
+
+        verifyNoInteractions(emailService);
+    }
+
+    @Test
+    void resendByPassportSendsEvenWhenAlreadyMarkedSentAndRestamps() {
+        Visitor visitor = sampleVisitor();
+        visitor.setVisitorStatus(VisitorStatus.ACTIVE);
+        visitor.setActivationEmailSentAt(Instant.now());
+        when(visitorService.getEntityByPassportNumber("P1234567")).thenReturn(visitor);
+        when(visitorService.getEntityById(visitorId)).thenReturn(visitor);
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF".getBytes());
+        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%R".getBytes());
+        when(renderer.mergePdfs(any(), any())).thenReturn("%M".getBytes());
+
+        assertThat(listener.resendActivationEmailByPassportNumber("P1234567")).isEqualTo(visitorId);
+
+        verify(visitorService).markActivationEmailSent(visitorId);
+    }
+
+    @Test
+    void resendByPassportFailsWhenEmailNotDelivered() {
+        Visitor visitor = sampleVisitor();
+        visitor.setVisitorStatus(VisitorStatus.ACTIVE);
+        when(visitorService.getEntityByPassportNumber("P1234567")).thenReturn(visitor);
+        when(visitorService.getEntityById(visitorId)).thenReturn(visitor);
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF".getBytes());
+        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%R".getBytes());
+        when(renderer.mergePdfs(any(), any())).thenReturn("%M".getBytes());
+        when(emailService.send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), anyList(), anyList()))
+                .thenReturn(false);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> listener.resendActivationEmailByPassportNumber("P1234567"))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(visitorService, never()).markActivationEmailSent(any());
+    }
+
+    @Test
     void ignoresTransitionsToNonActiveStatus() {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.SUSPENDED));
 

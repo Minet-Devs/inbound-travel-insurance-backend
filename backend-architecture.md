@@ -87,6 +87,8 @@ com.travel.insurance/
 │   │                                       # and sends the visitor's single activation email
 │   │                                       # (marked sent only if EmailService reports delivery)
 │   │                                       # (certificate + Welcome Pack copy/attachment)
+│   ├── ActivationEmailController.java      # POST /api/v1/visitors/by-passport/resend-activation-email
+│   │                                       # ?passportNumber=… (manual resend, see Notifications section)
 │   ├── ActivationEmailResendJob.java       # @Scheduled safety net: re-sends the activation email to
 │   │                                       # ACTIVE visitors with activationEmailSentAt null (app.mail.resend.*:
 │   │                                       # interval 10m, min-age 5m, max-age 7d, batch 50, enabled flag)
@@ -1309,6 +1311,12 @@ and the email goes out without it.
   re-checks the visitor is still ACTIVE and un-emailed. Visitors created before
   the `activation_email_sent_at` migration were back-filled as already emailed,
   so they are never re-sent. Multi-instance deployments could rarely send twice.
+- **Manual resend:** `POST /api/v1/visitors/by-passport/resend-activation-email?passportNumber=…`
+  (`ActivationEmailController` → `VisitorActivatedNotificationListener.resendActivationEmailByPassportNumber`)
+  re-sends the activation email for visitors who report never receiving it. It sends
+  **regardless of `activationEmailSentAt`** and re-stamps it on delivery. Synchronous: `200`
+  `{visitorId, message}` when delivered; `404` unknown passport; `409` if the visitor is not
+  `ACTIVE`, the benefit schedule is incomplete, or SMTP delivery failed.
 - The listener composes data via `VisitorService`, `PolicyService`,
   `VisitorBenefitService`, and `InsurerService` (the same "fan-in at a
   boundary" shape already used for `VisitorDetailResponse`), builds a

@@ -142,6 +142,28 @@ public class VisitorActivatedNotificationListener {
         sendActivationDocumentQuietly(visitorId);
     }
 
+    /**
+     * Manually re-sends the activation email to the visitor with this passport number, regardless
+     * of {@code activationEmailSentAt} (for visitors who report never receiving it). Unlike the
+     * event/job paths, failures are surfaced to the caller: a non-ACTIVE visitor, an incomplete
+     * benefit schedule or an undelivered email all raise {@link IllegalStateException} (→ 409).
+     * On success {@code activationEmailSentAt} is re-stamped.
+     */
+    public UUID resendActivationEmailByPassportNumber(String passportNumber) {
+        Visitor visitor = visitorService.getEntityByPassportNumber(passportNumber);
+        if (visitor.getVisitorStatus() != VisitorStatus.ACTIVE) {
+            throw new IllegalStateException(
+                    "Activation email can only be resent for an ACTIVE visitor; visitor is "
+                            + visitor.getVisitorStatus());
+        }
+        if (!sendActivationDocument(visitor.getId())) {
+            throw new IllegalStateException(
+                    "Activation email could not be sent: the visitor's benefit schedule is incomplete "
+                            + "or mail delivery failed");
+        }
+        return visitor.getId();
+    }
+
     private void sendActivationDocumentQuietly(UUID visitorId) {
         try {
             sendActivationDocument(visitorId);
@@ -151,14 +173,15 @@ public class VisitorActivatedNotificationListener {
         }
     }
 
-    private void sendActivationDocument(UUID visitorId) {
+    /** @return true if the email was delivered and stamped; false if held back or undelivered. */
+    private boolean sendActivationDocument(UUID visitorId) {
         Visitor visitor = visitorService.getEntityById(visitorId);
         Policy policy = policyService.getEntityById(visitor.getPolicyId());
         List<VisitorBenefitResponse> visitorBenefits = visitorBenefitService.listAllByVisitor(visitorId);
         if (!hasEntireCatalog(visitorBenefits)) {
             log.warn("Visitor {} does not have every catalog benefit assigned yet; not sending the certificate "
                     + "because its schedule of benefits would be incomplete", visitorId);
-            return;
+            return false;
         }
 
         Insurer insurer = insurerService.getEntityById(policy.getInsurerId());
@@ -237,10 +260,11 @@ public class VisitorActivatedNotificationListener {
         if (!sent) {
             log.error("Activation email for visitor {} to {} was not delivered; leaving it unmarked so it can be re-sent",
                     visitorId, visitor.getEmail());
-            return;
+            return false;
         }
         visitorService.markActivationEmailSent(visitorId);
         log.info("Sent activation email for visitor {} to {}", visitorId, visitor.getEmail());
+        return true;
     }
 
     private boolean hasEntireCatalog(List<VisitorBenefitResponse> visitorBenefits) {
