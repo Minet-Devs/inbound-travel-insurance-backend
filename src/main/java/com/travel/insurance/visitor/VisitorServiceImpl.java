@@ -6,6 +6,7 @@ import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Period;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -103,6 +105,33 @@ public class VisitorServiceImpl implements VisitorService {
                 .map(insurer -> new InsurerVisitorCount(
                         insurer.getId(), insurer.getName(), totals.getOrDefault(insurer.getId(), 0L)))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AgeGroupVisitorCount> countByAgeGroup() {
+        // date_of_birth is encrypted at rest, so it cannot be bucketed in SQL.
+        LocalDate today = LocalDate.now();
+        long infants = 0;
+        long minors = 0;
+        long adults = 0;
+        for (Visitor visitor : visitorRepository.findAll()) {
+            if (visitor.getDateOfBirth() == null) {
+                continue;
+            }
+            int age = Period.between(visitor.getDateOfBirth(), today).getYears();
+            if (age < 3) {
+                infants++;
+            } else if (age < 18) {
+                minors++;
+            } else {
+                adults++;
+            }
+        }
+        return List.of(
+                new AgeGroupVisitorCount("0-2", infants),
+                new AgeGroupVisitorCount("3-17", minors),
+                new AgeGroupVisitorCount("18+", adults));
     }
 
     @Override

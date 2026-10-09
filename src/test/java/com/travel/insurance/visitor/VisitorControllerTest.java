@@ -2,6 +2,7 @@ package com.travel.insurance.visitor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
+import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -243,5 +244,22 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$[0].insurerId").value(insurerId.toString()))
                 .andExpect(jsonPath("$[0].insurerName").value("Minet Insurance"))
                 .andExpect(jsonPath("$[0].totalVisitors").value(12));
+    }
+
+    @Test
+    @WithMockUser
+    void distributionByAgeGroupReturnsCounts() throws Exception {
+        when(visitorService.countByAgeGroup()).thenReturn(List.of(
+                new AgeGroupVisitorCount("0-2", 1),
+                new AgeGroupVisitorCount("3-17", 2),
+                new AgeGroupVisitorCount("18+", 3)));
+
+        mockMvc.perform(get("/api/v1/visitors/distribution-by-age-group"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].ageGroup").value("0-2"))
+                .andExpect(jsonPath("$[0].totalVisitors").value(1))
+                .andExpect(jsonPath("$[1].ageGroup").value("3-17"))
+                .andExpect(jsonPath("$[2].ageGroup").value("18+"))
+                .andExpect(jsonPath("$[2].totalVisitors").value(3));
     }
 }

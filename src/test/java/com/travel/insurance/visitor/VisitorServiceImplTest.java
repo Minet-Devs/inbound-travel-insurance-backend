@@ -6,6 +6,7 @@ import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -629,5 +630,41 @@ class VisitorServiceImplTest {
         assertThat(result).containsExactly(
                 new InsurerVisitorCount(insurerId, "Minet Insurance", 7),
                 new InsurerVisitorCount(emptyInsurerId, "Empty Insurance", 0));
+    }
+
+    private static Visitor visitorBornOn(LocalDate dateOfBirth) {
+        Visitor visitor = new Visitor();
+        visitor.setDateOfBirth(dateOfBirth);
+        return visitor;
+    }
+
+    @Test
+    void countByAgeGroupBucketsOnBoundaries() {
+        LocalDate today = LocalDate.now();
+        when(visitorRepository.findAll()).thenReturn(List.of(
+                visitorBornOn(today),                                   // 0
+                visitorBornOn(today.minusYears(3).plusDays(1)),         // 2, turns 3 tomorrow
+                visitorBornOn(today.minusYears(3)),                     // 3
+                visitorBornOn(today.minusYears(18).plusDays(1)),        // 17, turns 18 tomorrow
+                visitorBornOn(today.minusYears(18)),                    // 18
+                visitorBornOn(today.minusYears(70)),                    // 70
+                visitorBornOn(null)));                                  // ignored
+
+        List<AgeGroupVisitorCount> result = visitorService.countByAgeGroup();
+
+        assertThat(result).containsExactly(
+                new AgeGroupVisitorCount("0-2", 2),
+                new AgeGroupVisitorCount("3-17", 2),
+                new AgeGroupVisitorCount("18+", 2));
+    }
+
+    @Test
+    void countByAgeGroupReturnsAllGroupsWhenNoVisitors() {
+        when(visitorRepository.findAll()).thenReturn(List.of());
+
+        assertThat(visitorService.countByAgeGroup()).containsExactly(
+                new AgeGroupVisitorCount("0-2", 0),
+                new AgeGroupVisitorCount("3-17", 0),
+                new AgeGroupVisitorCount("18+", 0));
     }
 }

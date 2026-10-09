@@ -1,5 +1,6 @@
 package com.travel.insurance.visitor;
 
+import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -31,6 +32,12 @@ public interface VisitorService {
 
     /** Total visitors (any status) per insurer; every insurer is listed, including those with zero. */
     List<InsurerVisitorCount> countByInsurer();
+
+    /**
+     * Total visitors (any status) per age group, by age today: "0-2" (0 to under 3),
+     * "3-17" (3 to under 18) and "18+". All three groups are always returned, in that order.
+     */
+    List<AgeGroupVisitorCount> countByAgeGroup();
 
     VisitorResponse update(UUID id, VisitorRequest request);
 

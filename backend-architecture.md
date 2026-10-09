@@ -695,6 +695,12 @@ Policy
   one entry per insurer (zero-visitor insurers included; visitors with a null
   `insurerId` skipped). Backed by `VisitorService.countByInsurer`
   (`VisitorRepository.countVisitorsGroupedByInsurer` + `InsurerRepository.findAll`).
+  `GET /api/v1/visitors/distribution-by-age-group` (dashboard) returns
+  `[{ageGroup, totalVisitors}]` — all visitors regardless of status, always three
+  entries in order: `0-2` (age 0 to under 3), `3-17` (3 to under 18), `18+`. Age is
+  computed as of today from `dateOfBirth`. Because `date_of_birth` is encrypted at
+  rest, bucketing is done in memory (`VisitorServiceImpl.countByAgeGroup` over
+  `VisitorRepository.findAll`), not in SQL; revisit if the table grows large.
   `GET /api/v1/visitors` (the paged list) takes an optional `insurerId` query
   param — omitted, it returns all visitors (`VisitorRepository.findAll`);
   provided, it filters to that insurer's visitors
