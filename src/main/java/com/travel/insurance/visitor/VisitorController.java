@@ -1,5 +1,6 @@
 package com.travel.insurance.visitor;
 
+import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorDetailResponse;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
@@ -67,6 +68,11 @@ public class VisitorController {
     @GetMapping("/distribution-by-insurer")
     public ResponseEntity<List<InsurerVisitorCount>> distributionByInsurer() {
         return ResponseEntity.ok(visitorService.countByInsurer());
+    }
+
+    @GetMapping("/distribution-by-age-group")
+    public ResponseEntity<List<AgeGroupVisitorCount>> distributionByAgeGroup() {
+        return ResponseEntity.ok(visitorService.countByAgeGroup());
     }
 
     @PutMapping("/{id}")
