@@ -1248,6 +1248,8 @@ The activation email is also BCC'd to the internal recipients in
 `app.mail.activation-bcc` (env `ACTIVATION_BCC`, comma-separated; defaults to four
 Minet staff addresses). `EmailService` has a `send(...)` overload taking a BCC list;
 an empty list adds no BCC header.
+The insurer's `contactEmail` is also visibly CC'd on the activation email (skipped, with
+the email still sent, if blank); `send(...)` takes a CC list alongside the BCC list.
 
 - `VisitorActivatedNotificationListener` sends the certificate on two paths,
   both gated on `ACTIVE`: `VisitorStatusChangedEvent` with `newStatus == ACTIVE`

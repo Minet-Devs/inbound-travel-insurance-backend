@@ -170,11 +170,13 @@ class EmailServiceTest {
         when(mailSender.createMimeMessage()).thenReturn(message);
 
         emailService.send(null, "from@example.com", "to@example.com",
-                List.of("a@example.com", "b@example.com"), "Subject", "<p>Body</p>", List.of());
+                List.of("cc@example.com"), List.of("a@example.com", "b@example.com"), "Subject", "<p>Body</p>", List.of());
 
         verify(mailSender).send(message);
         assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.BCC))
                 .extracting(Object::toString).containsExactly("a@example.com", "b@example.com");
+        assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.CC))
+                .extracting(Object::toString).containsExactly("cc@example.com");
         assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.TO))
                 .extracting(Object::toString).containsExactly("to@example.com");
     }

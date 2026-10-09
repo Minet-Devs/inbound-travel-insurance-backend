@@ -181,6 +181,7 @@ public class VisitorActivatedNotificationListener {
                 mailSettings.credentials(),
                 mailSettings.from(),
                 visitor.getEmail(),
+                isNotBlank(insurer.getContactEmail()) ? List.of(insurer.getContactEmail().trim()) : List.of(),
                 mailProperties.getActivationBcc(),
                 "Welcome to Kenya – Your Medical Cover Is Now Active",
                 buildActivationEmailHtml(firstNameOf(visitor.getFullName())),
