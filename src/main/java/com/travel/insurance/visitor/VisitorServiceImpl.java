@@ -6,19 +6,29 @@ import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -85,11 +95,48 @@ public class VisitorServiceImpl implements VisitorService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<InsurerVisitorCount> countByInsurer() {
+        Map<UUID, Long> totals = new HashMap<>();
+        visitorRepository.countVisitorsGroupedByInsurer()
+                .forEach(row -> totals.put(row.getInsurerId(), row.getTotal()));
+        return insurerRepository.findAll().stream()
+                .map(insurer -> new InsurerVisitorCount(
+                        insurer.getId(), insurer.getName(), totals.getOrDefault(insurer.getId(), 0L)))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<VisitorResponse> list(UUID insurerId, Pageable pageable) {
         Page<Visitor> visitors = insurerId == null
                 ? visitorRepository.findAll(pageable)
                 : visitorRepository.findByInsurerId(insurerId, pageable);
         return visitors.map(visitorMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<VisitorResponse> listForExport(UUID insurerId, VisitorStatus status,
+                                               LocalDate dateFrom, LocalDate dateTo) {
+        Specification<Visitor> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (insurerId != null) {
+                predicates.add(cb.equal(root.get("insurerId"), insurerId));
+            }
+            if (status != null) {
+                predicates.add(cb.equal(root.get("visitorStatus"), status));
+            }
+            if (dateFrom != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("dateIn"), dateFrom));
+            }
+            if (dateTo != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("dateIn"), dateTo));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+        return visitorRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "dateIn")).stream()
+                .map(visitorMapper::toResponse)
+                .toList();
     }
 
     @Override
@@ -107,6 +154,23 @@ public class VisitorServiceImpl implements VisitorService {
         visitor.setPassportNumberHash(passportNumberHash);
         visitor.setEmailHash(blindIndexService.hmac(request.email()));
         return visitorMapper.toResponse(visitor);
+    }
+
+    @Override
+    public void markActivationEmailSent(UUID id) {
+        Visitor visitor = getEntityById(id);
+        visitor.setActivationEmailSentAt(Instant.now());
+        visitorRepository.save(visitor);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> findIdsAwaitingActivationEmail(Instant createdAfter, Instant createdBefore, int limit) {
+        return visitorRepository
+                .findByVisitorStatusAndActivationEmailSentAtIsNullAndCreatedDateBetween(
+                        VisitorStatus.ACTIVE, createdAfter, createdBefore,
+                        PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdDate")))
+                .stream().map(Visitor::getId).toList();
     }
 
     @Override

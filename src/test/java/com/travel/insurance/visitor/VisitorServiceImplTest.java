@@ -6,6 +6,7 @@ import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -32,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -561,5 +563,71 @@ class VisitorServiceImplTest {
                 .thenReturn(Optional.empty());
 
         assertThat(visitorService.findByEmail("unknown@example.com")).isEmpty();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void listForExportMapsMatchingVisitors() {
+        Visitor visitor = new Visitor();
+        visitor.setId(UUID.randomUUID());
+        visitor.setFullName("Jane Traveler");
+        when(visitorRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class),
+                any(org.springframework.data.domain.Sort.class))).thenReturn(List.of(visitor));
+
+        List<VisitorResponse> result = visitorService.listForExport(
+                insurerId, VisitorStatus.ACTIVE, LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).fullName()).isEqualTo("Jane Traveler");
+    }
+
+    @Test
+    void findIdsAwaitingActivationEmailReturnsIdsOfActiveUnemailedVisitors() {
+        Visitor visitor = new Visitor();
+        UUID id = UUID.randomUUID();
+        visitor.setId(id);
+        Instant after = Instant.now().minusSeconds(100);
+        Instant before = Instant.now();
+        when(visitorRepository.findByVisitorStatusAndActivationEmailSentAtIsNullAndCreatedDateBetween(
+                eq(VisitorStatus.ACTIVE), eq(after), eq(before), any(Pageable.class)))
+                .thenReturn(List.of(visitor));
+
+        assertThat(visitorService.findIdsAwaitingActivationEmail(after, before, 10)).containsExactly(id);
+    }
+
+    @Test
+    void markActivationEmailSentStampsTheVisitor() {
+        UUID id = UUID.randomUUID();
+        Visitor visitor = new Visitor();
+        visitor.setId(id);
+        when(visitorRepository.findById(id)).thenReturn(Optional.of(visitor));
+
+        visitorService.markActivationEmailSent(id);
+
+        assertThat(visitor.getActivationEmailSentAt()).isNotNull();
+        verify(visitorRepository).save(visitor);
+    }
+
+    @Test
+    void countByInsurerIncludesInsurersWithZeroVisitors() {
+        UUID emptyInsurerId = UUID.randomUUID();
+        Insurer withVisitors = new Insurer();
+        withVisitors.setId(insurerId);
+        withVisitors.setName("Minet Insurance");
+        Insurer empty = new Insurer();
+        empty.setId(emptyInsurerId);
+        empty.setName("Empty Insurance");
+        VisitorRepository.InsurerVisitorTotal row = new VisitorRepository.InsurerVisitorTotal() {
+            public UUID getInsurerId() { return insurerId; }
+            public long getTotal() { return 7; }
+        };
+        when(visitorRepository.countVisitorsGroupedByInsurer()).thenReturn(List.of(row));
+        when(insurerRepository.findAll()).thenReturn(List.of(withVisitors, empty));
+
+        List<InsurerVisitorCount> result = visitorService.countByInsurer();
+
+        assertThat(result).containsExactly(
+                new InsurerVisitorCount(insurerId, "Minet Insurance", 7),
+                new InsurerVisitorCount(emptyInsurerId, "Empty Insurance", 0));
     }
 }

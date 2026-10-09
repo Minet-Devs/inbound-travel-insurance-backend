@@ -1,5 +1,6 @@
 package com.travel.insurance.visitor;
 
+import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorDetailResponse;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -61,6 +62,11 @@ public class VisitorController {
     public ResponseEntity<Page<VisitorResponse>> list(
             @RequestParam(required = false) UUID insurerId, Pageable pageable) {
         return ResponseEntity.ok(visitorService.list(insurerId, pageable));
+    }
+
+    @GetMapping("/distribution-by-insurer")
+    public ResponseEntity<List<InsurerVisitorCount>> distributionByInsurer() {
+        return ResponseEntity.ok(visitorService.countByInsurer());
     }
 
     @PutMapping("/{id}")

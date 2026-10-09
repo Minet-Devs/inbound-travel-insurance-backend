@@ -80,7 +80,13 @@ app:
       enabled: ${APP_ENCRYPTION_BACKFILL_ENABLED:false}
   mail:
     from: ${SMTP_USERNAME}
-    activation-bcc: ${ACTIVATION_BCC:hussein.mishobo@minet.co.ke,david.muiruri@minet.co.ke,Carolyne.Nekesa@minet.co.ke,Linus.Kemboi@minet.co.ke}
+    resend:
+      enabled: ${ACTIVATION_RESEND_ENABLED:true}
+      interval: ${ACTIVATION_RESEND_INTERVAL:PT10M}
+      min-age: ${ACTIVATION_RESEND_MIN_AGE:PT5M}
+      max-age: ${ACTIVATION_RESEND_MAX_AGE:P7D}
+      batch-size: ${ACTIVATION_RESEND_BATCH_SIZE:50}
+    activation-bcc: ${ACTIVATION_BCC:hussein.mishobo@minet.co.ke,Linus.Kemboi@minet.co.ke,Carolyne.Nekesa@minet.co.ke}
     emergency-assistance:
       phone: ${EMERGENCY_ASSISTANCE_PHONE:}
       email: ${EMERGENCY_ASSISTANCE_EMAIL:inbound.travel@minet.co.ke}
