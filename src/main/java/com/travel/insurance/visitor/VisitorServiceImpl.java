@@ -6,6 +6,7 @@ import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -25,7 +26,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -88,6 +91,18 @@ public class VisitorServiceImpl implements VisitorService {
                 .map(visitorMapper::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Visitor not found: " + passportNumber));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InsurerVisitorCount> countByInsurer() {
+        Map<UUID, Long> totals = new HashMap<>();
+        visitorRepository.countVisitorsGroupedByInsurer()
+                .forEach(row -> totals.put(row.getInsurerId(), row.getTotal()));
+        return insurerRepository.findAll().stream()
+                .map(insurer -> new InsurerVisitorCount(
+                        insurer.getId(), insurer.getName(), totals.getOrDefault(insurer.getId(), 0L)))
+                .toList();
     }
 
     @Override

@@ -28,6 +28,16 @@ public interface VisitorRepository extends JpaRepository<Visitor, UUID>, JpaSpec
 
     boolean existsByPassportNumberHashAndIdNot(String passportNumberHash, UUID id);
 
+    @Query("select v.insurerId as insurerId, count(v) as total from Visitor v "
+            + "where v.insurerId is not null group by v.insurerId")
+    List<InsurerVisitorTotal> countVisitorsGroupedByInsurer();
+
+    interface InsurerVisitorTotal {
+        UUID getInsurerId();
+
+        long getTotal();
+    }
+
     @Query(value = "select nextval('certificate_serial_seq')", nativeQuery = true)
     long nextCertificateSerialValue();
 }

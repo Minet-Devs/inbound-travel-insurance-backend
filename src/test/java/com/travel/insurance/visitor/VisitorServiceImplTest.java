@@ -6,6 +6,7 @@ import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
+import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -605,5 +606,28 @@ class VisitorServiceImplTest {
 
         assertThat(visitor.getActivationEmailSentAt()).isNotNull();
         verify(visitorRepository).save(visitor);
+    }
+
+    @Test
+    void countByInsurerIncludesInsurersWithZeroVisitors() {
+        UUID emptyInsurerId = UUID.randomUUID();
+        Insurer withVisitors = new Insurer();
+        withVisitors.setId(insurerId);
+        withVisitors.setName("Minet Insurance");
+        Insurer empty = new Insurer();
+        empty.setId(emptyInsurerId);
+        empty.setName("Empty Insurance");
+        VisitorRepository.InsurerVisitorTotal row = new VisitorRepository.InsurerVisitorTotal() {
+            public UUID getInsurerId() { return insurerId; }
+            public long getTotal() { return 7; }
+        };
+        when(visitorRepository.countVisitorsGroupedByInsurer()).thenReturn(List.of(row));
+        when(insurerRepository.findAll()).thenReturn(List.of(withVisitors, empty));
+
+        List<InsurerVisitorCount> result = visitorService.countByInsurer();
+
+        assertThat(result).containsExactly(
+                new InsurerVisitorCount(insurerId, "Minet Insurance", 7),
+                new InsurerVisitorCount(emptyInsurerId, "Empty Insurance", 0));
     }
 }

@@ -690,6 +690,11 @@ Policy
   separate border events. This endpoint is separate from the general
   `update`/`create` flow since these values are typically recorded later,
   by a border-control integration rather than at KYC onboarding.
+  `GET /api/v1/visitors/distribution-by-insurer` (dashboard) returns
+  `[{insurerId, insurerName, totalVisitors}]` — all visitors regardless of status,
+  one entry per insurer (zero-visitor insurers included; visitors with a null
+  `insurerId` skipped). Backed by `VisitorService.countByInsurer`
+  (`VisitorRepository.countVisitorsGroupedByInsurer` + `InsurerRepository.findAll`).
   `GET /api/v1/visitors` (the paged list) takes an optional `insurerId` query
   param — omitted, it returns all visitors (`VisitorRepository.findAll`);
   provided, it filters to that insurer's visitors

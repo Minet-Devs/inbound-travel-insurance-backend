@@ -2,6 +2,7 @@ package com.travel.insurance.visitor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
+import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -228,5 +229,19 @@ class VisitorControllerTest {
                         .content(objectMapper.writeValueAsString(missingFields)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation failed"));
+    }
+
+    @Test
+    @WithMockUser
+    void distributionByInsurerReturnsCounts() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(visitorService.countByInsurer())
+                .thenReturn(List.of(new InsurerVisitorCount(insurerId, "Minet Insurance", 12)));
+
+        mockMvc.perform(get("/api/v1/visitors/distribution-by-insurer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].insurerId").value(insurerId.toString()))
+                .andExpect(jsonPath("$[0].insurerName").value("Minet Insurance"))
+                .andExpect(jsonPath("$[0].totalVisitors").value(12));
     }
 }

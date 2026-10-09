@@ -1,5 +1,6 @@
 package com.travel.insurance.visitor;
 
+import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -27,6 +28,9 @@ public interface VisitorService {
 
     List<VisitorResponse> listForExport(UUID insurerId, VisitorStatus status,
                                         LocalDate dateFrom, LocalDate dateTo);
+
+    /** Total visitors (any status) per insurer; every insurer is listed, including those with zero. */
+    List<InsurerVisitorCount> countByInsurer();
 
     VisitorResponse update(UUID id, VisitorRequest request);
 
