@@ -35,7 +35,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -127,7 +126,7 @@ class VisitorServiceImplTest {
         assertThat(response.fullName()).isEqualTo("Jane Traveler");
         assertThat(response.policyId()).isEqualTo(policyId);
         assertThat(response.insurerId()).isEqualTo(insurerId);
-        assertThat(response.visitorStatus()).isEqualTo(VisitorStatus.PENDING_ACTIVATION);
+        assertThat(response.visitorStatus()).isEqualTo(VisitorStatus.ACTIVE);
         assertThat(response.policyExpiryDate()).isEqualTo(response.dateIn().plusDays(365));
         verify(visitorRepository).save(any(Visitor.class));
         verify(eventPublisher).publishEvent(any(VisitorCreatedEvent.class));
@@ -146,15 +145,15 @@ class VisitorServiceImplTest {
     }
 
     @Test
-    void createDoesNotMintCertificateSerialNumberWhilePendingActivation() {
+    void createMintsCertificateSerialNumberForActiveVisitor() {
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorRepository.existsByPassportNumberHash(hashOf("P1234567"))).thenReturn(false);
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(certificateSerialNumberGenerator.next("Minet Insurance")).thenReturn("MINET-2026-000001");
 
         VisitorResponse response = visitorService.create(request);
 
-        assertThat(response.certificateSerialNumber()).isNull();
-        verifyNoInteractions(certificateSerialNumberGenerator);
+        assertThat(response.certificateSerialNumber()).isEqualTo("MINET-2026-000001");
     }
 
     @Test
@@ -362,7 +361,7 @@ class VisitorServiceImplTest {
     void updateVisitorStatusAppliesAllowedTransitionAndPublishesEvent() {
         UUID id = UUID.randomUUID();
         Visitor existing = visitorMapper.toEntity(request);
-        existing.setVisitorStatus(VisitorStatus.PENDING_ACTIVATION);
+        existing.setVisitorStatus(VisitorStatus.PENDING);
         existing.setInsurerId(insurerId);
         when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
 
@@ -379,7 +378,7 @@ class VisitorServiceImplTest {
     void updateVisitorStatusMintsCertificateSerialNumberOnFirstActivation() {
         UUID id = UUID.randomUUID();
         Visitor existing = visitorMapper.toEntity(request);
-        existing.setVisitorStatus(VisitorStatus.PENDING_ACTIVATION);
+        existing.setVisitorStatus(VisitorStatus.PENDING);
         existing.setInsurerId(insurerId);
         when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
         when(certificateSerialNumberGenerator.next("Minet Insurance")).thenReturn("MINET-2026-000001");
@@ -428,7 +427,7 @@ class VisitorServiceImplTest {
         when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
 
         assertThatThrownBy(() -> visitorService.updateVisitorStatus(
-                id, new VisitorStatusUpdate(VisitorStatus.PENDING_ACTIVATION)))
+                id, new VisitorStatusUpdate(VisitorStatus.PENDING)))
                 .isInstanceOf(IllegalStateException.class);
         verify(eventPublisher, never()).publishEvent(any());
     }
@@ -436,7 +435,7 @@ class VisitorServiceImplTest {
     @Test
     void updateVisitorStatusByPassportNumberAppliesAllowedTransitionAndPublishesEvent() {
         Visitor existing = visitorMapper.toEntity(request);
-        existing.setVisitorStatus(VisitorStatus.PENDING_ACTIVATION);
+        existing.setVisitorStatus(VisitorStatus.PENDING);
         existing.setInsurerId(insurerId);
         when(visitorRepository.findByPassportNumberHash(hashOf("P1234567")))
                 .thenReturn(Optional.of(existing));

@@ -35,8 +35,8 @@ class VisitorStatusChangedListenerTest {
 
     @Test
     void mirrorsNewStatusOntoAllVisitorBenefits() {
-        VisitorBenefit first = benefitWithStatus(VisitorStatus.PENDING_ACTIVATION);
-        VisitorBenefit second = benefitWithStatus(VisitorStatus.PENDING_ACTIVATION);
+        VisitorBenefit first = benefitWithStatus(VisitorStatus.PENDING);
+        VisitorBenefit second = benefitWithStatus(VisitorStatus.PENDING);
         when(visitorBenefitRepository.findAllByVisitorId(visitorId))
                 .thenReturn(List.of(first, second));
 

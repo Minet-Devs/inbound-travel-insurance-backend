@@ -59,7 +59,7 @@ com.travel.insurance/
 │   ├── JpaAuditingConfig.java              # @EnableJpaAuditing + AuditorAware
 │   ├── OpenApiConfig.java                  # Swagger/OpenAPI metadata
 │   ├── RabbitConfig.java                   # Exchanges, queues, bindings
-│   ├── MailProperties.java                 # app.mail.* (from address, emergency-assistance contact)
+│   ├── MailProperties.java                 # app.mail.* (from address, activation BCC list, emergency-assistance contact)
 │   └── UssdProperties.java                 # ussd.feedback.* (default-scheme-name, email.to)
 │
 ├── 📁 common/                              # Shared, feature-agnostic code
@@ -699,7 +699,7 @@ Policy
   dependencies acyclic. The paged list and create/update endpoints return
   plain `VisitorResponse` rows without benefits.
 - A visitor carries a `VisitorStatus` with guarded transitions
-  (`canTransitionTo`). A newly created visitor starts `PENDING_ACTIVATION` (lifecycle `PENDING_ACTIVATION → ACTIVE`, `ACTIVE ↔ SUSPENDED`, `DEACTIVATED` terminal); it is updated via
+  (`canTransitionTo`). A newly created visitor defaults to `ACTIVE`. It is updated via
   `PATCH /api/v1/visitors/{id}/status` or
   `PATCH /api/v1/visitors/by-passport/status?passportNumber=…`, both taking a
   `VisitorStatusUpdate` body; an allowed transition publishes a
@@ -708,7 +708,7 @@ Policy
   `VisitorServiceImpl` publishes an in-process `VisitorCreatedEvent`, which
   `visitorbenefit.VisitorCreatedListener` consumes to create one
   `VisitorBenefit` per global `Benefit` (each snapshotting the catalog
-  `limitAmount` and taking the visitor's current status, `PENDING_ACTIVATION` for a new visitor). Every status change is mirrored onto the visitor's `VisitorBenefit` rows by `visitorbenefit.VisitorStatusChangedListener`, so activating a visitor activates all of its benefits.
+  `limitAmount` and taking the visitor's current status, `ACTIVE` by default). Every status change is mirrored onto the visitor's `VisitorBenefit` rows by `visitorbenefit.VisitorStatusChangedListener`, so activating a visitor activates all of its benefits.
   The listener skips benefits already
   assigned to the visitor, so it is idempotent. Further benefits can still be
   attached explicitly via the `VisitorBenefit` endpoints.
@@ -1239,15 +1239,21 @@ copy (`Welcome to Kenya – Your Medical Cover Is Now Active`, minus the "RE:"
 prefix it carried when it was a follow-up to a separate first email — with
 only one email now, "RE:" no longer applies), covering emergency contacts,
 cover benefits, accredited-hospital lookup instructions, and mobile app
-download links (the app store links are literal `[Insert Google Play link]`
-/ `[Insert Apple App Store link]` placeholders in the copy; no app store
-URLs are configured yet):
+download links (a clickable Google Play badge image linking to
+`https://play.google.com/store/apps/details?id=com.kenyacares.mobile`, with the
+badge hosted on Dropbox and rewritten via `LogoUrlNormalizer`; the iPhone / App
+Store link is omitted until the app is approved):
+
+The activation email is also BCC'd to the internal recipients in
+`app.mail.activation-bcc` (env `ACTIVATION_BCC`, comma-separated; defaults to four
+Minet staff addresses). `EmailService` has a `send(...)` overload taking a BCC list;
+an empty list adds no BCC header.
 
 - `VisitorActivatedNotificationListener` sends the certificate on two paths,
   both gated on `ACTIVE`: `VisitorStatusChangedEvent` with `newStatus == ACTIVE`
   (a transition), and `VisitorCreatedEvent` when the newly created visitor is
-  already `ACTIVE`. Since new visitors start `PENDING_ACTIVATION`, in practice the
-  certificate goes out on the activation transition. Unlike
+  already `ACTIVE` (the default status), so visitors created active still get a
+  certificate without a separate activation step. Unlike
   the sibling `visitorbenefit.VisitorStatusChangedListener` (which stays
   synchronous and in-transaction because it must mirror the status onto
   `VisitorBenefit` rows consistently), this listener uses
@@ -1292,7 +1298,7 @@ URLs are configured yet):
   with the first word of the issuing insurer's name uppercased as prefix and
   the mint-time calendar year as a label — the sequence itself is global and
   never resets). `VisitorServiceImpl` mints it once, the first time a visitor
-  transitions to `ACTIVE` (via `applyStatusUpdate()`; `create()` only mints if a visitor is created already `ACTIVE`),
+  transitions to `ACTIVE` (either at `create()` or via `applyStatusUpdate()`),
   and persists it on `Visitor`; it's left untouched on any later
   `SUSPENDED → ACTIVE` reactivation, so one visitor keeps the same serial for
   the life of their cover even though the certificate email itself is
@@ -1832,6 +1838,12 @@ Main Menu → 1. Find Hospital
   or `application.yml`.
 - Access tokens are short-lived and paired with refresh tokens (handled by the
   `auth` feature).
+- **CORS (`CorsConfig`):** browser origins allowed to call the API come from
+  `app.cors.allowed-origins` (env `CORS_ALLOWED_ORIGINS`, comma-separated;
+  defaults to the production web app plus localhost dev ports). Wired into
+  the filter chain with `http.cors(...)` so preflight `OPTIONS` requests are
+  answered before authentication. Allowed methods: GET, POST, PUT, PATCH,
+  DELETE, OPTIONS.
 - Passwords are hashed with BCrypt (`PasswordEncoder` bean in
   `SecurityConfig`).
 - **Field-level encryption at rest (`common/crypto`):** sensitive PII and

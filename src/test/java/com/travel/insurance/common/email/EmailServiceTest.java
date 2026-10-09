@@ -162,4 +162,20 @@ class EmailServiceTest {
                 "<p>Body</p>"))
                 .doesNotThrowAnyException();
     }
+
+    @Test
+    void addsBccRecipientsWithoutExposingThemInToHeader() throws Exception {
+        emailService = new EmailService(mailSender, smtpSenderFactory);
+        MimeMessage message = newMimeMessage();
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        emailService.send(null, "from@example.com", "to@example.com",
+                List.of("a@example.com", "b@example.com"), "Subject", "<p>Body</p>", List.of());
+
+        verify(mailSender).send(message);
+        assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.BCC))
+                .extracting(Object::toString).containsExactly("a@example.com", "b@example.com");
+        assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.TO))
+                .extracting(Object::toString).containsExactly("to@example.com");
+    }
 }

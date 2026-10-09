@@ -64,6 +64,13 @@ public class VisitorActivatedNotificationListener {
     private static final String WELCOME_PACK_RESOURCE = "templates/Inbound-Travel-Health-Insurance-Welcome-Pack.pdf";
     private static final String WELCOME_PACK_ATTACHMENT_NAME = "Inbound-Travel-Health-Welcome-Pack.pdf";
 
+    private static final String PLAY_STORE_URL =
+            "https://play.google.com/store/apps/details?id=com.kenyacares.mobile";
+    // Hosted on Dropbox; normalized to the direct-content host so mail clients get raw image bytes.
+    private static final String PLAY_STORE_BADGE_URL = LogoUrlNormalizer.normalize(
+            "https://www.dropbox.com/scl/fi/5vd3sslx6kqno56l2ipty/playstorelogo.png"
+                    + "?rlkey=nsklczat0avejj2sl4k3ohtkc&st=z1dz7wqk&dl=1");
+
     private byte[] rawPolicyDocumentCache;
     private byte[] welcomePackPdfCache;
     private final Map<UUID, byte[]> brandedPolicyDocumentCache = new ConcurrentHashMap<>();
@@ -174,6 +181,7 @@ public class VisitorActivatedNotificationListener {
                 mailSettings.credentials(),
                 mailSettings.from(),
                 visitor.getEmail(),
+                mailProperties.getActivationBcc(),
                 "Welcome to Kenya – Your Medical Cover Is Now Active",
                 buildActivationEmailHtml(firstNameOf(visitor.getFullName())),
                 attachments);
@@ -207,8 +215,10 @@ public class VisitorActivatedNotificationListener {
                 + "<li>Information on downloading and using the mobile app</li>"
                 + "</ul>"
                 + "<p><strong>Download the mobile app:</strong><br>"
-                + "Android: [Insert Google Play link]<br>"
-                + "iPhone: [Insert Apple App Store link]</p>"
+                + "<a href=\"" + PLAY_STORE_URL + "\">"
+                + "<img src=\"" + PLAY_STORE_BADGE_URL.replace("&", "&amp;") + "\" "
+                + "alt=\"Get it on Google Play\" width=\"160\" border=\"0\" "
+                + "style=\"height:auto;border:0;\"></a></p>"
                 + "<p><strong>How to find an accredited hospital:</strong></p>"
                 + "<ul>"
                 + "<li>Use the app and select “Find a Hospital”</li>"

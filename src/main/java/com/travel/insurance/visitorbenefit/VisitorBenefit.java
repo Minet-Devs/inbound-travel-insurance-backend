@@ -36,5 +36,5 @@ public class VisitorBenefit extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private VisitorStatus status = VisitorStatus.PENDING_ACTIVATION;
+    private VisitorStatus status = VisitorStatus.PENDING;
 }
