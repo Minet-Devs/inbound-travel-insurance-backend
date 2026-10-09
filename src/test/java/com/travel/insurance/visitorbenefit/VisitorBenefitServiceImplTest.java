@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.springframework.context.ApplicationEventPublisher;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -42,6 +43,9 @@ class VisitorBenefitServiceImplTest {
     @Mock
     private ClaimService claimService;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private final VisitorBenefitMapper visitorBenefitMapper = new VisitorBenefitMapper();
 
     private VisitorBenefitServiceImpl visitorBenefitService;
@@ -54,7 +58,7 @@ class VisitorBenefitServiceImplTest {
     @BeforeEach
     void setUp() {
         visitorBenefitService = new VisitorBenefitServiceImpl(
-                visitorBenefitRepository, visitorBenefitMapper, visitorService, benefitService, claimService);
+                visitorBenefitRepository, visitorBenefitMapper, visitorService, benefitService, claimService, eventPublisher);
         visitorId = UUID.randomUUID();
         benefitId = UUID.randomUUID();
         visitor = new Visitor();
@@ -80,6 +84,7 @@ class VisitorBenefitServiceImplTest {
         assertThat(response.visitorId()).isEqualTo(visitorId);
         assertThat(response.benefitId()).isEqualTo(benefitId);
         assertThat(response.benefitName()).isEqualTo("Medical Expenses");
+        verify(eventPublisher).publishEvent(new VisitorBenefitAssignedEvent(visitor.getId()));
     }
 
     @Test

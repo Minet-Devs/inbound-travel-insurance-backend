@@ -7,6 +7,9 @@ import com.travel.insurance.claim.ClaimRepository;
 import com.travel.insurance.claim.ClaimStatus;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.icd11.Icd11CodeService;
+import com.travel.insurance.common.util.AuthenticatedUser;
+import com.travel.insurance.common.util.SecurityUtils;
+import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceItemResponse;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
@@ -16,6 +19,8 @@ import com.travel.insurance.report.dto.*;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
+import com.travel.insurance.visitor.VisitorStatus;
+import com.travel.insurance.visitor.dto.VisitorResponse;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -52,6 +57,7 @@ public class ReportServiceImpl implements ReportService {
     private final ProcedureService procedureService;
     private final ServiceProviderService serviceProviderService;
     private final MedicalServiceService medicalServiceService;
+    private final InsurerService insurerService;
     private final SpringTemplateEngine templateEngine;
 
     @Override
@@ -311,6 +317,62 @@ public class ReportServiceImpl implements ReportService {
             throw new IllegalStateException(errorMessage, ex);
         }
         return out.toByteArray();
+    }
+
+    // ── Visitor export ───────────────────────────────────────────────────
+
+    @Override
+    public byte[] generateVisitorReportExcel(UUID insurerId, VisitorStatus status,
+                                             LocalDate dateFrom, LocalDate dateTo) {
+        UUID scopedInsurerId = insurerId;
+        AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
+        if (user != null && "INSURER_USER".equals(user.role())) {
+            // Insurer users only ever see their own insurer's visitors, whatever insurerId they pass.
+            scopedInsurerId = insurerService.findIdByOrganizationId(user.organizationId()).orElse(null);
+            if (scopedInsurerId == null) {
+                return renderVisitorExcel(List.of(), Map.of());
+            }
+        }
+        List<VisitorResponse> visitors =
+                visitorService.listForExport(scopedInsurerId, status, dateFrom, dateTo);
+        Set<UUID> insurerIds = visitors.stream().map(VisitorResponse::insurerId)
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<UUID, String> insurerNames = insurerIds.isEmpty()
+                ? Map.of() : insurerService.namesByIds(insurerIds);
+        return renderVisitorExcel(visitors, insurerNames);
+    }
+
+    private byte[] renderVisitorExcel(List<VisitorResponse> visitors, Map<UUID, String> insurerNames) {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Visitors");
+            CellStyle headerStyle = createHeaderStyle(workbook);
+            String[] headers = {"Visitor Name", "Gender", "Passport Number", "Nationality",
+                    "Travel Dates", "Email", "Telephone", "Insurer Name"};
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                setCell(headerRow, i, headers[i], headerStyle);
+            }
+            int rowIdx = 1;
+            for (VisitorResponse v : visitors) {
+                Row row = sheet.createRow(rowIdx++);
+                setCell(row, 0, v.fullName(), null);
+                setCell(row, 1, v.gender(), null);
+                setCell(row, 2, v.passportNumber(), null);
+                setCell(row, 3, v.nationality(), null);
+                setCell(row, 4, v.dateIn() + " to " + v.dateOut(), null);
+                setCell(row, 5, v.email(), null);
+                setCell(row, 6, v.phoneNumber(), null);
+                setCell(row, 7, insurerNames.get(v.insurerId()), null);
+            }
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (IOException ex) {
+            throw new IllegalStateException("Failed to render visitors Excel", ex);
+        }
     }
 
     // ── Excel rendering ──────────────────────────────────────────────────
