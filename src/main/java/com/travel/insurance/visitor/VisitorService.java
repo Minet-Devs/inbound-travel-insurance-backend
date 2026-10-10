@@ -1,6 +1,7 @@
 package com.travel.insurance.visitor;
 
 import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
+import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -38,6 +39,12 @@ public interface VisitorService {
      * "3-17" (3 to under 18) and "18+". All three groups are always returned, in that order.
      */
     List<AgeGroupVisitorCount> countByAgeGroup();
+
+    /**
+     * Age-group breakdown (same "0-2", "3-17", "18+" buckets, always all three) per insurer, any
+     * visitor status. Every insurer is listed, including those with zero visitors.
+     */
+    List<InsurerAgeGroupVisitorCount> countByInsurerAndAgeGroup();
 
     VisitorResponse update(UUID id, VisitorRequest request);
 

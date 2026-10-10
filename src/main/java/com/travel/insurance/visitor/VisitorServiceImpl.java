@@ -7,6 +7,7 @@ import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
+import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -132,6 +133,33 @@ public class VisitorServiceImpl implements VisitorService {
                 new AgeGroupVisitorCount("0-2", infants),
                 new AgeGroupVisitorCount("3-17", minors),
                 new AgeGroupVisitorCount("18+", adults));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InsurerAgeGroupVisitorCount> countByInsurerAndAgeGroup() {
+        // date_of_birth is encrypted at rest, so it cannot be bucketed in SQL.
+        LocalDate today = LocalDate.now();
+        Map<UUID, long[]> buckets = new HashMap<>();
+        for (Visitor visitor : visitorRepository.findAll()) {
+            if (visitor.getDateOfBirth() == null || visitor.getInsurerId() == null) {
+                continue;
+            }
+            int age = Period.between(visitor.getDateOfBirth(), today).getYears();
+            int bucket = age < 3 ? 0 : age < 18 ? 1 : 2;
+            buckets.computeIfAbsent(visitor.getInsurerId(), id -> new long[3])[bucket]++;
+        }
+        return insurerRepository.findAll().stream()
+                .map(insurer -> {
+                    long[] counts = buckets.getOrDefault(insurer.getId(), new long[3]);
+                    return new InsurerAgeGroupVisitorCount(
+                            insurer.getId(), insurer.getName(),
+                            List.of(new AgeGroupVisitorCount("0-2", counts[0]),
+                                    new AgeGroupVisitorCount("3-17", counts[1]),
+                                    new AgeGroupVisitorCount("18+", counts[2])),
+                            counts[0] + counts[1] + counts[2]);
+                })
+                .toList();
     }
 
     @Override

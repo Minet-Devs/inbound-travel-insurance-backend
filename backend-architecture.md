@@ -703,6 +703,13 @@ Policy
   computed as of today from `dateOfBirth`. Because `date_of_birth` is encrypted at
   rest, bucketing is done in memory (`VisitorServiceImpl.countByAgeGroup` over
   `VisitorRepository.findAll`), not in SQL; revisit if the table grows large.
+  `GET /api/v1/visitors/distribution-by-insurer-and-age-group` (dashboard) returns
+  `[{insurerId, insurerName, ageGroups:[{ageGroup, totalVisitors}], totalVisitors}]` —
+  the two distributions above combined: one entry per insurer (zero-visitor insurers
+  included), each with the three age buckets `0-2`, `3-17`, `18+` in order, all statuses.
+  Visitors with a null `insurerId` or `dateOfBirth` are skipped. Backed by
+  `VisitorService.countByInsurerAndAgeGroup`, bucketed in memory for the same
+  encryption reason.
   `GET /api/v1/visitors` (the paged list) takes an optional `insurerId` query
   param — omitted, it returns all visitors (`VisitorRepository.findAll`);
   provided, it filters to that insurer's visitors

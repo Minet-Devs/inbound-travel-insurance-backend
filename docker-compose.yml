@@ -37,7 +37,7 @@ services:
       context: ./
       dockerfile: Dockerfile
     container_name: inbound-backend
-    image: mishobo/inbound-travel-insurance-backend:20261008.11
+    image: mishobo/inbound-travel-insurance-backend:20261009.5
 
 
 

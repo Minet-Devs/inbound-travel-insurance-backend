@@ -7,6 +7,7 @@ import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
+import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -666,5 +667,40 @@ class VisitorServiceImplTest {
                 new AgeGroupVisitorCount("0-2", 0),
                 new AgeGroupVisitorCount("3-17", 0),
                 new AgeGroupVisitorCount("18+", 0));
+    }
+
+    @Test
+    void countByInsurerAndAgeGroupBucketsPerInsurer() {
+        LocalDate today = LocalDate.now();
+        UUID emptyInsurerId = UUID.randomUUID();
+        Insurer minet = new Insurer();
+        minet.setId(insurerId);
+        minet.setName("Minet Insurance");
+        Insurer empty = new Insurer();
+        empty.setId(emptyInsurerId);
+        empty.setName("Empty Insurance");
+        Visitor infant = visitorBornOn(today.minusYears(3).plusDays(1));
+        infant.setInsurerId(insurerId);
+        Visitor minor = visitorBornOn(today.minusYears(3));
+        minor.setInsurerId(insurerId);
+        Visitor adult = visitorBornOn(today.minusYears(18));
+        adult.setInsurerId(insurerId);
+        Visitor noInsurer = visitorBornOn(today.minusYears(30));
+        Visitor noDob = visitorBornOn(null);
+        noDob.setInsurerId(insurerId);
+        when(visitorRepository.findAll()).thenReturn(List.of(infant, minor, adult, noInsurer, noDob));
+        when(insurerRepository.findAll()).thenReturn(List.of(minet, empty));
+
+        List<InsurerAgeGroupVisitorCount> result = visitorService.countByInsurerAndAgeGroup();
+
+        assertThat(result).containsExactly(
+                new InsurerAgeGroupVisitorCount(insurerId, "Minet Insurance", List.of(
+                        new AgeGroupVisitorCount("0-2", 1),
+                        new AgeGroupVisitorCount("3-17", 1),
+                        new AgeGroupVisitorCount("18+", 1)), 3),
+                new InsurerAgeGroupVisitorCount(emptyInsurerId, "Empty Insurance", List.of(
+                        new AgeGroupVisitorCount("0-2", 0),
+                        new AgeGroupVisitorCount("3-17", 0),
+                        new AgeGroupVisitorCount("18+", 0)), 0));
     }
 }
