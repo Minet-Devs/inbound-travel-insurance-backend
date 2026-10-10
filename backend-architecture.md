@@ -1364,12 +1364,13 @@ and the email goes out without it.
   re-sent. It's rendered in the certificate's `.meta` strip and referenced by
   the verification copy ("Verify this certificate at kenyacares.go.ke/verify
   using the Certificate Serial Number above").
-- The activation email carries up to three attachments: a single
+- The activation email carries up to four attachments: a single
   `Insurance Policy.pdf` (the certificate), the policy wording sent as
   `Policy Document.pdf` (rendered from `templates/Inbound-Travel-Health-Policy-Document.pdf`),
-  and the bundled `templates/Inbound-Travel-Health-Insurance-Welcome-Pack.pdf`. The base wording PDF
-  and the Welcome Pack PDF are each loaded once from the classpath and cached
-  (`rawPolicyDocumentCache`, `welcomePackPdfCache`); if either bundled
+  the bundled `templates/Inbound-Travel-Health-Insurance-Welcome-Pack.pdf`, and the bundled
+  `templates/Inbound-Travel-Health-Insurance-FAQs.pdf` (sent as `Inbound-Travel-Health-FAQs.pdf`).
+  The base wording, Welcome Pack and FAQs PDFs are each loaded once from the classpath and cached
+  (`rawPolicyDocumentCache`, `welcomePackPdfCache`, `faqsPdfCache`); if any bundled
   document can't be read, that load is logged and skipped so the rest of the
   email still goes out. When the backing insurer has a logo and/or e-signature URL,
   `PolicyDocumentRenderer.brandPolicyWording` overlays the logo at the

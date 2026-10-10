@@ -73,6 +73,9 @@ public class VisitorActivatedNotificationListener {
     private static final String WELCOME_PACK_RESOURCE = "templates/Inbound-Travel-Health-Insurance-Welcome-Pack.pdf";
     private static final String WELCOME_PACK_ATTACHMENT_NAME = "Inbound-Travel-Health-Welcome-Pack.pdf";
 
+    private static final String FAQS_RESOURCE = "templates/Inbound-Travel-Health-Insurance-FAQs.pdf";
+    private static final String FAQS_ATTACHMENT_NAME = "Inbound-Travel-Health-FAQs.pdf";
+
     private static final String SIGNATURE_RESOURCE = "templates/Inbound-Travel-Health-Esignature.png";
     private static final String SIGNATURE_CONTENT_ID = "email-signature";
 
@@ -85,6 +88,7 @@ public class VisitorActivatedNotificationListener {
 
     private byte[] rawPolicyDocumentCache;
     private byte[] welcomePackPdfCache;
+    private byte[] faqsPdfCache;
     private byte[] signatureImageCache;
     private final Map<UUID, byte[]> brandedPolicyDocumentCache = new ConcurrentHashMap<>();
 
@@ -242,6 +246,10 @@ public class VisitorActivatedNotificationListener {
         if (welcomePackPdf != null) {
             attachments.add(new EmailAttachment(WELCOME_PACK_ATTACHMENT_NAME, welcomePackPdf));
         }
+        byte[] faqsPdf = loadFaqsPdf();
+        if (faqsPdf != null) {
+            attachments.add(new EmailAttachment(FAQS_ATTACHMENT_NAME, faqsPdf));
+        }
         byte[] signatureImage = loadSignatureImage();
         List<InlineImage> inlineImages = signatureImage == null
                 ? List.of()
@@ -327,7 +335,8 @@ public class VisitorActivatedNotificationListener {
                 + "of an emergency, you or someone assisting you must notify us within 24 hours.</p>"
                 + "<p>For general enquiries, contact us at inbound.travel@minet.co.ke.</p>"
                 + "<p>Please save the emergency number in your phone and keep the attached Welcome Pack "
-                + "readily accessible throughout your stay.</p>"
+                + "readily accessible throughout your stay. We have also attached our Frequently Asked "
+                + "Questions (FAQs) document for quick answers about your cover.</p>"
                 + "<p>We wish you a safe, healthy and enjoyable stay in Kenya.</p>"
                 + "<p>Warm regards,</p>"
                 + "<p>Inbound Travel Health Insurance Support Team<br>"
@@ -356,6 +365,23 @@ public class VisitorActivatedNotificationListener {
             }
         }
         return welcomePackPdfCache;
+    }
+
+    /**
+     * Loads the bundled FAQs PDF from the classpath, cached after the first
+     * read. A load failure is logged and returns {@code null} so the email
+     * still goes out without the attachment.
+     */
+    private synchronized byte[] loadFaqsPdf() {
+        if (faqsPdfCache == null) {
+            try {
+                faqsPdfCache = new ClassPathResource(FAQS_RESOURCE).getInputStream().readAllBytes();
+            } catch (IOException ex) {
+                log.error("Could not load bundled FAQs {}: {}", FAQS_RESOURCE, ex.getMessage(), ex);
+                return null;
+            }
+        }
+        return faqsPdfCache;
     }
 
     /**
