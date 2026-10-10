@@ -312,7 +312,7 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .containsExactly("Insurance Policy.pdf", "Policy Document.pdf",
-                        "Inbound-Travel-Health-Welcome-Pack.pdf");
+                        "Inbound-Travel-Health-Welcome-Pack.pdf", "Inbound-Travel-Health-FAQs.pdf");
         assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-MERGED".getBytes());
         assertThat(attachmentsCaptor.getValue().get(1).content()).isEqualTo("%PDF-AGREEMENT-FILLED".getBytes());
     }
@@ -603,6 +603,26 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .contains("Inbound-Travel-Health-Welcome-Pack.pdf");
+    }
+
+    @Test
+    void attachesFaqsPdf() {
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
+        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
+
+        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
+
+        ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), attachmentsCaptor.capture(), anyList());
+        assertThat(attachmentsCaptor.getValue())
+                .filteredOn(a -> a.filename().equals("Inbound-Travel-Health-FAQs.pdf"))
+                .singleElement()
+                .satisfies(a -> assertThat(a.content()).isNotEmpty());
     }
 
     @Test
