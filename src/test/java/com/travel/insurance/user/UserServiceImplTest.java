@@ -140,6 +140,21 @@ class UserServiceImplTest {
     }
 
     @Test
+    void createContactCenterUserHasNoInsurerOrProviderScope() {
+        when(userRepository.existsByEmail("jane@acme.com")).thenReturn(false);
+        when(passwordEncoder.encode(any())).thenReturn("hashed");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        UserRequest contactCenter = new UserRequest("Jane", "Doe", "jane@acme.com", "password123",
+                "0700000000", Role.CONTACT_CENTER, UUID.randomUUID());
+
+        UserResponse response = userService.create(contactCenter);
+
+        assertThat(response.role()).isEqualTo(Role.CONTACT_CENTER);
+        assertThat(response.insurerId()).isNull();
+        assertThat(response.serviceProviderId()).isNull();
+    }
+
+    @Test
     void createResolvesInsurerIdForInsurerUser() {
         UUID insurerId = UUID.randomUUID();
         when(userRepository.existsByEmail("jane@acme.com")).thenReturn(false);

@@ -47,6 +47,8 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST,"/api/v1/users").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.GET,"/api/v1/users").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/insurers").denyAll();
+                    // CONTACT_CENTER may list insurers (paged) — must come BEFORE the broader insurers rule.
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/insurers").hasAnyRole("ADMIN", "CONTACT_CENTER");
                     auth.requestMatchers("/api/v1/insurers/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/policies").denyAll();
                     // Disable POST create endpoint specifically — must come BEFORE the broader service-providers rule

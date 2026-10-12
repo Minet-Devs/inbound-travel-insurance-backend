@@ -111,7 +111,7 @@ com.travel.insurance/
 │   ├── UserRepository.java                 # Data access (extends JpaRepository)
 │   ├── User.java                           # Domain entity (@Entity)
 │   ├── Role.java                           # Enum: ADMIN, INSURER_USER,
-│   │                                       #       PROVIDER_USER
+│   │                                       #       PROVIDER_USER, CONTACT_CENTER
 │   ├── UserMapper.java                     # Entity ⇄ DTO mapping
 │   └── 📁 dto/
 │       ├── UserRequest.java
@@ -954,8 +954,13 @@ service provider staff. Users are distinguished by role, not by separate
 entities:
 
 - `User.role` is a single `Role` enum column (`ADMIN`, `INSURER_USER`,
-  `PROVIDER_USER`) — a user has exactly one role, mapped to a single Spring
-  Security authority. The JWT carries it as a single `role` claim
+  `PROVIDER_USER`, `CONTACT_CENTER`) — a user has exactly one role, mapped to a single Spring
+  Security authority. `CONTACT_CENTER` is Minet-internal staff: like `ADMIN`
+  they belong to the Minet admin organization and have no insurer/provider
+  scoping (`insurerId`/`serviceProviderId` are `null`); it can list visitors
+  (`GET /api/v1/visitors`), list insurers (`GET /api/v1/insurers`, paged only —
+  the rest of `/insurers/**` stays ADMIN-only) and resend activation emails
+  (`POST /api/v1/visitors/by-passport/resend-activation-email`). The JWT carries it as a single `role` claim
   (`JwtTokenProvider.CLAIM_ROLE`); `AuthenticatedUser.role` is a single
   `String`, not a set.
 - Besides the standard `sub` claim (the user id — clients should read the
