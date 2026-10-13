@@ -1539,6 +1539,9 @@ Design notes:
   (`@TransactionalEventListener(phase = AFTER_COMMIT)`) sends the email via
   `EmailService` afterward, so a slow/unreachable mail server can never roll
   back the OTP row. Failures are caught and logged, never propagated.
+- Every OTP email is **CC'd** (visible) to `app.mail.otp-cc` (env `OTP_CC`,
+  default `inbound.travel@minet.co.ke`). This applies only to this
+  service-provider OTP (preauth/claims), not the mobile visitor login OTP.
 - The sending mailbox is **not** derived from the visitor/policy (the `Otp`
   entity has no path to an `Insurer`). It's resolved via
   `OrganizationService.getEntityById` from a fixed organization id

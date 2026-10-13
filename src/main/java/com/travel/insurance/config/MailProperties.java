@@ -19,6 +19,9 @@ public class MailProperties {
     /** Hidden recipients copied on every visitor activation email. */
     private List<String> activationBcc = new ArrayList<>();
 
+    /** Visible CC recipients on every service-provider OTP email (preauth / claims). */
+    private List<String> otpCc = new ArrayList<>();
+
     @NestedConfigurationProperty
     private Resend resend = new Resend();
 
