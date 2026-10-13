@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -51,9 +52,12 @@ public class OtpNotificationListener {
                 mailSettings.credentials(),
                 mailSettings.from(),
                 otp.getEmail(),
+                mailProperties.getOtpCc(),
+                List.of(),
                 "Your verification code",
                 "<p>Your verification code is <strong>" + otp.getOtp() + "</strong>.</p>"
-                        + "<p>This code expires in 10 minutes.</p>");
+                        + "<p>This code expires in 10 minutes.</p>",
+                List.of());
         log.info("Sent OTP email to {} for service provider {}", otp.getEmail(), otp.getServiceProviderId());
     }
 

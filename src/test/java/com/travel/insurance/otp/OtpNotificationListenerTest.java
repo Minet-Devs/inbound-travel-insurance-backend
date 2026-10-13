@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +43,7 @@ class OtpNotificationListenerTest {
     void setUp() {
         MailProperties mailProperties = new MailProperties();
         mailProperties.setFrom("no-reply@travelinsurance.example");
+        mailProperties.setOtpCc(List.of("inbound.travel@minet.co.ke"));
 
         listener = new OtpNotificationListener(otpRepository, organizationService, emailService, mailProperties);
     }
@@ -73,7 +75,8 @@ class OtpNotificationListenerTest {
 
         ArgumentCaptor<SmtpCredentials> credentialsCaptor = ArgumentCaptor.forClass(SmtpCredentials.class);
         org.mockito.Mockito.verify(emailService).send(credentialsCaptor.capture(), eq("no_reply@acme.example"),
-                eq("traveler@example.com"), eq("Your verification code"), org.mockito.ArgumentMatchers.anyString());
+                eq("traveler@example.com"), eq(List.of("inbound.travel@minet.co.ke")), eq(List.of()),
+                eq("Your verification code"), org.mockito.ArgumentMatchers.anyString(), eq(List.of()));
 
         assertThat(credentialsCaptor.getValue().host()).isEqualTo("smtp.acme.example");
         assertThat(credentialsCaptor.getValue().port()).isEqualTo(587);
@@ -90,7 +93,8 @@ class OtpNotificationListenerTest {
 
         org.mockito.Mockito.verify(emailService).send(eq((SmtpCredentials) null),
                 eq("no-reply@travelinsurance.example"), eq("traveler@example.com"),
-                eq("Your verification code"), org.mockito.ArgumentMatchers.anyString());
+                eq(List.of("inbound.travel@minet.co.ke")), eq(List.of()),
+                eq("Your verification code"), org.mockito.ArgumentMatchers.anyString(), eq(List.of()));
     }
 
     @Test
@@ -103,6 +107,7 @@ class OtpNotificationListenerTest {
 
         org.mockito.Mockito.verify(emailService).send(eq((SmtpCredentials) null),
                 eq("no-reply@travelinsurance.example"), eq("traveler@example.com"),
-                eq("Your verification code"), org.mockito.ArgumentMatchers.anyString());
+                eq(List.of("inbound.travel@minet.co.ke")), eq(List.of()),
+                eq("Your verification code"), org.mockito.ArgumentMatchers.anyString(), eq(List.of()));
     }
 }
