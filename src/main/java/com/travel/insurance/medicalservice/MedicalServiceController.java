@@ -53,8 +53,9 @@ public class MedicalServiceController {
 
     @GetMapping
     public ResponseEntity<Page<MedicalServiceResponse>> list(
-            @RequestParam(required = false) UUID departmentId, Pageable pageable) {
-        return ResponseEntity.ok(medicalServiceService.list(departmentId, pageable));
+            @RequestParam(required = false) UUID departmentId,
+            @RequestParam(required = false) String serviceName, Pageable pageable) {
+        return ResponseEntity.ok(medicalServiceService.list(departmentId, serviceName, pageable));
     }
 
     @GetMapping("/by-department/{departmentId}")

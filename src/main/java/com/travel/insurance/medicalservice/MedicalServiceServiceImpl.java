@@ -53,10 +53,19 @@ public class MedicalServiceServiceImpl implements MedicalServiceService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<MedicalServiceResponse> list(UUID departmentId, Pageable pageable) {
-        Page<MedicalService> page = departmentId != null
-                ? medicalServiceRepository.findAllByDepartmentId(departmentId, pageable)
-                : medicalServiceRepository.findAll(pageable);
+    public Page<MedicalServiceResponse> list(UUID departmentId, String serviceName, Pageable pageable) {
+        String name = serviceName == null ? "" : serviceName.trim();
+        Page<MedicalService> page;
+        if (name.isEmpty()) {
+            page = departmentId != null
+                    ? medicalServiceRepository.findAllByDepartmentId(departmentId, pageable)
+                    : medicalServiceRepository.findAll(pageable);
+        } else {
+            page = departmentId != null
+                    ? medicalServiceRepository.findAllByDepartmentIdAndNameContainingIgnoreCase(
+                            departmentId, name, pageable)
+                    : medicalServiceRepository.findAllByNameContainingIgnoreCase(name, pageable);
+        }
         return new PageImpl<>(toResponses(page.getContent()), pageable, page.getTotalElements());
     }
 
