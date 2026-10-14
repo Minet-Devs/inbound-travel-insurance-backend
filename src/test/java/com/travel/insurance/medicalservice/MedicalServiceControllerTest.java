@@ -69,9 +69,22 @@ class MedicalServiceControllerTest {
     @WithMockUser
     void listReturnsPagedServicesFilteredByDepartment() throws Exception {
         Page<MedicalServiceResponse> page = new PageImpl<>(List.of(sampleResponse()));
-        when(medicalServiceService.list(eq(departmentId), any())).thenReturn(page);
+        when(medicalServiceService.list(eq(departmentId), eq(null), any())).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/medical-services").param("departmentId", departmentId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].name").value("LABORATORY GENERAL"));
+    }
+
+    @Test
+    @WithMockUser
+    void listPassesServiceNameFilter() throws Exception {
+        Page<MedicalServiceResponse> page = new PageImpl<>(List.of(sampleResponse()));
+        when(medicalServiceService.list(eq(departmentId), eq("lab"), any())).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/medical-services")
+                        .param("departmentId", departmentId.toString())
+                        .param("serviceName", "lab"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].name").value("LABORATORY GENERAL"));
     }

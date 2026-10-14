@@ -561,7 +561,8 @@ Policy
   than globally, so two departments may each have an identically-named
   service. `GET /api/v1/departments/{id}` never embeds that department's
   services — callers fetch them separately via
-  `GET /api/v1/medical-services?departmentId=…` (paged) or
+  `GET /api/v1/medical-services?departmentId=…&serviceName=…` (paged; both
+  optional — `serviceName` is a case-insensitive "contains" match) or
   `GET /api/v1/medical-services/by-department/{departmentId}` (unpaged),
   keeping department reads cheap regardless of catalog size.
   `MedicalServiceResponse` additionally carries the owning department's

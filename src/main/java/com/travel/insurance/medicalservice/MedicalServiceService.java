@@ -16,7 +16,7 @@ public interface MedicalServiceService {
 
     MedicalServiceResponse getById(UUID id);
 
-    Page<MedicalServiceResponse> list(UUID departmentId, Pageable pageable);
+    Page<MedicalServiceResponse> list(UUID departmentId, String serviceName, Pageable pageable);
 
     List<MedicalServiceResponse> listAllByDepartment(UUID departmentId);
 
