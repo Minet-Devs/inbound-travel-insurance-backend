@@ -128,10 +128,35 @@ class MedicalServiceServiceImplTest {
         when(medicalServiceRepository.findAllByDepartmentId(departmentId, Pageable.unpaged())).thenReturn(page);
         when(departmentService.namesByIds(Set.of(departmentId))).thenReturn(Map.of(departmentId, "LABORATORY"));
 
-        Page<MedicalServiceResponse> result = medicalServiceService.list(departmentId, Pageable.unpaged());
+        Page<MedicalServiceResponse> result = medicalServiceService.list(departmentId, null, Pageable.unpaged());
 
         assertThat(result).hasSize(1);
         verify(medicalServiceRepository).findAllByDepartmentId(departmentId, Pageable.unpaged());
+        verify(medicalServiceRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listFiltersByServiceNameAndDepartment() {
+        MedicalService entity = new MedicalService();
+        entity.setDepartmentId(departmentId);
+        entity.setName("LABORATORY GENERAL");
+        when(medicalServiceRepository.findAllByDepartmentIdAndNameContainingIgnoreCase(
+                departmentId, "lab", Pageable.unpaged())).thenReturn(new PageImpl<>(List.of(entity)));
+        when(departmentService.namesByIds(Set.of(departmentId))).thenReturn(Map.of(departmentId, "LABORATORY"));
+
+        Page<MedicalServiceResponse> result = medicalServiceService.list(departmentId, " lab ", Pageable.unpaged());
+
+        assertThat(result).hasSize(1);
+        verify(medicalServiceRepository, never()).findAllByDepartmentId(any(UUID.class), any(Pageable.class));
+    }
+
+    @Test
+    void listFiltersByServiceNameOnly() {
+        when(medicalServiceRepository.findAllByNameContainingIgnoreCase("lab", Pageable.unpaged()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        assertThat(medicalServiceService.list(null, "lab", Pageable.unpaged())).isEmpty();
+
         verify(medicalServiceRepository, never()).findAll(any(Pageable.class));
     }
 

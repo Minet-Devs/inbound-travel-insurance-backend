@@ -10,6 +10,7 @@ import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitorbenefit.dto.VisitorBenefitRequest;
 import com.travel.insurance.visitorbenefit.dto.VisitorBenefitResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -33,6 +34,7 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
     private final VisitorService visitorService;
     private final BenefitService benefitService;
     private final ClaimService claimService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public VisitorBenefitResponse create(VisitorBenefitRequest request) {
@@ -46,6 +48,7 @@ public class VisitorBenefitServiceImpl implements VisitorBenefitService {
         VisitorBenefit visitorBenefit = new VisitorBenefit();
         applyRequest(visitorBenefit, request, benefit, visitor);
         visitorBenefit = visitorBenefitRepository.save(visitorBenefit);
+        eventPublisher.publishEvent(new VisitorBenefitAssignedEvent(visitor.getId()));
         return visitorBenefitMapper.toResponse(
                 visitorBenefit, benefit.getBenefitName(), utilizedAmountFor(visitorBenefit));
     }

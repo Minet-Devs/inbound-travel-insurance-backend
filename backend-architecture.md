@@ -59,7 +59,7 @@ com.travel.insurance/
 │   ├── JpaAuditingConfig.java              # @EnableJpaAuditing + AuditorAware
 │   ├── OpenApiConfig.java                  # Swagger/OpenAPI metadata
 │   ├── RabbitConfig.java                   # Exchanges, queues, bindings
-│   ├── MailProperties.java                 # app.mail.* (from address, activation BCC list, emergency-assistance contact)
+│   ├── MailProperties.java                 # app.mail.* (from address, emergency-assistance contact)
 │   └── UssdProperties.java                 # ussd.feedback.* (default-scheme-name, email.to)
 │
 ├── 📁 common/                              # Shared, feature-agnostic code
@@ -75,7 +75,9 @@ com.travel.insurance/
 │   ├── 📁 messaging/
 │   │   └── EventPublisher.java             # Thin wrapper over RabbitTemplate
 │   ├── 📁 email/
-│   │   └── EmailService.java               # Thin wrapper over JavaMailSender
+│   │   └── EmailService.java               # Thin wrapper over JavaMailSender; sends serialized,
+│   │                                       # retries transient SMTP 4xx (e.g. 432 concurrent limit)
+│   │                                       # up to 3x with backoff; 7-arg send returns delivered?
 │   └── 📁 util/
 │
 ├── 📁 notification/                        # Feature: Visitor-facing notifications
@@ -83,7 +85,13 @@ com.travel.insurance/
 │   │                                       # on VisitorStatusChangedEvent / VisitorCreatedEvent;
 │   │                                       # composes Visitor+Policy+VisitorBenefit+Insurer data
 │   │                                       # and sends the visitor's single activation email
+│   │                                       # (marked sent only if EmailService reports delivery)
 │   │                                       # (certificate + Welcome Pack copy/attachment)
+│   ├── ActivationEmailController.java      # POST /api/v1/visitors/by-passport/resend-activation-email
+│   │                                       # ?passportNumber=… (manual resend, see Notifications section)
+│   ├── ActivationEmailResendJob.java       # @Scheduled safety net: re-sends the activation email to
+│   │                                       # ACTIVE visitors with activationEmailSentAt null (app.mail.resend.*:
+│   │                                       # interval 10m, min-age 5m, max-age 7d, batch 50, enabled flag)
 │   ├── PolicyDocumentRenderer.java         # Thymeleaf → HTML → PDF (openhtmltopdf)
 │   └── PolicyDocumentData.java             # Internal template data holder (not a DTO)
 │
@@ -103,7 +111,7 @@ com.travel.insurance/
 │   ├── UserRepository.java                 # Data access (extends JpaRepository)
 │   ├── User.java                           # Domain entity (@Entity)
 │   ├── Role.java                           # Enum: ADMIN, INSURER_USER,
-│   │                                       #       PROVIDER_USER
+│   │                                       #       PROVIDER_USER, CONTACT_CENTER
 │   ├── UserMapper.java                     # Entity ⇄ DTO mapping
 │   └── 📁 dto/
 │       ├── UserRequest.java
@@ -360,7 +368,7 @@ com.travel.insurance/
 │                                            # servicesInserted, servicesSkipped
 │
 ├── 📁 report/                               # Feature: Claim receipts & provider reports
-│   ├── ReportController.java                # /api/v1/reports — claim receipt + provider report
+│   ├── ReportController.java                # /api/v1/reports — claim receipt + provider report + visitor Excel export
 │   ├── ReportService.java                   # Interface
 │   ├── ReportServiceImpl.java               # PDF (Thymeleaf + openhtmltopdf), Excel (POI),
 │   │                                       # JSON paginated provider report
@@ -404,7 +412,7 @@ com.travel.insurance/
 │   ├── 📁 service/
 │   │   ├── UssdService.java                # Interface
 │   │   ├── UssdServiceImpl.java            # State machine (Find Hospital, Feedback); Find Hospital
-│   │   │                                   # calls ServiceProviderService.searchByCounty
+│   │   │                                   # calls ServiceProviderService.searchByCounty / searchByCity
 │   │   ├── ProviderPanelLoader.java        # Legacy: parses provider-panel.xlsx on startup (unused by USSD)
 │   │   └── ProviderPanelService.java       # Legacy: in-memory Excel search (unused by USSD)
 │   └── 📁 utils/
@@ -553,7 +561,8 @@ Policy
   than globally, so two departments may each have an identically-named
   service. `GET /api/v1/departments/{id}` never embeds that department's
   services — callers fetch them separately via
-  `GET /api/v1/medical-services?departmentId=…` (paged) or
+  `GET /api/v1/medical-services?departmentId=…&serviceName=…` (paged; both
+  optional — `serviceName` is a case-insensitive "contains" match) or
   `GET /api/v1/medical-services/by-department/{departmentId}` (unpaged),
   keeping department reads cheap regardless of catalog size.
   `MedicalServiceResponse` additionally carries the owning department's
@@ -668,10 +677,10 @@ Policy
   is a derived, non-persisted (`@Transient`) property — always `dateIn` plus
   365 days, computed on read rather than stored, so it can never drift from
   `dateIn`. It's exposed on `VisitorResponse` and threaded through
-  `PolicyDocumentData` so the certificate's "Cover Period" shows `dateIn` to
-  `policyExpiryDate` (not `dateOut`, which remains the visitor's own declared
-  travel end date, used for the 1-to-365-day validation above and reporting —
-  the two dates serve different purposes and are allowed to differ). It also carries a
+  `PolicyDocumentData`. The certificate's "Cover Period" no longer renders
+  dates: it is the fixed text "On arrival (Validity as per ETA)" for every
+  policy. `dateOut` remains the visitor's own declared travel end date, used
+  for the 1-to-365-day validation above and reporting. It also carries a
   set of nullable border/payment-tracking attributes populated after
   onboarding: `paymentReference`, `etaReference` (eTA/authorization
   reference), `portOfEntry`, and `entryTimestamp`/`exitTimestamp` (actual
@@ -684,6 +693,24 @@ Policy
   separate border events. This endpoint is separate from the general
   `update`/`create` flow since these values are typically recorded later,
   by a border-control integration rather than at KYC onboarding.
+  `GET /api/v1/visitors/distribution-by-insurer` (dashboard) returns
+  `[{insurerId, insurerName, totalVisitors}]` — all visitors regardless of status,
+  one entry per insurer (zero-visitor insurers included; visitors with a null
+  `insurerId` skipped). Backed by `VisitorService.countByInsurer`
+  (`VisitorRepository.countVisitorsGroupedByInsurer` + `InsurerRepository.findAll`).
+  `GET /api/v1/visitors/distribution-by-age-group` (dashboard) returns
+  `[{ageGroup, totalVisitors}]` — all visitors regardless of status, always three
+  entries in order: `0-2` (age 0 to under 3), `3-17` (3 to under 18), `18+`. Age is
+  computed as of today from `dateOfBirth`. Because `date_of_birth` is encrypted at
+  rest, bucketing is done in memory (`VisitorServiceImpl.countByAgeGroup` over
+  `VisitorRepository.findAll`), not in SQL; revisit if the table grows large.
+  `GET /api/v1/visitors/distribution-by-insurer-and-age-group` (dashboard) returns
+  `[{insurerId, insurerName, ageGroups:[{ageGroup, totalVisitors}], totalVisitors}]` —
+  the two distributions above combined: one entry per insurer (zero-visitor insurers
+  included), each with the three age buckets `0-2`, `3-17`, `18+` in order, all statuses.
+  Visitors with a null `insurerId` or `dateOfBirth` are skipped. Backed by
+  `VisitorService.countByInsurerAndAgeGroup`, bucketed in memory for the same
+  encryption reason.
   `GET /api/v1/visitors` (the paged list) takes an optional `insurerId` query
   param — omitted, it returns all visitors (`VisitorRepository.findAll`);
   provided, it filters to that insurer's visitors
@@ -736,7 +763,11 @@ Policy
   `GET /api/v1/visitors` never embeds `visitorBenefits` at all (see above),
   so it is unaffected regardless of claim volume.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
-  service and is decided by an `INSURER_USER` (or a admin agent). It also
+  service and is decided by an `INSURER_USER` (or a admin agent). A
+  `CONTACT_CENTER` user may also both raise (`POST /api/v1/preauthorizations`)
+  and decide (`POST /api/v1/preauthorizations/{id}/decision`) on a caller's
+  behalf; delete stays `ADMIN`-only. There is no check stopping the same
+  contact-center user from deciding a pre-auth they raised. It also
   carries a denormalized `insurerId` (non-nullable `UUID`, same rationale and
   pattern as `Visitor.insurerId`/`Claim.insurerId`), resolved from
   `policy.getInsurerId()` on the `Policy` already fetched by
@@ -928,8 +959,13 @@ service provider staff. Users are distinguished by role, not by separate
 entities:
 
 - `User.role` is a single `Role` enum column (`ADMIN`, `INSURER_USER`,
-  `PROVIDER_USER`) — a user has exactly one role, mapped to a single Spring
-  Security authority. The JWT carries it as a single `role` claim
+  `PROVIDER_USER`, `CONTACT_CENTER`) — a user has exactly one role, mapped to a single Spring
+  Security authority. `CONTACT_CENTER` is Minet-internal staff: like `ADMIN`
+  they belong to the Minet admin organization and have no insurer/provider
+  scoping (`insurerId`/`serviceProviderId` are `null`); it can list visitors
+  (`GET /api/v1/visitors`), list insurers (`GET /api/v1/insurers`, paged only —
+  the rest of `/insurers/**` stays ADMIN-only) and resend activation emails
+  (`POST /api/v1/visitors/by-passport/resend-activation-email`). The JWT carries it as a single `role` claim
   (`JwtTokenProvider.CLAIM_ROLE`); `AuthenticatedUser.role` is a single
   `String`, not a set.
 - Besides the standard `sub` claim (the user id — clients should read the
@@ -1244,10 +1280,17 @@ download links (a clickable Google Play badge image linking to
 badge hosted on Dropbox and rewritten via `LogoUrlNormalizer`; the iPhone / App
 Store link is omitted until the app is approved):
 
-The activation email is also BCC'd to the internal recipients in
-`app.mail.activation-bcc` (env `ACTIVATION_BCC`, comma-separated; defaults to four
-Minet staff addresses). `EmailService` has a `send(...)` overload taking a BCC list;
-an empty list adds no BCC header.
+The activation email is not BCC'd to anyone. `EmailService` has a `send(...)` overload
+taking a BCC list; an empty list adds no BCC header.
+The insurer's `contactEmail` is also visibly CC'd on the activation email (skipped, with
+the email still sent, if blank); `send(...)` takes a CC list alongside the BCC list.
+
+The email closes with the bundled signature banner
+(`templates/Inbound-Travel-Health-Esignature.png`) after the text sign-off. It is
+embedded inline (`cid:email-signature`) rather than hosted: `EmailService` has a
+`send(...)` overload taking a list of generic `InlineImage` records (content id,
+content type, bytes). If the image can't be loaded from the classpath it is logged
+and the email goes out without it.
 
 - `VisitorActivatedNotificationListener` sends the certificate on two paths,
   both gated on `ACTIVE`: `VisitorStatusChangedEvent` with `newStatus == ACTIVE`
@@ -1264,7 +1307,31 @@ an empty list adds no BCC header.
   broken mail server must never affect the visitor status API's correctness.
   Re-activation (e.g. `ACTIVE` → `SUSPENDED` → `ACTIVE`) intentionally
   re-sends the certificate; that's treated as a new, valid activation, not a
-  duplicate to guard against.
+  duplicate to guard against. Nothing is sent (logged at WARN) until the
+  visitor holds a `VisitorBenefit` for every live catalog benefit — the
+  certificate must carry a full schedule of benefits, never "No benefits
+  assigned yet." When the email goes out, `Visitor.activationEmailSentAt`
+  (`visitors.activation_email_sent_at`) is stamped. If it was held back,
+  `VisitorBenefitAssignedEvent` (published by `VisitorBenefitService.create`)
+  triggers a send once the last catalog benefit is assigned — only for an
+  `ACTIVE` visitor whose `activationEmailSentAt` is null, so this path sends at
+  most once.
+- `activationEmailSentAt` is only stamped when `EmailService` reports delivery
+  (it retries transient SMTP 4xx replies up to 3 times). Visitors still
+  unstamped — SMTP outage, or benefits incomplete at activation time — are
+  picked up by `ActivationEmailResendJob` (`@Scheduled`, `app.mail.resend.*`:
+  `interval` PT10M (ISO-8601), `min-age` PT5M so the AFTER_COMMIT listener goes first,
+  `max-age` P7D, `batch-size` 50, `enabled`). It calls
+  `VisitorActivatedNotificationListener.resendActivationEmailIfPending`, which
+  re-checks the visitor is still ACTIVE and un-emailed. Visitors created before
+  the `activation_email_sent_at` migration were back-filled as already emailed,
+  so they are never re-sent. Multi-instance deployments could rarely send twice.
+- **Manual resend:** `POST /api/v1/visitors/by-passport/resend-activation-email?passportNumber=…`
+  (`ActivationEmailController` → `VisitorActivatedNotificationListener.resendActivationEmailByPassportNumber`)
+  re-sends the activation email for visitors who report never receiving it. It sends
+  **regardless of `activationEmailSentAt`** and re-stamps it on delivery. Synchronous: `200`
+  `{visitorId, message}` when delivered; `404` unknown passport; `409` if the visitor is not
+  `ACTIVE`, the benefit schedule is incomplete, or SMTP delivery failed.
 - The listener composes data via `VisitorService`, `PolicyService`,
   `VisitorBenefitService`, and `InsurerService` (the same "fan-in at a
   boundary" shape already used for `VisitorDetailResponse`), builds a
@@ -1305,22 +1372,29 @@ an empty list adds no BCC header.
   re-sent. It's rendered in the certificate's `.meta` strip and referenced by
   the verification copy ("Verify this certificate at kenyacares.go.ke/verify
   using the Certificate Serial Number above").
-- The activation email carries up to three attachments: a single
+- The activation email carries up to four attachments: a single
   `Insurance Policy.pdf` (the certificate), the policy wording sent as
-  `Policy Document.pdf` (rendered from `templates/Policy_Document_July_2026.pdf`),
-  and the bundled `templates/Inbound-Travel-Health-Insurance-Welcome-Pack.pdf`. The base wording PDF
-  and the Welcome Pack PDF are each loaded once from the classpath and cached
-  (`rawPolicyDocumentCache`, `welcomePackPdfCache`); if either bundled
+  `Policy Document.pdf` (rendered from `templates/Inbound-Travel-Health-Policy-Document.pdf`),
+  the bundled `templates/Inbound-Travel-Health-Insurance-Welcome-Pack.pdf`, and the bundled
+  `templates/Inbound-Travel-Health-Insurance-FAQs.pdf` (sent as `Inbound-Travel-Health-FAQs.pdf`).
+  The base wording, Welcome Pack and FAQs PDFs are each loaded once from the classpath and cached
+  (`rawPolicyDocumentCache`, `welcomePackPdfCache`, `faqsPdfCache`); if any bundled
   document can't be read, that load is logged and skipped so the rest of the
   email still goes out. When the backing insurer has a logo and/or e-signature URL,
-  `PolicyDocumentRenderer.brandPolicyWording` overlays the logo, horizontally
-  centered near the top of page 1, and the e-signature on every page, via
+  `PolicyDocumentRenderer.brandPolicyWording` overlays the logo at the
+  top-right of page 1 (36pt margins), and the e-signature on every interior page
+  (not the full-bleed front and back covers), via
   PDFBox (`PDPageContentStream` + `PDImageXObject`, aspect ratio preserved).
-  On every page except the "POLICY AGREEMENT" page (page 3) the e-signature
-  is horizontally centered near the bottom, scaled to fit a 150×60pt box with
-  a 36pt margin from the bottom edge; on page 3 it's instead placed directly
+  On every interior page except the "POLICY AGREEMENT" page (page 3) the
+  e-signature is horizontally centered on the footer line (between the
+  "Administered by…" text and the Minet logo), scaled to fit a 150×22pt box
+  8pt above the bottom edge — body text on some pages runs down to ~38pt, so
+  nothing higher is free on every page; on page 3 it's instead placed directly
   on the "For and Behalf of the Company" / "Signature:" line (scaled to fit a
-  130×22pt box), since that's the actual signature the document calls for.
+  125×22pt box), since that's the actual signature the document calls for.
+  The page 3 blank positions are hardcoded for
+  `Inbound-Travel-Health-Policy-Document.pdf` and guarded by a test that fills
+  the real bundled PDF — re-measure them if the wording PDF is replaced.
   The branded result is cached per insurer (`brandedPolicyDocumentCache`,
   keyed by `Insurer.id`), since the wording document is no longer identical
   for every insurer. Both overlay URLs are optional and independent — an
@@ -1468,6 +1542,9 @@ Design notes:
   (`@TransactionalEventListener(phase = AFTER_COMMIT)`) sends the email via
   `EmailService` afterward, so a slow/unreachable mail server can never roll
   back the OTP row. Failures are caught and logged, never propagated.
+- Every OTP email is **CC'd** (visible) to `app.mail.otp-cc` (env `OTP_CC`,
+  default `inbound.travel@minet.co.ke`). This applies only to this
+  service-provider OTP (preauth/claims), not the mobile visitor login OTP.
 - The sending mailbox is **not** derived from the visitor/policy (the `Otp`
   entity has no path to an `Insurer`). It's resolved via
   `OrganizationService.getEntityById` from a fixed organization id
@@ -1671,6 +1748,23 @@ paginated JSON (for UI tables), PDF, or Excel.
 - **Access**: all authenticated roles (USER, ADMIN, AGENT, PROVIDER_USER,
   INSURER_USER).
 
+### Visitor Excel Export
+
+- **Endpoint**: `GET /api/v1/reports/visitors/excel` — XLSX download
+  (`visitors-report.xlsx`, single `Visitors` sheet).
+- **Columns**: Visitor Name, Gender, Passport Number, Nationality, Travel
+  Dates (`yyyy-MM-dd to yyyy-MM-dd`, from `dateIn`/`dateOut`), Email,
+  Telephone, Insurer Name (resolved via `InsurerService.namesByIds`).
+- **Optional filters**: `insurerId`, `status` (`VisitorStatus`; unknown value
+  → 400), `dateFrom`/`dateTo` (inclusive, applied to `dateIn`). Rows are
+  ordered by `dateIn` descending (name/passport are encrypted so cannot be
+  sorted in SQL). Backed by `VisitorService.listForExport` (JPA
+  `Specification`; the repository now extends `JpaSpecificationExecutor`).
+- **Access**: any authenticated user, but `INSURER_USER` is always scoped to
+  their own insurer (the `insurerId` param is ignored; no linked insurer →
+  header-only sheet). ADMIN may export all or filter by insurer. Contains
+  decrypted PII (passport, email, phone).
+
 ## Member Statement Report
 
 A per-member report — benefit allocation/utilization/balance plus a
@@ -1737,7 +1831,8 @@ Composed entirely from existing feature services (`VisitorService`,
 ## USSD Provider Panel (Find Hospital)
 
 The USSD "Find Hospital" feature lets travellers search for in-network
-healthcare providers by **county** or by **nearest tourist attraction**. Provider data comes from the
+healthcare providers by **county**, by **town** (the provider organization's
+`city`) or by **nearest tourist attraction**. Provider data comes from the
 `service_providers` table (the `serviceprovider` feature) — every service
 provider registered in the system is listed. There is no separate type flag,
 so all `ServiceProvider` rows are treated as hospitals.
@@ -1766,9 +1861,16 @@ ServiceProviderRepository  ← findByCountyContainingIgnoreCaseOrderByNameAsc
         ▼
 ServiceProviderService     ← searchByCounty(q): blank → empty list,
         │                   case-insensitive partial match, sorted by name
+        │                 ← searchByCity(q): OrganizationService.citiesMatching(q)
+        │                   (organizations.city partial match) → providers by
+        │                   organizationId (findByOrganizationIdInOrderByNameAsc),
+        │                   each paired with its city (ServiceProviderCityResponse)
         ▼
-UssdServiceImpl            ← handlePromptCountyName / handleCountyResults /
-                            handleProviderDetail; 3 results per USSD screen
+UssdServiceImpl            ← handlePromptCountyName / handlePromptTownName /
+                            handleCountyResults / handleProviderDetail;
+                            3 results per USSD screen. Session key `searchMode`
+                            (TOWN | COUNTY) picks which search is re-run on
+                            paging/back (`townQuery` / `countyQuery`)
         ▲
         │  attraction → county
 TouristAttractionService   ← searchByName(q, 3): exact → contains → typo-tolerant
@@ -1786,9 +1888,15 @@ Main Menu → 1. Find Hospital
     → ServiceProviderService.searchByCounty(query)
     → Paginated results (3 per screen), 9 = next page, 0 = back
     → pick a number → detail (name, address, phone, county), 0 = back
-  → 2. Town (Coming Soon)
-  → 3. Border Point (Coming Soon)
-  → 4. Nearest Tourist Attraction → "Enter tourist attraction name:" → user types query
+  → 2. Town → "Enter town name to search:" → user types query
+    → ServiceProviderService.searchByCity(query): providers whose organization's
+      `city` contains the query (case-insensitive), sorted by name
+    → listed as "Name", or "Name (City)" when the city isn't an exact
+      (case-insensitive) match of the query; paging/detail/back as for County
+    → no city matches: falls back to searchByCounty(query), first screen headed
+      "No town match. County results:"
+    → neither matches: "No providers found for '{query}'." → sub-menu
+  → 3. Nearest Tourist Attraction → "Enter tourist attraction name:" → user types query
     → TouristAttractionService.searchByName(query, 3)
     → 0 matches: "No tourist attraction found for '{query}'." → sub-menu
     → 1 match: straight to that attraction's county hospital list
@@ -1971,6 +2079,10 @@ applies only to new migrations going forward. Flyway compares version
 numbers numerically (not by string length), so plain two/three-digit
 versions like `V032` sort before any 12-digit timestamp automatically; no
 renumbering or padding is needed.
+
+`V202610081611__backfill_missing_visitor_benefits.sql` back-fills `visitor_benefits`
+for live visitors missing a live row for any live catalog benefit (same limit/status
+rules as `VisitorCreatedListener`); it is idempotent and never touches existing rows.
 
 ## Code Practices
 

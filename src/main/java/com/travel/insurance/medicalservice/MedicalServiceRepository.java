@@ -13,6 +13,11 @@ public interface MedicalServiceRepository extends JpaRepository<MedicalService, 
 
     List<MedicalService> findAllByDepartmentId(UUID departmentId);
 
+    Page<MedicalService> findAllByNameContainingIgnoreCase(String name, Pageable pageable);
+
+    Page<MedicalService> findAllByDepartmentIdAndNameContainingIgnoreCase(
+            UUID departmentId, String name, Pageable pageable);
+
     boolean existsByNameAndDepartmentId(String name, UUID departmentId);
 
     boolean existsByNameAndDepartmentIdAndIdNot(String name, UUID departmentId, UUID id);

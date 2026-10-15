@@ -2,6 +2,7 @@ package com.travel.insurance.report;
 
 import com.travel.insurance.report.dto.ClaimReceiptResponse;
 import com.travel.insurance.report.dto.ProviderClaimReportResponse;
+import com.travel.insurance.visitor.VisitorStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -75,6 +76,20 @@ public class ReportController {
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=provider-claims-report.xlsx")
+                .body(excel);
+    }
+
+    @GetMapping("/visitors/excel")
+    public ResponseEntity<byte[]> visitorReportExcel(
+            @RequestParam(required = false) UUID insurerId,
+            @RequestParam(required = false) VisitorStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        byte[] excel = reportService.generateVisitorReportExcel(insurerId, status, dateFrom, dateTo);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=visitors-report.xlsx")
                 .body(excel);
     }
 }

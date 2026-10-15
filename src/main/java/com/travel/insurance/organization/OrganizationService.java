@@ -27,4 +27,7 @@ public interface OrganizationService {
     Organization getEntityById(UUID id);
 
     Map<UUID, String> namesByIds(Collection<UUID> organizationIds);
+
+    /** Organization id → city for organizations whose city contains {@code city} (case-insensitive). */
+    Map<UUID, String> citiesMatching(String city);
 }

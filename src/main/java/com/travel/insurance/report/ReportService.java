@@ -4,6 +4,8 @@ import com.travel.insurance.report.dto.ClaimReceiptResponse;
 import com.travel.insurance.report.dto.ProviderClaimReportResponse;
 import org.springframework.data.domain.Pageable;
 
+import com.travel.insurance.visitor.VisitorStatus;
+
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -22,4 +24,7 @@ public interface ReportService {
 
     byte[] generateProviderReportExcel(UUID providerId, String status,
                                         LocalDate dateFrom, LocalDate dateTo);
+
+    byte[] generateVisitorReportExcel(UUID insurerId, VisitorStatus status,
+                                      LocalDate dateFrom, LocalDate dateTo);
 }

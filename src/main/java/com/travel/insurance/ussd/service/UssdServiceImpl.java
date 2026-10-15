@@ -4,6 +4,7 @@ import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.config.UssdProperties;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
+import com.travel.insurance.serviceprovider.dto.ServiceProviderCityResponse;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import com.travel.insurance.touristattraction.TouristAttractionService;
 import com.travel.insurance.touristattraction.dto.TouristAttractionResponse;
@@ -31,19 +32,21 @@ public class UssdServiceImpl implements UssdService {
     private static final String PROMPT_HOSPITAL_SUB_MENU =
             "Select search area:\n"
                     + "1. County\n"
-                    + "2. Town (Coming Soon)\n"
-                    + "3. Border Point (Coming Soon)\n"
-                    + "4. Nearest Tourist Attraction\n"
+                    + "2. Town\n"
+                    + "3. Nearest Tourist Attraction\n"
                     + "0. Main Menu";
 
     private static final String PROMPT_COUNTY_NAME =
             "Enter county name to search:";
 
+    private static final String PROMPT_TOWN_NAME =
+            "Enter town name to search:";
+
     private static final String PROMPT_ATTRACTION_NAME =
             "Enter tourist attraction name:";
 
-    private static final String MSG_COMING_SOON =
-            "This option is coming soon.\n";
+    private static final String SEARCH_MODE_TOWN = "TOWN";
+    private static final String SEARCH_MODE_COUNTY = "COUNTY";
 
     private static final int USSD_MAX_RESULTS = 3;
 
@@ -77,6 +80,7 @@ public class UssdServiceImpl implements UssdService {
             case "MAIN_MENU" -> handleMainMenuDynamic(session, rawInput);
             case "HOSPITAL_SUB_MENU" -> handleHospitalSubMenu(session, rawInput);
             case "PROMPT_COUNTY_NAME" -> handlePromptCountyName(session, rawInput);
+            case "PROMPT_TOWN_NAME" -> handlePromptTownName(session, rawInput);
             case "PROMPT_ATTRACTION_NAME" -> handlePromptAttractionName(session, rawInput);
             case "ATTRACTION_CHOICES" -> handleAttractionChoices(session, rawInput);
             case "COUNTY_RESULTS" -> handleCountyResults(session, rawInput);
@@ -149,14 +153,13 @@ public class UssdServiceImpl implements UssdService {
                 session.setCurrentStep("PROMPT_COUNTY_NAME");
                 yield new UssdResponse(PROMPT_COUNTY_NAME, "CON");
             }
-            case "4" -> {
+            case "2" -> {
+                session.setCurrentStep("PROMPT_TOWN_NAME");
+                yield new UssdResponse(PROMPT_TOWN_NAME, "CON");
+            }
+            case "3" -> {
                 session.setCurrentStep("PROMPT_ATTRACTION_NAME");
                 yield new UssdResponse(PROMPT_ATTRACTION_NAME, "CON");
-            }
-            case "2", "3" -> {
-                session.setCurrentStep("MAIN_MENU");
-                session.setMenuMap(buildMenuMap());
-                yield new UssdResponse(MSG_COMING_SOON + buildMenuText(), "CON");
             }
             case "0" -> {
                 session.setCurrentStep("MAIN_MENU");
@@ -180,9 +183,40 @@ public class UssdServiceImpl implements UssdService {
             return new UssdResponse("No providers found for '" + countyName + "'.\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
         }
 
+        session.getCollectedData().put("searchMode", SEARCH_MODE_COUNTY);
         session.getCollectedData().put("countyQuery", countyName);
         session.getCollectedData().put("countyResultPage", "0");
-        return formatCountyResults(session, results, 0);
+        return formatResults(session, countyItems(results), 0);
+    }
+
+    /**
+     * Searches hospitals whose organization city partially matches the typed town. A hospital whose
+     * city isn't an exact match is listed as "Name (City)". When no city matches, falls back to a
+     * county search on the same text.
+     */
+    private UssdResponse handlePromptTownName(UssdSession session, String rawInput) {
+        String townName = rawInput != null ? rawInput.trim() : "";
+        if (townName.isEmpty()) {
+            return new UssdResponse("Town name cannot be empty.\n" + PROMPT_TOWN_NAME, "CON");
+        }
+
+        List<ServiceProviderCityResponse> townResults = serviceProviderService.searchByCity(townName);
+        if (!townResults.isEmpty()) {
+            session.getCollectedData().put("searchMode", SEARCH_MODE_TOWN);
+            session.getCollectedData().put("townQuery", townName);
+            return formatResults(session, townItems(townName, townResults), 0);
+        }
+
+        List<ServiceProviderResponse> countyResults = serviceProviderService.searchByCounty(townName);
+        if (countyResults.isEmpty()) {
+            session.setCurrentStep("HOSPITAL_SUB_MENU");
+            return new UssdResponse("No providers found for '" + townName + "'.\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
+        }
+
+        session.getCollectedData().put("searchMode", SEARCH_MODE_COUNTY);
+        session.getCollectedData().put("countyQuery", townName);
+        UssdResponse page = formatResults(session, countyItems(countyResults), 0);
+        return new UssdResponse("No town match. County results:\n" + page.getText(), "CON");
     }
 
     private UssdResponse handlePromptAttractionName(UssdSession session, String rawInput) {
@@ -257,8 +291,9 @@ public class UssdServiceImpl implements UssdService {
                     + " (" + attraction.county() + ").\n" + PROMPT_HOSPITAL_SUB_MENU, "CON");
         }
 
+        session.getCollectedData().put("searchMode", SEARCH_MODE_COUNTY);
         session.getCollectedData().put("countyQuery", attraction.county());
-        UssdResponse page = formatCountyResults(session, results, 0);
+        UssdResponse page = formatResults(session, countyItems(results), 0);
         return new UssdResponse(truncate(attraction.name(), 30) + " - " + attraction.county() + "\n"
                 + page.getText(), "CON");
     }
@@ -271,9 +306,8 @@ public class UssdServiceImpl implements UssdService {
             return new UssdResponse(PROMPT_HOSPITAL_SUB_MENU, "CON");
         }
 
-        String query = session.getCollectedData().getOrDefault("countyQuery", "");
         int page = Integer.parseInt(session.getCollectedData().getOrDefault("countyResultPage", "0"));
-        List<ServiceProviderResponse> results = serviceProviderService.searchByCounty(query);
+        List<ResultItem> results = loadResults(session);
 
         if ("9".equals(choice)) {
             int nextPage = page + 1;
@@ -281,14 +315,14 @@ public class UssdServiceImpl implements UssdService {
             if (nextPage > maxPage) {
                 nextPage = 0;
             }
-            return formatCountyResults(session, results, nextPage);
+            return formatResults(session, results, nextPage);
         }
 
         try {
             int selected = Integer.parseInt(choice);
             int index = (page * USSD_MAX_RESULTS) + (selected - 1);
             if (index >= 0 && index < results.size()) {
-                return showProviderDetail(session, results.get(index));
+                return showProviderDetail(session, results.get(index).provider());
             }
         } catch (NumberFormatException ignored) {
         }
@@ -319,16 +353,46 @@ public class UssdServiceImpl implements UssdService {
         String choice = rawInput != null ? rawInput.trim() : "";
 
         if ("0".equals(choice)) {
-            String query = session.getCollectedData().getOrDefault("countyQuery", "");
             int page = Integer.parseInt(session.getCollectedData().getOrDefault("countyResultPage", "0"));
-            List<ServiceProviderResponse> results = serviceProviderService.searchByCounty(query);
-            return formatCountyResults(session, results, page);
+            return formatResults(session, loadResults(session), page);
         }
 
         return new UssdResponse("0. Back to results", "CON");
     }
 
-    private UssdResponse formatCountyResults(UssdSession session, List<ServiceProviderResponse> results, int page) {
+    /** A hospital in a results list, with the text shown for it on the list screen. */
+    private record ResultItem(ServiceProviderResponse provider, String label) {
+    }
+
+    /** Re-runs the search that produced the current results list (town or county). */
+    private List<ResultItem> loadResults(UssdSession session) {
+        Map<String, String> data = session.getCollectedData();
+        if (SEARCH_MODE_TOWN.equals(data.get("searchMode"))) {
+            String townQuery = data.getOrDefault("townQuery", "");
+            return townItems(townQuery, serviceProviderService.searchByCity(townQuery));
+        }
+        return countyItems(serviceProviderService.searchByCounty(data.getOrDefault("countyQuery", "")));
+    }
+
+    private List<ResultItem> countyItems(List<ServiceProviderResponse> providers) {
+        return providers.stream()
+                .map(provider -> new ResultItem(provider, truncate(provider.name(), 30)))
+                .toList();
+    }
+
+    private List<ResultItem> townItems(String townQuery, List<ServiceProviderCityResponse> matches) {
+        return matches.stream()
+                .map(match -> {
+                    String label = truncate(match.provider().name(), 30);
+                    if (match.city() != null && !match.city().trim().equalsIgnoreCase(townQuery.trim())) {
+                        label += " (" + truncate(match.city().trim(), 15) + ")";
+                    }
+                    return new ResultItem(match.provider(), label);
+                })
+                .toList();
+    }
+
+    private UssdResponse formatResults(UssdSession session, List<ResultItem> results, int page) {
         session.setCurrentStep("COUNTY_RESULTS");
         session.getCollectedData().put("countyResultPage", String.valueOf(page));
 
@@ -340,7 +404,7 @@ public class UssdServiceImpl implements UssdService {
                 .append("/").append(results.size()).append(":\n");
 
         for (int i = start; i < end; i++) {
-            sb.append(i + 1).append(". ").append(truncate(results.get(i).name(), 30)).append("\n");
+            sb.append(i + 1).append(". ").append(results.get(i).label()).append("\n");
         }
 
         if (end < results.size()) {

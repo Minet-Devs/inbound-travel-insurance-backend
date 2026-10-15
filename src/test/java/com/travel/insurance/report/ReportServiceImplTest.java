@@ -17,7 +17,17 @@ import com.travel.insurance.report.dto.ProviderClaimReportResponse;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
+import com.travel.insurance.common.util.AuthenticatedUser;
+import com.travel.insurance.insurer.InsurerService;
+import com.travel.insurance.visitor.Gender;
+import com.travel.insurance.visitor.VisitorStatus;
+import com.travel.insurance.visitor.dto.VisitorResponse;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -49,6 +59,7 @@ class ReportServiceImplTest {
     @Mock private Icd11CodeService icd11CodeService;
     @Mock private ProcedureService procedureService;
     @Mock private ServiceProviderService serviceProviderService;
+    @Mock private InsurerService insurerService;
     @Mock private SpringTemplateEngine templateEngine;
 
     @InjectMocks
@@ -275,5 +286,95 @@ class ReportServiceImplTest {
                 "KES", new BigDecimal("15000.00"), new BigDecimal("0.007734"), "USD",
                 new BigDecimal("116.01"), LocalDateTime.now(), List.of(item),
                 Instant.now(), Instant.now());
+    }
+
+    // ── Visitor export ───────────────────────────────────────────────────
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private VisitorResponse exportVisitor(UUID insurerId) {
+        return new VisitorResponse(visitorId, UUID.randomUUID(), insurerId, "Jane Traveler", "P1234567",
+                LocalDate.of(1990, 5, 12), Gender.FEMALE, "German", "Berlin",
+                "jane@example.com", "+254700000000",
+                LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1), LocalDate.of(2027, 8, 1),
+                null, "Tourism", "photo", null, VisitorStatus.ACTIVE, null, null,
+                null, null, null, null, null, null, Instant.now(), Instant.now());
+    }
+
+    private Sheet readSheet(byte[] xlsx) throws Exception {
+        return new XSSFWorkbook(new java.io.ByteArrayInputStream(xlsx)).getSheetAt(0);
+    }
+
+    @Test
+    void generateVisitorReportExcel_writesHeadersAndRows() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(visitorService.listForExport(null, null, null, null)).thenReturn(List.of(exportVisitor(insurerId)));
+        when(insurerService.namesByIds(Set.of(insurerId))).thenReturn(Map.of(insurerId, "Minet Insurance"));
+
+        Sheet sheet = readSheet(reportService.generateVisitorReportExcel(null, null, null, null));
+
+        assertThat(sheet.getLastRowNum()).isEqualTo(1);
+        List<String> headers = new ArrayList<>();
+        sheet.getRow(0).forEach(c -> headers.add(c.getStringCellValue()));
+        assertThat(headers).containsExactly("Visitor Name", "Gender", "Passport Number", "Nationality",
+                "Travel Dates", "Email", "Telephone", "Insurer Name");
+        List<String> row = new ArrayList<>();
+        sheet.getRow(1).forEach(c -> row.add(c.getStringCellValue()));
+        assertThat(row).containsExactly("Jane Traveler", "FEMALE", "P1234567", "German",
+                "2026-08-01 to 2026-11-01", "jane@example.com", "+254700000000", "Minet Insurance");
+    }
+
+    @Test
+    void generateVisitorReportExcel_emptyResultHasHeaderOnly() throws Exception {
+        when(visitorService.listForExport(null, null, null, null)).thenReturn(List.of());
+
+        Sheet sheet = readSheet(reportService.generateVisitorReportExcel(null, null, null, null));
+
+        assertThat(sheet.getLastRowNum()).isZero();
+    }
+
+    @Test
+    void generateVisitorReportExcel_insurerUserIsScopedToOwnInsurer() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        UUID ownInsurer = UUID.randomUUID();
+        UUID otherInsurer = UUID.randomUUID();
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                new AuthenticatedUser(UUID.randomUUID(), orgId, "INSURER_USER"), null, List.of()));
+        when(insurerService.findIdByOrganizationId(orgId)).thenReturn(Optional.of(ownInsurer));
+        when(visitorService.listForExport(ownInsurer, null, null, null)).thenReturn(List.of());
+
+        reportService.generateVisitorReportExcel(otherInsurer, null, null, null);
+
+        verify(visitorService).listForExport(ownInsurer, null, null, null);
+        verify(visitorService, never()).listForExport(eq(otherInsurer), any(), any(), any());
+    }
+
+    @Test
+    void generateVisitorReportExcel_insurerUserWithoutInsurerGetsEmptyReport() throws Exception {
+        UUID orgId = UUID.randomUUID();
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                new AuthenticatedUser(UUID.randomUUID(), orgId, "INSURER_USER"), null, List.of()));
+        when(insurerService.findIdByOrganizationId(orgId)).thenReturn(Optional.empty());
+
+        Sheet sheet = readSheet(reportService.generateVisitorReportExcel(null, null, null, null));
+
+        assertThat(sheet.getLastRowNum()).isZero();
+        verifyNoInteractions(visitorService);
+    }
+
+    @Test
+    void generateVisitorReportExcel_adminMayFilterByAnyInsurer() {
+        UUID orgId = UUID.randomUUID();
+        UUID insurerId = UUID.randomUUID();
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                new AuthenticatedUser(UUID.randomUUID(), orgId, "ADMIN"), null, List.of()));
+        when(visitorService.listForExport(insurerId, VisitorStatus.ACTIVE, null, null)).thenReturn(List.of());
+
+        reportService.generateVisitorReportExcel(insurerId, VisitorStatus.ACTIVE, null, null);
+
+        verify(visitorService).listForExport(insurerId, VisitorStatus.ACTIVE, null, null);
     }
 }

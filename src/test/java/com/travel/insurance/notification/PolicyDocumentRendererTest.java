@@ -92,14 +92,16 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
-    void coverPeriodRunsFromDateInToPolicyExpiryDate() {
+    void coverPeriodShowsValidityAsPerEta() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of(
                 new BenefitLine("Medical Expenses", new BigDecimal("20000.00"))));
 
         String html = renderer.renderHtml(data);
 
-        assertThat(html).contains("01 Aug 2026 — 01 Aug 2027 (365 days)");
+        assertThat(html).contains("On arrival (Validity as per ETA)");
+        assertThat(html).doesNotContain("01 Aug 2026 — 01 Aug 2027");
+        assertThat(html).doesNotContain("365 days");
         assertThat(html).doesNotContain("01 Nov 2026");
     }
 
@@ -563,16 +565,24 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
-    void overlaysEsignatureOnEveryPage() throws IOException {
+    void overlaysEsignatureOnEveryInteriorPageButNotTheCovers() throws IOException {
         PolicyDocumentRenderer renderer = newRenderer();
         byte[] pdf = renderer.mergePdfs(samplePolicyWordingPdf(), samplePolicyWordingPdf());
         String esignatureUrl = servePngImage();
 
         byte[] branded = renderer.brandPolicyWording(pdf, null, esignatureUrl);
 
-        try (PDDocument brandedDocument = Loader.loadPDF(branded)) {
-            for (PDPage page : brandedDocument.getPages()) {
-                assertThat(page.getResources().getXObjectNames()).isNotEmpty();
+        try (PDDocument original = Loader.loadPDF(pdf);
+             PDDocument brandedDocument = Loader.loadPDF(branded)) {
+            int last = brandedDocument.getNumberOfPages() - 1;
+            for (int i = 0; i <= last; i++) {
+                int before = countXObjects(original.getPage(i));
+                int after = countXObjects(brandedDocument.getPage(i));
+                if (i == 0 || i == last) {
+                    assertThat(after).isEqualTo(before);
+                } else {
+                    assertThat(after).isGreaterThan(before);
+                }
             }
         }
     }
@@ -660,5 +670,117 @@ class PolicyDocumentRendererTest {
             PDPage policyAgreementPage = brandedDocument.getPage(2);
             assertThat(policyAgreementPage.getResources().getXObjectNames()).isNotEmpty();
         }
+    }
+
+    private String positionSortedTextOfPage(byte[] pdf, int pageIndex) throws IOException {
+        try (PDDocument document = Loader.loadPDF(pdf)) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setSortByPosition(true);
+            stripper.setStartPage(pageIndex + 1);
+            stripper.setEndPage(pageIndex + 1);
+            return stripper.getText(document);
+        }
+    }
+
+    @Test
+    void footerEsignatureDoesNotOverlapBodyTextOnBundledPolicyWording() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] branded = renderer.brandPolicyWording(bundledPolicyWording(), null, servePngImage());
+
+        try (PDDocument document = Loader.loadPDF(branded)) {
+            int last = document.getNumberOfPages() - 1;
+            for (int i = 1; i < last; i++) {
+                if (i == 2) {
+                    continue; // agreement page: signature sits on the Signature line
+                }
+                float signatureTop = document.getPage(i).getMediaBox().getLowerLeftY() + 8f + 22f;
+                float[] lowestBody = {Float.MAX_VALUE};
+                PDFTextStripper stripper = new PDFTextStripper() {
+                    @Override
+                    protected void processTextPosition(org.apache.pdfbox.text.TextPosition t) {
+                        float baselineFromBottom = getCurrentPage().getMediaBox().getHeight() - t.getYDirAdj();
+                        if (baselineFromBottom > 25f) { // ignore the page footer line
+                            lowestBody[0] = Math.min(lowestBody[0], baselineFromBottom);
+                        }
+                    }
+                };
+                stripper.setStartPage(i + 1);
+                stripper.setEndPage(i + 1);
+                stripper.getText(document);
+                assertThat(lowestBody[0]).as("page %d body text vs signature band", i + 1)
+                        .isGreaterThanOrEqualTo(signatureTop);
+            }
+        }
+    }
+
+    @Test
+    void placesLogoAtTopRightOfFirstPage() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+        byte[] pdf = samplePolicyWordingPdf();
+
+        byte[] branded = renderer.brandPolicyWording(pdf, servePngImage(), null);
+
+        try (PDDocument document = Loader.loadPDF(branded)) {
+            float pageWidth = document.getPage(0).getMediaBox().getWidth();
+            float[] logoRight = {-1f};
+            var engine = new org.apache.pdfbox.contentstream.PDFStreamEngine() {
+                @Override
+                protected void processOperator(org.apache.pdfbox.contentstream.operator.Operator op,
+                                               java.util.List<org.apache.pdfbox.cos.COSBase> args)
+                        throws IOException {
+                    if ("Do".equals(op.getName())) {
+                        var m = getGraphicsState().getCurrentTransformationMatrix();
+                        logoRight[0] = m.getTranslateX() + m.getScaleX();
+                    }
+                    super.processOperator(op, args);
+                }
+            };
+            engine.addOperator(new org.apache.pdfbox.contentstream.operator.state.Concatenate(engine));
+            engine.addOperator(new org.apache.pdfbox.contentstream.operator.state.Save(engine));
+            engine.addOperator(new org.apache.pdfbox.contentstream.operator.state.Restore(engine));
+            engine.processPage(document.getPage(0));
+
+            assertThat(logoRight[0]).isCloseTo(pageWidth - 36f, org.assertj.core.data.Offset.offset(0.5f));
+        }
+    }
+
+    private static int countXObjects(PDPage page) {
+        int count = 0;
+        for (var ignored : page.getResources().getXObjectNames()) {
+            count++;
+        }
+        return count;
+    }
+
+    private byte[] bundledPolicyWording() throws IOException {
+        try (var in = new org.springframework.core.io.ClassPathResource(
+                "templates/Inbound-Travel-Health-Policy-Document.pdf").getInputStream()) {
+            return in.readAllBytes();
+        }
+    }
+
+    @Test
+    void bundledPolicyWordingHasPolicyAgreementOnPageThree() throws IOException {
+        assertThat(textOfPage(bundledPolicyWording(), 2)).contains("POLICY AGREEMENT");
+    }
+
+    @Test
+    void fillsBundledPolicyWordingDetailsOnTheirSignatureBlockLines() throws IOException {
+        PolicyDocumentRenderer renderer = newRenderer();
+
+        byte[] filled = renderer.fillPolicyAgreementDetails(
+                bundledPolicyWording(), "Acme Insurance", "PO Box 200, Nairobi", "Jane Traveler",
+                "jane.traveler@example.com", LocalDate.of(2026, 8, 8));
+
+        // Filled text interleaves with the pre-printed underscores, so drop both before matching.
+        String text = positionSortedTextOfPage(filled, 2).replaceAll("[_\\s\\p{Z}]", "");
+        assertThat(text).contains("madethis08/08/26between");
+        assertThat(text).contains("between" + "AcmeInsurance" + ",");
+        assertThat(text).contains("PostOffice200Nairobi");
+        assertThat(text).contains("signedatNairobi.");
+        assertThat(text).contains("Name:AcmeInsurance");
+        assertThat(text).contains("Signature:Date:08Aug2026");
+        assertThat(text).contains("Name:JaneTraveler");
+        assertThat(text).contains("Signature:jane.traveler@example.comDate:08Aug2026");
     }
 }

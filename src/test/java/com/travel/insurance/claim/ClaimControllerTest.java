@@ -70,6 +70,21 @@ class ClaimControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
+    void createAcceptsClaimWithoutPrescription() throws Exception {
+        when(claimService.create(any(ClaimRequest.class))).thenReturn(sampleClaim());
+        ClaimRequest withoutPrescription = new ClaimRequest(policyId, benefitId, null, null, visitorId,
+                new BigDecimal("50000.00"), "Hospital stay", null,
+                null, null, null, null);
+
+        mockMvc.perform(post("/api/v1/claims")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(withoutPrescription)))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
     void createReturnsCreatedWithAugmentedFields() throws Exception {
         when(claimService.create(any(ClaimRequest.class))).thenReturn(sampleClaim());
 

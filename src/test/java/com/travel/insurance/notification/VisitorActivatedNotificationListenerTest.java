@@ -2,7 +2,10 @@ package com.travel.insurance.notification;
 
 import com.travel.insurance.common.email.EmailAttachment;
 import com.travel.insurance.common.email.EmailService;
+import com.travel.insurance.common.email.InlineImage;
 import com.travel.insurance.common.email.SmtpCredentials;
+import com.travel.insurance.benefit.BenefitService;
+import com.travel.insurance.benefit.dto.BenefitResponse;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerService;
@@ -16,6 +19,7 @@ import com.travel.insurance.visitor.VisitorCreatedEvent;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.VisitorStatus;
 import com.travel.insurance.visitor.VisitorStatusChangedEvent;
+import com.travel.insurance.visitorbenefit.VisitorBenefitAssignedEvent;
 import com.travel.insurance.visitorbenefit.VisitorBenefitService;
 import com.travel.insurance.visitorbenefit.dto.VisitorBenefitResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +43,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -57,6 +62,9 @@ class VisitorActivatedNotificationListenerTest {
     private VisitorBenefitService visitorBenefitService;
 
     @Mock
+    private BenefitService benefitService;
+
+    @Mock
     private InsurerService insurerService;
 
     @Mock
@@ -73,18 +81,23 @@ class VisitorActivatedNotificationListenerTest {
     private final UUID visitorId = UUID.randomUUID();
     private final UUID policyId = UUID.randomUUID();
     private final UUID insurerId = UUID.randomUUID();
+    private final UUID catalogBenefitId = UUID.randomUUID();
 
     @BeforeEach
     void setUp() {
         MailProperties mailProperties = new MailProperties();
         mailProperties.setFrom("no-reply@travelinsurance.example");
-        mailProperties.setActivationBcc(List.of("hussein.mishobo@minet.co.ke", "david.muiruri@minet.co.ke"));
         mailProperties.getEmergencyAssistance().setPhone("+254 700 000000");
         mailProperties.getEmergencyAssistance().setEmail("assistance@example.com");
 
         listener = new VisitorActivatedNotificationListener(
-                visitorService, policyService, visitorBenefitService, insurerService,
+                visitorService, policyService, visitorBenefitService, benefitService, insurerService,
                 premiumReceiptService, renderer, emailService, mailProperties);
+        lenient().when(emailService.send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), anyList(), anyList()))
+                .thenReturn(true);
+        lenient().when(benefitService.listAll()).thenReturn(List.of(
+                new BenefitResponse(catalogBenefitId, "Medical Expenses", new BigDecimal("20000.00"),
+                        Instant.now(), Instant.now())));
     }
 
     private Visitor sampleVisitor() {
@@ -123,6 +136,86 @@ class VisitorActivatedNotificationListenerTest {
         return insurer;
     }
 
+    private List<VisitorBenefitResponse> sampleBenefits() {
+        return List.of(new VisitorBenefitResponse(UUID.randomUUID(), visitorId, catalogBenefitId,
+                "Medical Expenses", new BigDecimal("20000.00"), BigDecimal.ZERO,
+                new BigDecimal("20000.00"),
+                VisitorStatus.ACTIVE, Instant.now(), Instant.now()));
+    }
+
+    @Test
+    void resendByPassportRejectsNonActiveVisitor() {
+        Visitor visitor = sampleVisitor();
+        visitor.setVisitorStatus(VisitorStatus.SUSPENDED);
+        when(visitorService.getEntityByPassportNumber("P1234567")).thenReturn(visitor);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> listener.resendActivationEmailByPassportNumber("P1234567"))
+                .isInstanceOf(IllegalStateException.class);
+
+        verifyNoInteractions(emailService);
+        verify(visitorService, never()).markActivationEmailSent(any());
+    }
+
+    @Test
+    void resendByPassportFailsWhenBenefitScheduleIncomplete() {
+        Visitor visitor = sampleVisitor();
+        visitor.setVisitorStatus(VisitorStatus.ACTIVE);
+        when(visitorService.getEntityByPassportNumber("P1234567")).thenReturn(visitor);
+        when(visitorService.getEntityById(visitorId)).thenReturn(visitor);
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> listener.resendActivationEmailByPassportNumber("P1234567"))
+                .isInstanceOf(IllegalStateException.class);
+
+        verifyNoInteractions(emailService);
+    }
+
+    @Test
+    void resendByPassportSendsEvenWhenAlreadyMarkedSentAndRestamps() {
+        Visitor visitor = sampleVisitor();
+        visitor.setVisitorStatus(VisitorStatus.ACTIVE);
+        visitor.setActivationEmailSentAt(Instant.now());
+        when(visitorService.getEntityByPassportNumber("P1234567")).thenReturn(visitor);
+        when(visitorService.getEntityById(visitorId)).thenReturn(visitor);
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF".getBytes());
+        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%R".getBytes());
+        when(renderer.mergePdfs(any(), any())).thenReturn("%M".getBytes());
+
+        assertThat(listener.resendActivationEmailByPassportNumber("P1234567")).isEqualTo(visitorId);
+
+        verify(visitorService).markActivationEmailSent(visitorId);
+    }
+
+    @Test
+    void resendByPassportFailsWhenEmailNotDelivered() {
+        Visitor visitor = sampleVisitor();
+        visitor.setVisitorStatus(VisitorStatus.ACTIVE);
+        when(visitorService.getEntityByPassportNumber("P1234567")).thenReturn(visitor);
+        when(visitorService.getEntityById(visitorId)).thenReturn(visitor);
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF".getBytes());
+        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%R".getBytes());
+        when(renderer.mergePdfs(any(), any())).thenReturn("%M".getBytes());
+        when(emailService.send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), anyList(), anyList()))
+                .thenReturn(false);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> listener.resendActivationEmailByPassportNumber("P1234567"))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(visitorService, never()).markActivationEmailSent(any());
+    }
+
     @Test
     void ignoresTransitionsToNonActiveStatus() {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.SUSPENDED));
@@ -138,7 +231,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of(
-                new VisitorBenefitResponse(UUID.randomUUID(), visitorId, UUID.randomUUID(),
+                new VisitorBenefitResponse(UUID.randomUUID(), visitorId, catalogBenefitId,
                         "Medical Expenses", new BigDecimal("20000.00"), BigDecimal.ZERO,
                         new BigDecimal("20000.00"),
                         VisitorStatus.ACTIVE, Instant.now(), Instant.now())));
@@ -156,6 +249,7 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
         ArgumentCaptor<PolicyDocumentData> dataCaptor = ArgumentCaptor.forClass(PolicyDocumentData.class);
+        verify(visitorService).markActivationEmailSent(visitorId);
         verify(renderer).renderPdf(dataCaptor.capture());
         assertThat(dataCaptor.getValue().visitorFullName()).isEqualTo("Jane Traveler");
         assertThat(dataCaptor.getValue().certificateSerialNumber()).isEqualTo("ACME-2026-000123");
@@ -180,20 +274,30 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(receiptCaptor.getValue().totalPremium()).isEqualTo(new BigDecimal("44"));
         verify(premiumReceiptService).calculateTotalPremium(36);
 
+        ArgumentCaptor<List<String>> ccCaptor = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<List<String>> bccCaptor = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<String> subjectCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> bodyCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<InlineImage>> inlineImagesCaptor = ArgumentCaptor.forClass(List.class);
         verify(emailService).send(
                 isNull(),
                 eq("no-reply@travelinsurance.example"),
                 eq("jane.traveler@example.com"),
+                ccCaptor.capture(),
                 bccCaptor.capture(),
                 subjectCaptor.capture(),
                 bodyCaptor.capture(),
-                attachmentsCaptor.capture());
-        assertThat(bccCaptor.getValue()).containsExactly(
-                "hussein.mishobo@minet.co.ke", "david.muiruri@minet.co.ke");
+                attachmentsCaptor.capture(),
+                inlineImagesCaptor.capture());
+        assertThat(bodyCaptor.getValue()).contains("<img src=\"cid:email-signature\"");
+        assertThat(inlineImagesCaptor.getValue()).singleElement().satisfies(image -> {
+            assertThat(image.contentId()).isEqualTo("email-signature");
+            assertThat(image.contentType()).isEqualTo("image/png");
+            assertThat(image.content()).isNotEmpty();
+        });
+        assertThat(ccCaptor.getValue()).containsExactly("contact@acme.example");
+        assertThat(bccCaptor.getValue()).isEmpty();
         assertThat(subjectCaptor.getValue()).isEqualTo("Welcome to Kenya – Your Medical Cover Is Now Active");
         assertThat(bodyCaptor.getValue()).contains("Dear Jane,").contains("+254 719 044 777");
         assertThat(bodyCaptor.getValue())
@@ -206,7 +310,7 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .containsExactly("Insurance Policy.pdf", "Policy Document.pdf",
-                        "Inbound-Travel-Health-Welcome-Pack.pdf");
+                        "Inbound-Travel-Health-Welcome-Pack.pdf", "Inbound-Travel-Health-FAQs.pdf");
         assertThat(attachmentsCaptor.getValue().get(0).content()).isEqualTo("%PDF-MERGED".getBytes());
         assertThat(attachmentsCaptor.getValue().get(1).content()).isEqualTo("%PDF-AGREEMENT-FILLED".getBytes());
     }
@@ -217,7 +321,7 @@ class VisitorActivatedNotificationListenerTest {
         insurer.setLogoUrl("https://www.dropbox.com/scl/fi/abc/ga-logo.png?rlkey=key&dl=0");
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
-        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
         when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
@@ -235,7 +339,7 @@ class VisitorActivatedNotificationListenerTest {
     void doesNotPropagateWhenRendererThrows() {
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
-        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class)))
                 .thenThrow(new IllegalStateException("PDF rendering failed"));
@@ -244,29 +348,115 @@ class VisitorActivatedNotificationListenerTest {
                 new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE)))
                 .doesNotThrowAnyException();
 
-        verify(emailService, never()).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList());
+        verify(emailService, never()).send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), anyList(), anyList());
     }
 
     @Test
-    void sendsCertificateEvenWhenNoBenefitsAssignedYet() {
+    void doesNotSendCertificateWhenNoBenefitsAssignedYet() {
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+
+        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
+
+        verifyNoInteractions(renderer, emailService);
+    }
+
+    @Test
+    void doesNotSendCertificateWhenOnlySomeCatalogBenefitsAssigned() {
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(benefitService.listAll()).thenReturn(List.of(
+                new BenefitResponse(catalogBenefitId, "Medical Expenses", new BigDecimal("20000.00"),
+                        Instant.now(), Instant.now()),
+                new BenefitResponse(UUID.randomUUID(), "Mental Illness", new BigDecimal("1000.00"),
+                        Instant.now(), Instant.now())));
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
+
+        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
+
+        verifyNoInteractions(renderer, emailService);
+        verify(visitorService, never()).markActivationEmailSent(any());
+    }
+
+    @Test
+    void resendIfPendingSendsForActiveVisitorNeverEmailed() {
+        stubFullSend();
+
+        listener.resendActivationEmailIfPending(visitorId);
+
+        verify(visitorService).markActivationEmailSent(visitorId);
+    }
+
+    @Test
+    void resendIfPendingSkipsVisitorAlreadyEmailed() {
+        Visitor emailed = sampleVisitor();
+        emailed.setActivationEmailSentAt(Instant.now());
+        when(visitorService.getEntityById(visitorId)).thenReturn(emailed);
+
+        listener.resendActivationEmailIfPending(visitorId);
+
+        verifyNoInteractions(renderer, emailService);
+    }
+
+    @Test
+    void doesNotMarkActivationEmailSentWhenDeliveryFails() {
+        stubFullSend();
+        when(emailService.send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), anyList(), anyList()))
+                .thenReturn(false);
+
+        listener.onVisitorBenefitAssigned(new VisitorBenefitAssignedEvent(visitorId));
+
+        verify(visitorService, never()).markActivationEmailSent(any());
+    }
+
+    @Test
+    void sendsCertificateWhenLastBenefitAssignedToActiveVisitorNotYetEmailed() {
+        stubFullSend();
+
+        listener.onVisitorBenefitAssigned(new VisitorBenefitAssignedEvent(visitorId));
+
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), anyList(), anyList());
+        verify(visitorService).markActivationEmailSent(visitorId);
+    }
+
+    @Test
+    void doesNotResendWhenBenefitAssignedAfterActivationEmailAlreadySent() {
+        Visitor visitor = sampleVisitor();
+        visitor.setActivationEmailSentAt(Instant.now());
+        when(visitorService.getEntityById(visitorId)).thenReturn(visitor);
+
+        listener.onVisitorBenefitAssigned(new VisitorBenefitAssignedEvent(visitorId));
+
+        verifyNoInteractions(renderer, emailService);
+    }
+
+    @Test
+    void doesNotSendOnBenefitAssignmentWhenVisitorNotActive() {
+        Visitor visitor = sampleVisitor();
+        visitor.setVisitorStatus(VisitorStatus.PENDING);
+        when(visitorService.getEntityById(visitorId)).thenReturn(visitor);
+
+        listener.onVisitorBenefitAssigned(new VisitorBenefitAssignedEvent(visitorId));
+
+        verifyNoInteractions(renderer, emailService);
+    }
+
+    private void stubFullSend() {
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
         when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
-
-        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
-
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList());
     }
 
     @Test
     void sendsCertificateWhenVisitorCreatedAlreadyActive() {
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
-        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
         when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
@@ -274,7 +464,7 @@ class VisitorActivatedNotificationListenerTest {
 
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
 
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), anyList());
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), anyList(), anyList());
     }
 
     @Test
@@ -299,7 +489,7 @@ class VisitorActivatedNotificationListenerTest {
 
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
-        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
         when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
@@ -317,7 +507,8 @@ class VisitorActivatedNotificationListenerTest {
                 eq("notify@acme.example"),
                 eq("jane.traveler@example.com"),
                 anyList(),
-                anyString(), anyString(), anyList());
+                anyList(),
+                anyString(), anyString(), anyList(), anyList());
         assertThat(credentialsCaptor.getValue())
                 .isEqualTo(new SmtpCredentials("smtp.acme.example", 587, "notify@acme.example", "s3cr3t"));
     }
@@ -326,7 +517,7 @@ class VisitorActivatedNotificationListenerTest {
     void attachesUnbrandedPolicyDocumentWhenInsurerHasNoLogoOrEsignature() {
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
-        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
         when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
@@ -335,7 +526,7 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture());
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), attachmentsCaptor.capture(), anyList());
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .contains("Policy Document.pdf");
@@ -348,7 +539,7 @@ class VisitorActivatedNotificationListenerTest {
         insurer.setLogoUrl("https://cdn.example/acme.png");
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
-        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
         when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
@@ -359,7 +550,7 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture());
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), attachmentsCaptor.capture(), anyList());
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .contains("Policy Document.pdf");
@@ -371,7 +562,7 @@ class VisitorActivatedNotificationListenerTest {
         insurer.setLogoUrl("https://cdn.example/acme.png");
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
-        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
         when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
@@ -385,7 +576,7 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture());
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), attachmentsCaptor.capture(), anyList());
         assertThat(attachmentsCaptor.getValue())
                 .filteredOn(attachment -> attachment.filename().equals("Policy Document.pdf"))
                 .extracting(EmailAttachment::content)
@@ -397,7 +588,7 @@ class VisitorActivatedNotificationListenerTest {
     void attachesWelcomePackPdfAlongsideCertificateAndPolicyDocument() {
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
-        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
         when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
@@ -406,10 +597,30 @@ class VisitorActivatedNotificationListenerTest {
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
 
         ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyString(), anyString(), attachmentsCaptor.capture());
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), attachmentsCaptor.capture(), anyList());
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
                 .contains("Inbound-Travel-Health-Welcome-Pack.pdf");
+    }
+
+    @Test
+    void attachesFaqsPdf() {
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
+        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
+
+        listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
+
+        ArgumentCaptor<List<EmailAttachment>> attachmentsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), attachmentsCaptor.capture(), anyList());
+        assertThat(attachmentsCaptor.getValue())
+                .filteredOn(a -> a.filename().equals("Inbound-Travel-Health-FAQs.pdf"))
+                .singleElement()
+                .satisfies(a -> assertThat(a.content()).isNotEmpty());
     }
 
     @Test
@@ -421,7 +632,7 @@ class VisitorActivatedNotificationListenerTest {
 
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
-        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
         when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
@@ -434,6 +645,22 @@ class VisitorActivatedNotificationListenerTest {
                 eq("no-reply@travelinsurance.example"),
                 eq("jane.traveler@example.com"),
                 anyList(),
-                anyString(), anyString(), anyList());
+                anyList(),
+                anyString(), anyString(), anyList(), anyList());
+    }
+
+    @Test
+    void skipsInsurerCcWhenContactEmailIsBlank() {
+        stubFullSend();
+        Insurer insurer = sampleInsurer();
+        insurer.setContactEmail("  ");
+        when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
+
+        listener.onVisitorBenefitAssigned(new VisitorBenefitAssignedEvent(visitorId));
+
+        ArgumentCaptor<List<String>> ccCaptor = ArgumentCaptor.forClass(List.class);
+        verify(emailService).send(any(), anyString(), anyString(), ccCaptor.capture(), anyList(),
+                anyString(), anyString(), anyList(), anyList());
+        assertThat(ccCaptor.getValue()).isEmpty();
     }
 }

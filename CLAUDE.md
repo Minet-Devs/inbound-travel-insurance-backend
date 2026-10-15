@@ -44,3 +44,7 @@ Every code change must include, in the same piece of work:
   `VisitorStatusChangedEvent`).
 - `IllegalStateException` → 409, `ResourceNotFoundException` → 404
   (see `GlobalExceptionHandler`).
+
+
+## git 
+!  gh pr merge 54 --merge

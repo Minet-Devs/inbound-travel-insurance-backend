@@ -5,6 +5,7 @@ import com.travel.insurance.report.dto.ClaimReceiptResponse;
 import com.travel.insurance.report.dto.ProviderClaimReportResponse;
 import com.travel.insurance.report.dto.ProviderClaimReportSummary;
 import com.travel.insurance.report.dto.ProviderClaimReportRow;
+import com.travel.insurance.visitor.VisitorStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -157,5 +158,40 @@ class ReportControllerTest {
     void allEndpoints_requireAuthentication() throws Exception {
         mockMvc.perform(get("/api/v1/reports/claims/{claimId}", claimId))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void visitorReportExcel_returnsXlsxWithoutFilters() throws Exception {
+        byte[] xlsxBytes = new byte[]{0x50, 0x4B, 0x03, 0x04};
+        when(reportService.generateVisitorReportExcel(isNull(), isNull(), isNull(), isNull())).thenReturn(xlsxBytes);
+
+        mockMvc.perform(get("/api/v1/reports/visitors/excel"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=visitors-report.xlsx"))
+                .andExpect(content().bytes(xlsxBytes));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void visitorReportExcel_passesFilters() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(reportService.generateVisitorReportExcel(insurerId, VisitorStatus.ACTIVE,
+                LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31))).thenReturn(new byte[]{1});
+
+        mockMvc.perform(get("/api/v1/reports/visitors/excel")
+                        .param("insurerId", insurerId.toString())
+                        .param("status", "ACTIVE")
+                        .param("dateFrom", "2026-01-01")
+                        .param("dateTo", "2026-12-31"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void visitorReportExcel_rejectsUnknownStatus() throws Exception {
+        mockMvc.perform(get("/api/v1/reports/visitors/excel").param("status", "BOGUS"))
+                .andExpect(status().isBadRequest());
     }
 }

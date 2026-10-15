@@ -1,5 +1,8 @@
 package com.travel.insurance.visitor;
 
+import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
+import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
+import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorDetailResponse;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -61,6 +64,21 @@ public class VisitorController {
     public ResponseEntity<Page<VisitorResponse>> list(
             @RequestParam(required = false) UUID insurerId, Pageable pageable) {
         return ResponseEntity.ok(visitorService.list(insurerId, pageable));
+    }
+
+    @GetMapping("/distribution-by-insurer")
+    public ResponseEntity<List<InsurerVisitorCount>> distributionByInsurer() {
+        return ResponseEntity.ok(visitorService.countByInsurer());
+    }
+
+    @GetMapping("/distribution-by-age-group")
+    public ResponseEntity<List<AgeGroupVisitorCount>> distributionByAgeGroup() {
+        return ResponseEntity.ok(visitorService.countByAgeGroup());
+    }
+
+    @GetMapping("/distribution-by-insurer-and-age-group")
+    public ResponseEntity<List<InsurerAgeGroupVisitorCount>> distributionByInsurerAndAgeGroup() {
+        return ResponseEntity.ok(visitorService.countByInsurerAndAgeGroup());
     }
 
     @PutMapping("/{id}")
