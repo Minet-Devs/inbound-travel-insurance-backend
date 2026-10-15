@@ -5,6 +5,7 @@ import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
+import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
 import com.travel.insurance.common.service.CurrencyConversionService;
@@ -17,11 +18,15 @@ import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
 import com.travel.insurance.invoice.InvoiceService;
+import com.travel.insurance.invoice.dto.InvoiceItemRequest;
+import com.travel.insurance.invoice.dto.InvoiceRequest;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.preauthorization.Preauthorization;
 import com.travel.insurance.preauthorization.PreauthorizationService;
+import com.travel.insurance.preauthorization.PreauthorizationStatus;
+import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
@@ -57,6 +62,10 @@ public class ClaimServiceImpl implements ClaimService {
             ClaimStatus.APPROVED,
             ClaimStatus.PARTIALLY_APPROVED,
             ClaimStatus.REJECTED);
+
+    private static final Set<PreauthorizationStatus> CONVERTIBLE_PREAUTH_STATUSES = EnumSet.of(
+            PreauthorizationStatus.APPROVED,
+            PreauthorizationStatus.PARTIALLY_APPROVED);
 
     private static final Set<ClaimStatus> OPEN_STATUSES = EnumSet.of(
             ClaimStatus.OPEN,
@@ -102,6 +111,49 @@ public class ClaimServiceImpl implements ClaimService {
             attachClaimToPreAuthorization(claim.getId());
         }
 
+        return toResponse(claim);
+    }
+
+    /**
+     * Everything is copied from the pre-authorization; its items become the invoice's, 1:1.
+     * Unlike {@link #create}, procedureIds are not required — the pre-auth never captured any.
+     */
+    @Override
+    public ClaimResponse createFromPreauthorization(UUID preauthorizationId, ConvertPreauthorizationRequest request) {
+        PreauthorizationResponse preauth = preauthorizationService.getById(preauthorizationId);
+        if (!CONVERTIBLE_PREAUTH_STATUSES.contains(preauth.status())) {
+            throw new IllegalStateException(
+                    "Only approved pre-authorizations can be converted to a claim: " + preauth.status());
+        }
+        if (Boolean.TRUE.equals(preauth.convertedToClaim())) {
+            throw new IllegalStateException("Pre-authorization has already been converted to a claim");
+        }
+
+        Claim claim = new Claim();
+        claim.setPolicyId(preauth.policyId());
+        claim.setInsurerId(preauth.insurerId());
+        claim.setVisitorId(preauth.visitorId());
+        claim.setBenefitId(preauth.benefitId());
+        claim.setServiceProviderId(preauth.serviceProviderId());
+        claim.setPreauthorizationId(preauth.id());
+        claim.setClaimedAmount(preauth.approvedAmount() != null ? preauth.approvedAmount() : preauth.requestedAmount());
+        claim.setDescription(preauth.serviceDescription());
+        claim.getDiagnosisIds().add(preauth.icd11CodeId());
+        claim.setStatus(ClaimStatus.OPEN);
+        applyBaseConversion(claim);
+        claim = claimRepository.save(claim);
+
+        List<InvoiceItemRequest> items = preauth.preauthorizationItems().stream()
+                .map(item -> new InvoiceItemRequest(preauth.medicalServiceId(), item.description(),
+                        item.quantity(), item.unitPrice(), item.amount(), item.serviceDate()))
+                .toList();
+        BigDecimal invoiceTotal = items.isEmpty()
+                ? claim.getClaimedAmount()
+                : items.stream().map(InvoiceItemRequest::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        invoiceService.create(new InvoiceRequest(claim.getId(), request.invoiceNumber().trim(),
+                request.issueDate(), claim.getCurrency(), invoiceTotal, items));
+
+        preauthorizationService.markPreAuthorizationConvertedToClaim(preauth.id());
         return toResponse(claim);
     }
 

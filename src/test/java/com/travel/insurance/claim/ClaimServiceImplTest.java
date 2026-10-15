@@ -5,6 +5,7 @@ import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
+import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
 import com.travel.insurance.common.service.CurrencyConversionService;
@@ -15,11 +16,15 @@ import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
 import com.travel.insurance.invoice.InvoiceService;
+import com.travel.insurance.invoice.dto.InvoiceRequest;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.preauthorization.Preauthorization;
 import com.travel.insurance.preauthorization.PreauthorizationService;
+import com.travel.insurance.preauthorization.PreauthorizationStatus;
+import com.travel.insurance.preauthorization.dto.PreauthorizationItemResponse;
+import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
@@ -30,6 +35,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
@@ -41,6 +47,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -635,5 +642,104 @@ class ClaimServiceImplTest {
         assertThatThrownBy(() -> claimService.attachInvoice(claimId, new AttachInvoiceRequest(invoiceId)))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(claimRepository, never()).save(any());
+    }
+
+    private PreauthorizationResponse preauthResponse(PreauthorizationStatus status, Boolean converted,
+                                                     List<PreauthorizationItemResponse> items) {
+        return new PreauthorizationResponse(preauthId, policyId, insurerId, visitorId, "Jane Traveler",
+                diagnosisId1, "B54", "Malaria", benefitId, "Inpatient", serviceProviderId, "City Hospital",
+                medicalServiceId, "Ward admission", new BigDecimal("60000.00"), new BigDecimal("50000.00"),
+                "Admission for malaria", null, status, Instant.now(), Instant.now(), null, null,
+                items, converted);
+    }
+
+    private PreauthorizationItemResponse preauthItem(String amount) {
+        return new PreauthorizationItemResponse(UUID.randomUUID(), "Ward bed", new BigDecimal("2"),
+                new BigDecimal(amount).divide(new BigDecimal("2")), new BigDecimal(amount), LocalDate.of(2026, 10, 1));
+    }
+
+    private final UUID preauthId = UUID.randomUUID();
+    private final UUID serviceProviderId = UUID.randomUUID();
+    private final UUID medicalServiceId = UUID.randomUUID();
+
+    @Test
+    void createFromPreauthorizationCopiesPreauthAndInvoicesItsItems() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(preauthResponse(
+                PreauthorizationStatus.PARTIALLY_APPROVED, false,
+                List.of(preauthItem("30000.00"), preauthItem("25000.00"))));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ClaimResponse response = claimService.createFromPreauthorization(
+                preauthId, new ConvertPreauthorizationRequest(" INV-77 ", LocalDate.of(2026, 10, 2)));
+
+        ArgumentCaptor<Claim> claimCaptor = ArgumentCaptor.forClass(Claim.class);
+        verify(claimRepository).save(claimCaptor.capture());
+        Claim saved = claimCaptor.getValue();
+        assertThat(saved.getPolicyId()).isEqualTo(policyId);
+        assertThat(saved.getInsurerId()).isEqualTo(insurerId);
+        assertThat(saved.getVisitorId()).isEqualTo(visitorId);
+        assertThat(saved.getBenefitId()).isEqualTo(benefitId);
+        assertThat(saved.getServiceProviderId()).isEqualTo(serviceProviderId);
+        assertThat(saved.getPreauthorizationId()).isEqualTo(preauthId);
+        assertThat(saved.getClaimedAmount()).isEqualByComparingTo("50000.00");
+        assertThat(saved.getDescription()).isEqualTo("Admission for malaria");
+        assertThat(saved.getDiagnosisIds()).containsExactly(diagnosisId1);
+        assertThat(saved.getProcedureIds()).isEmpty();
+        assertThat(saved.getStatus()).isEqualTo(ClaimStatus.OPEN);
+        assertThat(response.preauthorizationId()).isEqualTo(preauthId);
+
+        ArgumentCaptor<InvoiceRequest> invoiceCaptor = ArgumentCaptor.forClass(InvoiceRequest.class);
+        verify(invoiceService).create(invoiceCaptor.capture());
+        InvoiceRequest invoice = invoiceCaptor.getValue();
+        assertThat(invoice.invoiceNumber()).isEqualTo("INV-77");
+        assertThat(invoice.issueDate()).isEqualTo(LocalDate.of(2026, 10, 2));
+        assertThat(invoice.currency()).isEqualTo("KES");
+        assertThat(invoice.totalAmount()).isEqualByComparingTo("55000.00");
+        assertThat(invoice.invoiceItems()).hasSize(2)
+                .allSatisfy(item -> assertThat(item.medicalServiceId()).isEqualTo(medicalServiceId));
+
+        verify(preauthorizationService).markPreAuthorizationConvertedToClaim(preauthId);
+    }
+
+    @Test
+    void createFromPreauthorizationWithoutItemsInvoicesTheClaimedAmount() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.APPROVED, null, List.of()));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        claimService.createFromPreauthorization(preauthId, new ConvertPreauthorizationRequest("INV-78", null));
+
+        ArgumentCaptor<InvoiceRequest> invoiceCaptor = ArgumentCaptor.forClass(InvoiceRequest.class);
+        verify(invoiceService).create(invoiceCaptor.capture());
+        assertThat(invoiceCaptor.getValue().totalAmount()).isEqualByComparingTo("50000.00");
+        assertThat(invoiceCaptor.getValue().invoiceItems()).isEmpty();
+    }
+
+    @Test
+    void createFromPreauthorizationRejectsUndecidedPreauth() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.PENDING, false, List.of()));
+
+        assertThatThrownBy(() -> claimService.createFromPreauthorization(
+                preauthId, new ConvertPreauthorizationRequest("INV-79", null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Only approved");
+        verify(claimRepository, never()).save(any());
+        verify(invoiceService, never()).create(any());
+    }
+
+    @Test
+    void createFromPreauthorizationRejectsAlreadyConvertedPreauth() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.APPROVED, true, List.of()));
+
+        assertThatThrownBy(() -> claimService.createFromPreauthorization(
+                preauthId, new ConvertPreauthorizationRequest("INV-80", null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already been converted");
+        verify(claimRepository, never()).save(any());
+        verify(invoiceService, never()).create(any());
     }
 }

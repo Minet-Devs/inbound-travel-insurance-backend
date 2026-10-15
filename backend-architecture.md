@@ -838,8 +838,21 @@ Policy
   `claim_documents` join table persists them but no documents feature exists
   yet). When a claim is created with a `preauthorizationId` and no
   `diagnosisIds` are supplied, the diagnosis is auto-populated from the
-  preauthorization's `icd11CodeId`. `procedureIds` are always required — the
-  preauthorization feature does not carry procedure references.
+  preauthorization's `icd11CodeId`. `procedureIds` are always required on
+  `POST /api/v1/claims` — the preauthorization feature does not carry
+  procedure references.
+- **Pre-auth → claim conversion**: `POST /api/v1/claims/from-preauthorization/{preauthorizationId}`
+  (`ADMIN`, `CONTACT_CENTER`; body `ConvertPreauthorizationRequest` —
+  `invoiceNumber` required, `issueDate` optional). `ClaimServiceImpl.createFromPreauthorization`
+  reads the pre-auth via `PreauthorizationService.getById` and, in one transaction:
+  creates an `OPEN` claim copying `policyId`, `insurerId`, `visitorId`, `benefitId`,
+  `serviceProviderId`, `serviceDescription` → `description`, `icd11CodeId` → `diagnosisIds`,
+  and `approvedAmount` (fallback `requestedAmount`) → `claimedAmount`, **without**
+  requiring `procedureIds`; raises an `Invoice` (claim currency) whose items are the
+  pre-auth's items 1:1 tagged with its `medicalServiceId` (total = sum of items, or the
+  claimed amount when there are none); then sets the pre-auth's `convertedToClaim`.
+  409 unless the pre-auth is `APPROVED`/`PARTIALLY_APPROVED` and not already converted.
+  `markPreAuthorizationConvertedToClaim` accepts both approved statuses.
   Existing invoices can only be attached to a claim whose
   status is `OPEN` via `PUT /api/v1/claims/{id}/invoice` (`AttachInvoiceRequest`); attaching
   transitions the claim to `SUBMITTED` and syncs both the `claim_invoices` join table
