@@ -371,6 +371,11 @@ public class ClaimServiceImpl implements ClaimService {
                 "status", claim.getStatus().name()));
     }
 
+    @Override
+    public Claim getEntityById(UUID id) {
+        return getEntity(id);
+    }
+
     private Claim getEntity(UUID id) {
         return claimRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Claim", id));
