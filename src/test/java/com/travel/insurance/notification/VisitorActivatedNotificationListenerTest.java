@@ -87,7 +87,6 @@ class VisitorActivatedNotificationListenerTest {
     void setUp() {
         MailProperties mailProperties = new MailProperties();
         mailProperties.setFrom("no-reply@travelinsurance.example");
-        mailProperties.setActivationBcc(List.of("hussein.mishobo@minet.co.ke", "Linus.Kemboi@minet.co.ke", "Carolyne.Nekesa@minet.co.ke"));
         mailProperties.getEmergencyAssistance().setPhone("+254 700 000000");
         mailProperties.getEmergencyAssistance().setEmail("assistance@example.com");
 
@@ -298,8 +297,7 @@ class VisitorActivatedNotificationListenerTest {
             assertThat(image.content()).isNotEmpty();
         });
         assertThat(ccCaptor.getValue()).containsExactly("contact@acme.example");
-        assertThat(bccCaptor.getValue()).containsExactly(
-                "hussein.mishobo@minet.co.ke", "Linus.Kemboi@minet.co.ke", "Carolyne.Nekesa@minet.co.ke");
+        assertThat(bccCaptor.getValue()).isEmpty();
         assertThat(subjectCaptor.getValue()).isEqualTo("Welcome to Kenya – Your Medical Cover Is Now Active");
         assertThat(bodyCaptor.getValue()).contains("Dear Jane,").contains("+254 719 044 777");
         assertThat(bodyCaptor.getValue())

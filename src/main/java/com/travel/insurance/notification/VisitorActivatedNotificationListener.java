@@ -260,7 +260,7 @@ public class VisitorActivatedNotificationListener {
                 mailSettings.from(),
                 visitor.getEmail(),
                 isNotBlank(insurer.getContactEmail()) ? List.of(insurer.getContactEmail().trim()) : List.of(),
-                mailProperties.getActivationBcc(),
+                List.of(),
                 "Welcome to Kenya – Your Medical Cover Is Now Active",
                 buildActivationEmailHtml(firstNameOf(visitor.getFullName()), signatureImage != null),
                 attachments,
