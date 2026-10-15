@@ -646,7 +646,7 @@ class ClaimServiceImplTest {
 
     private PreauthorizationResponse preauthResponse(PreauthorizationStatus status, Boolean converted,
                                                      List<PreauthorizationItemResponse> items) {
-        return new PreauthorizationResponse(preauthId, policyId, insurerId, visitorId, "Jane Traveler",
+        return new PreauthorizationResponse(preauthId, policyId, insurerId, visitorId, "Jane Traveler", "A1234567",
                 diagnosisId1, "B54", "Malaria", benefitId, "Inpatient", serviceProviderId, "City Hospital",
                 medicalServiceId, "Ward admission", new BigDecimal("60000.00"), new BigDecimal("50000.00"),
                 "Admission for malaria", null, status, Instant.now(), Instant.now(), null, null,

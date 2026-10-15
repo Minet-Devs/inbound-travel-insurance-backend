@@ -13,6 +13,7 @@ public record PreauthorizationResponse(
         UUID insurerId,
         UUID visitorId,
         String visitorName,
+        String passportNumber,
         UUID icd11CodeId,
         String icd11Code,
         String icd11Title,

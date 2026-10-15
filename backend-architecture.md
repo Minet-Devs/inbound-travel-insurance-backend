@@ -795,7 +795,7 @@ Policy
   audit columns (already populated by `AuditorAware` on every save) and are
   surfaced in `PreauthorizationResponse` as `decidedBy`/`decidedAt`, `null`
   while the request is still `PENDING`. `PreauthorizationResponse` also
-  resolves display names for every referenced ID — `visitorName`,
+  resolves display names for every referenced ID — `visitorName`/`passportNumber`,
   `icd11Code`/`icd11Title`, `benefitName`,
   `serviceProviderName` — via the respective feature services, so API
   consumers never have to display a raw UUID.

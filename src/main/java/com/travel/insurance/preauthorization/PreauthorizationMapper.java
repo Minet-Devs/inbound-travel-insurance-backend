@@ -59,6 +59,7 @@ public class PreauthorizationMapper {
                 preauthorization.getInsurerId(),
                 preauthorization.getVisitorId(),
                 visitor != null ? visitor.getFullName() : null,
+                visitor != null ? visitor.getPassportNumber() : null,
                 preauthorization.getIcd11CodeId(),
                 icd11Code != null ? icd11Code.getCode() : null,
                 icd11Code != null ? icd11Code.getTitle() : null,

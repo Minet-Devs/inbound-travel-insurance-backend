@@ -137,6 +137,7 @@ class PreauthorizationServiceImplTest {
         visitor.setId(visitorId);
         visitor.setPolicyId(policyId);
         visitor.setFullName("Jane Traveler");
+        visitor.setPassportNumber("A1234567");
         return visitor;
     }
 
@@ -257,6 +258,7 @@ class PreauthorizationServiceImplTest {
         assertThat(response.insurerId()).isEqualTo(insurerId);
         assertThat(response.visitorId()).isEqualTo(visitorId);
         assertThat(response.visitorName()).isEqualTo("Jane Traveler");
+        assertThat(response.passportNumber()).isEqualTo("A1234567");
         assertThat(response.icd11Code()).isEqualTo("1A00");
         assertThat(response.icd11Title()).isEqualTo("Cholera");
         assertThat(response.benefitName()).isEqualTo("Medical Expenses");
@@ -309,6 +311,7 @@ class PreauthorizationServiceImplTest {
 
         assertThat(response.visitorId()).isNull();
         assertThat(response.visitorName()).isNull();
+        assertThat(response.passportNumber()).isNull();
         assertThat(response.icd11CodeId()).isNull();
         assertThat(response.icd11Code()).isNull();
         assertThat(response.icd11Title()).isNull();
