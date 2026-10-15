@@ -64,6 +64,17 @@ spring:
         enabled: false
 
 app:
+  documents:
+    storage: ${DOCUMENTS_STORAGE:local}   # azure | local
+    max-files: ${DOCUMENTS_MAX_FILES:10}
+    max-file-size-bytes: ${DOCUMENTS_MAX_FILE_SIZE_BYTES:10485760}      # 10 MB
+    max-total-size-bytes: ${DOCUMENTS_MAX_TOTAL_SIZE_BYTES:26214400}    # 25 MB
+    max-total-pages: ${DOCUMENTS_MAX_TOTAL_PAGES:100}
+    azure:
+      connection-string: ${DOCUMENTS_AZURE_CONNECTION_STRING:}
+      container: ${DOCUMENTS_AZURE_CONTAINER:claim-documents}
+    local:
+      path: ${DOCUMENTS_LOCAL_PATH:./data/documents}
   jwt:
     secret: ${JWT_SECRET}
     access-token-ttl-seconds: ${JWT_ACCESS_TTL_SECONDS:108000}

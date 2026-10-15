@@ -22,6 +22,7 @@ summary and the full requirement-vs-codebase gap analysis.
   - [Base Entity, Auditing \& Soft Delete](#base-entity-auditing--soft-delete)
   - [Conventions](#conventions)
   - [REST Resources](#rest-resources)
+  - [Claim & Pre-authorization Documents](#claim--pre-authorization-documents)
   - [Messaging (RabbitMQ)](#messaging-rabbitmq)
   - [Notifications (Policy Document Email)](#notifications-policy-document-email)
   - [OTP (Point-of-Service Verification)](#otp-point-of-service-verification)
@@ -834,9 +835,10 @@ Policy
   and four UUID sets — `diagnosisIds` (ICD-11 codes, required unless
   auto-populated from a preauthorization), `procedureIds` (procedure catalog,
   always required), `invoiceIds` (validated through `InvoiceService`), and
-  `documentIds` (a placeholder for a future upload service; the
-  `claim_documents` join table persists them but no documents feature exists
-  yet). When a claim is created with a `preauthorizationId` and no
+  `documentIds` (a legacy placeholder persisted in the `claim_documents` join
+  table; uploads now go through the `document` feature — see
+  [Claim & Pre-authorization Documents](#claim--pre-authorization-documents) —
+  which does not populate it). When a claim is created with a `preauthorizationId` and no
   `diagnosisIds` are supplied, the diagnosis is auto-populated from the
   preauthorization's `icd11CodeId`. `procedureIds` are always required on
   `POST /api/v1/claims` — the preauthorization feature does not carry
@@ -1177,6 +1179,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Pre-authorization | `/api/v1/preauthorizations`   | `preauthorizations` |
 | Claim             | `/api/v1/claims`              | `claims`            |
 | Invoice           | `/api/v1/invoices`            | `invoices`          |
+| Document          | `/api/v1/claims/{id}/documents`, `/api/v1/preauthorizations/{id}/documents`, `/api/v1/documents` | `documents` |
 | ICD-11 Code       | `/api/v1/icd11-codes`         | `icd11_codes`       |
 | Procedure         | `/api/v1/procedures`          | `procedures`        |
 | Procedure Upload  | `/api/v1/procedures/uploads`  | `procedure_uploads`, `procedure_upload_rows` |
@@ -1263,6 +1266,89 @@ GET /api/v1/insurers/<insurer-id>
 POST /api/v1/visitors
 # 400 Bad Request: "Insurer 'Minet Insurance' has no available policies left"
 ```
+
+## Claim & Pre-authorization Documents
+
+Supporting files (claim form, invoice scans, medical reports) for a claim or
+pre-authorization live in the `document` feature. **Only PDFs are accepted**;
+every upload is merged into **one** PDF, stored in a private Azure Blob
+container, and recorded as a single `documents` row.
+
+**Package `document/`**: `Document` (entity), `DocumentRepository`,
+`DocumentService` / `DocumentServiceImpl`, `DocumentController`,
+`PdfMergeService` + `MergedPdf` (validate + merge), `DocumentStorage`
+(interface) with `AzureBlobDocumentStorage` and `LocalFileDocumentStorage`,
+`DocumentOwnerType` (`CLAIM`, `PREAUTHORIZATION`), `DocumentType`
+(`CLAIM_FORM`, `INVOICE`, `MEDICAL_REPORT`, `OTHER`), and DTOs
+`DocumentResponse` / `SourceFileInfo`. Settings are in `config/DocumentProperties`
+(`app.documents.*`).
+
+**Entity `documents`** (extends `BaseEntity`, soft-deleted): `ownerType`,
+`ownerId` (ID only, no FK, per the cross-feature rule), `documentType`,
+`filename`, `contentType` (always `application/pdf`), `pageCount`, `sizeBytes`,
+`sha256`, `storageKey`, `sourceFiles` (JSON array of `{filename, sizeBytes,
+pageCount}` for each merged input — metadata only, the originals are **not**
+kept), `uploadedBy`, `uploadedByOrganizationId`. The storage key is
+`{ownerType}/{ownerId}/{documentId}` and is never derived from a user filename.
+
+**Endpoints**
+
+| Method | Path | Roles |
+|---|---|---|
+| POST | `/api/v1/claims/{id}/documents` | ADMIN, PROVIDER_USER, CONTACT_CENTER |
+| GET | `/api/v1/claims/{id}/documents` | any authenticated user |
+| POST | `/api/v1/preauthorizations/{id}/documents` | ADMIN, PROVIDER_USER, CONTACT_CENTER |
+| GET | `/api/v1/preauthorizations/{id}/documents` | any authenticated user |
+| GET | `/api/v1/documents/{id}/content` | any authenticated user (streamed through the API) |
+| DELETE | `/api/v1/documents/{id}` | ADMIN, PROVIDER_USER, CONTACT_CENTER |
+
+Upload is `multipart/form-data`: repeated `files` parts (PDFs, in the order
+they should appear in the merged document), `documentType`, and an optional
+`title` used for the merged filename. The response is `201` with one
+`DocumentResponse`. Download sends `Content-Disposition: attachment` and
+`X-Content-Type-Options: nosniff`.
+
+**Merge pipeline** (`PdfMergeService`): each file must have content type
+`application/pdf` and start with the `%PDF-` magic bytes, be within the
+per-file and combined size limits, parse with PDFBox, and not be encrypted;
+the total page count is capped. PDFs are copied to a temp directory, merged
+with `PDFMergerUtility` (temp-file stream cache, so large uploads do not sit
+in heap), hashed, streamed to `DocumentStorage`, and the temp directory is
+deleted. The upload is all-or-nothing: any invalid file rejects the whole
+request and nothing is stored. If the DB save fails after the blob was
+written, the blob is deleted. Merging flattens the inputs, so the originals
+and any per-file document type are not recoverable — upload separate document
+types in separate calls.
+
+**Errors**: `400` no files, invalid/corrupt/encrypted PDF, too many files or
+pages; `415` a file that is not a PDF (`UnsupportedDocumentTypeException`);
+`413` a size limit exceeded (`DocumentTooLargeException`,
+`MaxUploadSizeExceededException`); `409` the owner no longer accepts changes;
+`404` unknown document, or an owner outside a `PROVIDER_USER`'s service provider.
+
+**Access rules**: the owning claim / pre-authorization is resolved through
+`ClaimService.getEntityById` / `PreauthorizationService.getEntityById`
+(never their repositories). A `PROVIDER_USER` can only reach owners of their own
+service provider, on every operation including download; out-of-scope owners
+are reported as not found. Documents can be uploaded or deleted only while a
+claim is `OPEN` or `SUBMITTED`, or a pre-authorization is `PENDING`; reads are
+always allowed. Delete is limited to ADMIN or the uploader, soft-deletes the
+row, and removes the blob on a best-effort basis (a failure is logged as an
+orphan). There is no separate audit table: upload, download and delete are
+logged at INFO with user, document and owner ids.
+
+**Configuration** (`app.documents.*`, env-overridable): `storage` (`azure` or
+`local`, default `local`), `max-files` (10), `max-file-size-bytes` (10 MB),
+`max-total-size-bytes` (25 MB), `max-total-pages` (100),
+`azure.connection-string` (env `DOCUMENTS_AZURE_CONNECTION_STRING`, never
+committed), `azure.container` (`claim-documents`), `local.path`. The
+`local` backend is for development and tests only; the container is created on
+startup if missing. `spring.servlet.multipart` limits (25 MB) still apply first.
+
+**Migration**: `V202610151607__create_documents.sql` creates `documents` with an
+index on `(owner_type, owner_id)`. The `claim_documents` table and
+`Claim.documentIds` remain for backward compatibility (the claim API still
+accepts and returns `documentIds`) and are deprecated in favour of this feature.
 
 ## Messaging (RabbitMQ)
 
@@ -2128,6 +2214,8 @@ where Spring Boot's dependency management does not provide one.
 | `com.github.ben-manes:caffeine` | compile | In-memory cache backend (`fxRates`, 24h TTL) |
 | `spring-boot-starter-thymeleaf` | compile | Policy document HTML templating |
 | `io.github.openhtmltopdf:openhtmltopdf-pdfbox` | compile | HTML → PDF rendering for the emailed policy certificate |
+| `org.apache.pdfbox:pdfbox` (3.0.x, pinned) | compile | `PDFMergerUtility` merges uploaded document PDFs (`document/PdfMergeService`) |
+| `com.azure:azure-storage-blob` (12.14.x, not managed by Spring Boot) | compile | Azure Blob backend for `DocumentStorage` |
 | `org.springdoc:springdoc-openapi-starter-webmvc-ui` (2.6.x) | compile | Swagger UI + OpenAPI docs |
 | `org.postgresql:postgresql` | runtime | Production database driver |
 | `io.jsonwebtoken:jjwt-api` (0.12.x) | compile | JWT for `JwtTokenProvider` |
