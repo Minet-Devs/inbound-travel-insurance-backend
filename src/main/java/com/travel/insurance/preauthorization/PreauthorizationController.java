@@ -29,7 +29,7 @@ public class PreauthorizationController {
     private final PreauthorizationService preauthorizationService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER_USER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER_USER', 'CONTACT_CENTER')")
     public ResponseEntity<PreauthorizationResponse> create(
             @Valid @RequestBody PreauthorizationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(preauthorizationService.create(request));
@@ -47,7 +47,7 @@ public class PreauthorizationController {
     }
 
     @PostMapping("/{id}/decision")
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSURER_USER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSURER_USER', 'CONTACT_CENTER')")
     public ResponseEntity<PreauthorizationResponse> decide(
             @PathVariable UUID id, @Valid @RequestBody PreauthorizationDecisionRequest request) {
         return ResponseEntity.ok(preauthorizationService.decide(id, request));

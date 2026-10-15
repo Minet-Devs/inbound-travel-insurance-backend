@@ -412,7 +412,7 @@ com.travel.insurance/
 │   ├── 📁 service/
 │   │   ├── UssdService.java                # Interface
 │   │   ├── UssdServiceImpl.java            # State machine (Find Hospital, Feedback); Find Hospital
-│   │   │                                   # calls ServiceProviderService.searchByCounty
+│   │   │                                   # calls ServiceProviderService.searchByCounty / searchByCity
 │   │   ├── ProviderPanelLoader.java        # Legacy: parses provider-panel.xlsx on startup (unused by USSD)
 │   │   └── ProviderPanelService.java       # Legacy: in-memory Excel search (unused by USSD)
 │   └── 📁 utils/
@@ -763,7 +763,11 @@ Policy
   `GET /api/v1/visitors` never embeds `visitorBenefits` at all (see above),
   so it is unaffected regardless of claim volume.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
-  service and is decided by an `INSURER_USER` (or a admin agent). It also
+  service and is decided by an `INSURER_USER` (or a admin agent). A
+  `CONTACT_CENTER` user may also both raise (`POST /api/v1/preauthorizations`)
+  and decide (`POST /api/v1/preauthorizations/{id}/decision`) on a caller's
+  behalf; delete stays `ADMIN`-only. There is no check stopping the same
+  contact-center user from deciding a pre-auth they raised. It also
   carries a denormalized `insurerId` (non-nullable `UUID`, same rationale and
   pattern as `Visitor.insurerId`/`Claim.insurerId`), resolved from
   `policy.getInsurerId()` on the `Policy` already fetched by
@@ -1829,7 +1833,8 @@ Composed entirely from existing feature services (`VisitorService`,
 ## USSD Provider Panel (Find Hospital)
 
 The USSD "Find Hospital" feature lets travellers search for in-network
-healthcare providers by **county** or by **nearest tourist attraction**. Provider data comes from the
+healthcare providers by **county**, by **town** (the provider organization's
+`city`) or by **nearest tourist attraction**. Provider data comes from the
 `service_providers` table (the `serviceprovider` feature) — every service
 provider registered in the system is listed. There is no separate type flag,
 so all `ServiceProvider` rows are treated as hospitals.
@@ -1858,9 +1863,16 @@ ServiceProviderRepository  ← findByCountyContainingIgnoreCaseOrderByNameAsc
         ▼
 ServiceProviderService     ← searchByCounty(q): blank → empty list,
         │                   case-insensitive partial match, sorted by name
+        │                 ← searchByCity(q): OrganizationService.citiesMatching(q)
+        │                   (organizations.city partial match) → providers by
+        │                   organizationId (findByOrganizationIdInOrderByNameAsc),
+        │                   each paired with its city (ServiceProviderCityResponse)
         ▼
-UssdServiceImpl            ← handlePromptCountyName / handleCountyResults /
-                            handleProviderDetail; 3 results per USSD screen
+UssdServiceImpl            ← handlePromptCountyName / handlePromptTownName /
+                            handleCountyResults / handleProviderDetail;
+                            3 results per USSD screen. Session key `searchMode`
+                            (TOWN | COUNTY) picks which search is re-run on
+                            paging/back (`townQuery` / `countyQuery`)
         ▲
         │  attraction → county
 TouristAttractionService   ← searchByName(q, 3): exact → contains → typo-tolerant
@@ -1878,9 +1890,15 @@ Main Menu → 1. Find Hospital
     → ServiceProviderService.searchByCounty(query)
     → Paginated results (3 per screen), 9 = next page, 0 = back
     → pick a number → detail (name, address, phone, county), 0 = back
-  → 2. Town (Coming Soon)
-  → 3. Border Point (Coming Soon)
-  → 4. Nearest Tourist Attraction → "Enter tourist attraction name:" → user types query
+  → 2. Town → "Enter town name to search:" → user types query
+    → ServiceProviderService.searchByCity(query): providers whose organization's
+      `city` contains the query (case-insensitive), sorted by name
+    → listed as "Name", or "Name (City)" when the city isn't an exact
+      (case-insensitive) match of the query; paging/detail/back as for County
+    → no city matches: falls back to searchByCounty(query), first screen headed
+      "No town match. County results:"
+    → neither matches: "No providers found for '{query}'." → sub-menu
+  → 3. Nearest Tourist Attraction → "Enter tourist attraction name:" → user types query
     → TouristAttractionService.searchByName(query, 3)
     → 0 matches: "No tourist attraction found for '{query}'." → sub-menu
     → 1 match: straight to that attraction's county hospital list

@@ -16,6 +16,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -296,5 +297,23 @@ class OrganizationServiceImplTest {
         assertThatThrownBy(() -> organizationService.delete(id))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(organizationRepository, never()).delete(any());
+    }
+
+    @Test
+    void citiesMatchingReturnsIdToCityForPartialMatches() {
+        Organization org = organizationMapper.toEntity(request);
+        org.setId(UUID.randomUUID());
+        org.setCity("Nairobi");
+        when(organizationRepository.findByCityContainingIgnoreCase("nai")).thenReturn(List.of(org));
+
+        Map<UUID, String> result = organizationService.citiesMatching("  nai ");
+
+        assertThat(result).containsExactly(Map.entry(org.getId(), "Nairobi"));
+    }
+
+    @Test
+    void citiesMatchingReturnsEmptyForBlankQuery() {
+        assertThat(organizationService.citiesMatching("  ")).isEmpty();
+        verify(organizationRepository, never()).findByCityContainingIgnoreCase(any());
     }
 }

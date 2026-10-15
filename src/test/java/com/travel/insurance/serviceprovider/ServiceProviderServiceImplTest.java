@@ -3,6 +3,7 @@ package com.travel.insurance.serviceprovider;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.organization.Organization;
 import com.travel.insurance.organization.OrganizationService;
+import com.travel.insurance.serviceprovider.dto.ServiceProviderCityResponse;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderRequest;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -224,6 +225,33 @@ class ServiceProviderServiceImplTest {
 
         assertThat(results).isEmpty();
         verify(serviceProviderRepository, never()).findByCountyContainingIgnoreCaseOrderByNameAsc(any());
+    }
+
+    @Test
+    void searchByCityPairsProvidersWithTheirOrganizationCity() {
+        UUID orgId = UUID.randomUUID();
+        ServiceProvider provider = serviceProviderMapper.toEntity(request);
+        provider.setId(UUID.randomUUID());
+        provider.setOrganizationId(orgId);
+        when(organizationService.citiesMatching("Nai")).thenReturn(Map.of(orgId, "Nairobi"));
+        when(serviceProviderRepository.findByOrganizationIdInOrderByNameAsc(Set.of(orgId)))
+                .thenReturn(List.of(provider));
+
+        List<ServiceProviderCityResponse> results = serviceProviderService.searchByCity("Nai");
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).provider().name()).isEqualTo("Nairobi Hospital");
+        assertThat(results.get(0).city()).isEqualTo("Nairobi");
+    }
+
+    @Test
+    void searchByCityReturnsEmptyWhenNoOrganizationCityMatches() {
+        when(organizationService.citiesMatching("Nowhere")).thenReturn(Map.of());
+
+        List<ServiceProviderCityResponse> results = serviceProviderService.searchByCity("Nowhere");
+
+        assertThat(results).isEmpty();
+        verify(serviceProviderRepository, never()).findByOrganizationIdInOrderByNameAsc(any());
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.config.UssdProperties;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
+import com.travel.insurance.serviceprovider.dto.ServiceProviderCityResponse;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import com.travel.insurance.touristattraction.TouristAttractionService;
 import com.travel.insurance.touristattraction.dto.TouristAttractionResponse;
@@ -25,6 +26,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +61,10 @@ class UssdServiceImplTest {
     private ServiceProviderResponse provider(String name, String address, String phone, String county) {
         return new ServiceProviderResponse(UUID.randomUUID(), name, name.toLowerCase().replace(" ", "") + "@example.com",
                 phone, address, county, null, null, null, Instant.now(), Instant.now());
+    }
+
+    private ServiceProviderCityResponse cityMatch(ServiceProviderResponse provider, String city) {
+        return new ServiceProviderCityResponse(provider, city);
     }
 
     private TouristAttractionResponse attraction(String name, String county) {
@@ -182,34 +188,122 @@ class UssdServiceImplTest {
     }
 
     @Test
-    void townPlaceholderReturnsToMainMenu() {
+    void hospitalSubMenuNoLongerOffersBorderPoint() {
+        UssdSession session = createSession("HOSPITAL_SUB_MENU");
+
+        UssdResponse response = ussdService.processSessionStep(session, "4");
+
+        assertThat(response.getText()).contains("Invalid choice");
+        assertThat(response.getText()).contains("2. Town\n");
+        assertThat(response.getText()).contains("3. Nearest Tourist Attraction");
+        assertThat(response.getText()).doesNotContain("Border");
+        assertThat(response.getText()).doesNotContain("Coming Soon");
+        assertThat(session.getCurrentStep()).isEqualTo("HOSPITAL_SUB_MENU");
+    }
+
+    @Test
+    void hospitalSubMenuOffersTownSearch() {
         UssdSession session = createSession("HOSPITAL_SUB_MENU");
 
         UssdResponse response = ussdService.processSessionStep(session, "2");
 
         assertThat(response.getType()).isEqualTo("CON");
-        assertThat(response.getText()).contains("This option is coming soon.");
-        assertThat(response.getText()).contains("1. Find Hospital");
-        assertThat(session.getCurrentStep()).isEqualTo("MAIN_MENU");
+        assertThat(response.getText()).contains("Enter town name to search:");
+        assertThat(session.getCurrentStep()).isEqualTo("PROMPT_TOWN_NAME");
     }
 
     @Test
-    void borderPointPlaceholderReturnsToMainMenu() {
-        UssdSession session = createSession("HOSPITAL_SUB_MENU");
+    void townPromptEmptyRePrompts() {
+        UssdSession session = createSession("PROMPT_TOWN_NAME");
 
-        UssdResponse response = ussdService.processSessionStep(session, "3");
+        UssdResponse response = ussdService.processSessionStep(session, "  ");
+
+        assertThat(response.getText()).contains("Town name cannot be empty");
+        assertThat(session.getCurrentStep()).isEqualTo("PROMPT_TOWN_NAME");
+    }
+
+    @Test
+    void townSearchBracketsCityOnlyWhenNotAnExactMatch() {
+        UssdSession session = createSession("PROMPT_TOWN_NAME");
+        when(serviceProviderService.searchByCity("nakuru")).thenReturn(List.of(
+                cityMatch(provider("Nakuru Level 5 Hospital", null, null, "Nakuru"), "Nakuru"),
+                cityMatch(provider("Valley Hospital", null, null, "Nakuru"), "Nakuru Town")));
+
+        UssdResponse response = ussdService.processSessionStep(session, "nakuru");
 
         assertThat(response.getType()).isEqualTo("CON");
-        assertThat(response.getText()).contains("This option is coming soon.");
-        assertThat(response.getText()).contains("1. Find Hospital");
-        assertThat(session.getCurrentStep()).isEqualTo("MAIN_MENU");
+        assertThat(response.getText()).contains("1-2/2:");
+        assertThat(response.getText()).contains("1. Nakuru Level 5 Hospital\n");
+        assertThat(response.getText()).contains("2. Valley Hospital (Nakuru Town)\n");
+        assertThat(session.getCurrentStep()).isEqualTo("COUNTY_RESULTS");
+        assertThat(session.getCollectedData().get("searchMode")).isEqualTo("TOWN");
+        assertThat(session.getCollectedData().get("townQuery")).isEqualTo("nakuru");
+        verify(serviceProviderService, never()).searchByCounty(anyString());
+    }
+
+    @Test
+    void townSearchFallsBackToCountyWhenNoCityMatches() {
+        UssdSession session = createSession("PROMPT_TOWN_NAME");
+        when(serviceProviderService.searchByCity("Kiambu")).thenReturn(Collections.emptyList());
+        when(serviceProviderService.searchByCounty("Kiambu")).thenReturn(List.of(
+                provider("Kiambu Level 5 Hospital", null, null, "Kiambu")));
+
+        UssdResponse response = ussdService.processSessionStep(session, "Kiambu");
+
+        assertThat(response.getText()).contains("No town match. County results:");
+        assertThat(response.getText()).contains("1. Kiambu Level 5 Hospital");
+        assertThat(session.getCurrentStep()).isEqualTo("COUNTY_RESULTS");
+        assertThat(session.getCollectedData().get("searchMode")).isEqualTo("COUNTY");
+        assertThat(session.getCollectedData().get("countyQuery")).isEqualTo("Kiambu");
+    }
+
+    @Test
+    void townSearchWithNoCityOrCountyMatchReturnsToSubMenu() {
+        UssdSession session = createSession("PROMPT_TOWN_NAME");
+        when(serviceProviderService.searchByCity("Nowhere")).thenReturn(Collections.emptyList());
+        when(serviceProviderService.searchByCounty("Nowhere")).thenReturn(Collections.emptyList());
+
+        UssdResponse response = ussdService.processSessionStep(session, "Nowhere");
+
+        assertThat(response.getText()).contains("No providers found for 'Nowhere'");
+        assertThat(response.getText()).contains("2. Town");
+        assertThat(session.getCurrentStep()).isEqualTo("HOSPITAL_SUB_MENU");
+    }
+
+    @Test
+    void townResultsPagingAndDetailRequeryByCity() {
+        UssdSession session = createSession("COUNTY_RESULTS");
+        session.getCollectedData().put("searchMode", "TOWN");
+        session.getCollectedData().put("townQuery", "Nai");
+        session.getCollectedData().put("countyResultPage", "0");
+        List<ServiceProviderCityResponse> results = List.of(
+                cityMatch(provider("P1", null, null, "Nairobi"), "Nairobi"),
+                cityMatch(provider("P2", null, null, "Nairobi"), "Nairobi"),
+                cityMatch(provider("P3", null, null, "Nairobi"), "Nairobi"),
+                cityMatch(provider("P4", "Ngong Rd", "+254700000004", "Nairobi"), "Nairobi"));
+        when(serviceProviderService.searchByCity("Nai")).thenReturn(results);
+
+        UssdResponse page2 = ussdService.processSessionStep(session, "9");
+
+        assertThat(page2.getText()).contains("4-4/4:");
+        assertThat(page2.getText()).contains("4. P4 (Nairobi)");
+
+        UssdResponse detail = ussdService.processSessionStep(session, "1");
+
+        assertThat(detail.getText()).contains("--- P4 ---");
+        assertThat(session.getCurrentStep()).isEqualTo("PROVIDER_DETAIL");
+
+        UssdResponse back = ussdService.processSessionStep(session, "0");
+
+        assertThat(back.getText()).contains("4. P4 (Nairobi)");
+        verify(serviceProviderService, never()).searchByCounty(anyString());
     }
 
     @Test
     void hospitalSubMenuOffersTouristAttractionSearch() {
         UssdSession session = createSession("HOSPITAL_SUB_MENU");
 
-        UssdResponse response = ussdService.processSessionStep(session, "4");
+        UssdResponse response = ussdService.processSessionStep(session, "3");
 
         assertThat(response.getType()).isEqualTo("CON");
         assertThat(response.getText()).contains("Enter tourist attraction name:");
@@ -235,7 +329,7 @@ class UssdServiceImplTest {
 
         assertThat(response.getType()).isEqualTo("CON");
         assertThat(response.getText()).contains("No tourist attraction found for 'Nowhere'");
-        assertThat(response.getText()).contains("4. Nearest Tourist Attraction");
+        assertThat(response.getText()).contains("3. Nearest Tourist Attraction");
         assertThat(session.getCurrentStep()).isEqualTo("HOSPITAL_SUB_MENU");
     }
 
