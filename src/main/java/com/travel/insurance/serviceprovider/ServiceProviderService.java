@@ -1,5 +1,6 @@
 package com.travel.insurance.serviceprovider;
 
+import com.travel.insurance.serviceprovider.dto.ServiceProviderCityResponse;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderNearbyResponse;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderRequest;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
@@ -32,6 +33,9 @@ public interface ServiceProviderService {
     List<ServiceProviderResponse> searchByName(String name, int limit);
 
     List<ServiceProviderResponse> searchByCounty(String county);
+
+    /** Providers whose organization's city contains {@code city} (case-insensitive), sorted by name. */
+    List<ServiceProviderCityResponse> searchByCity(String city);
 
     Optional<UUID> findIdByOrganizationId(UUID organizationId);
 

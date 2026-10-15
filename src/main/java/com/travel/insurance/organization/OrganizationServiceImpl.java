@@ -105,4 +105,14 @@ public class OrganizationServiceImpl implements OrganizationService {
         return organizationRepository.findAllById(organizationIds).stream()
                 .collect(Collectors.toMap(Organization::getId, Organization::getName));
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, String> citiesMatching(String city) {
+        if (city == null || city.isBlank()) {
+            return Map.of();
+        }
+        return organizationRepository.findByCityContainingIgnoreCase(city.trim()).stream()
+                .collect(Collectors.toMap(Organization::getId, Organization::getCity));
+    }
 }

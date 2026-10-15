@@ -2,6 +2,7 @@ package com.travel.insurance.serviceprovider;
 
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.organization.OrganizationService;
+import com.travel.insurance.serviceprovider.dto.ServiceProviderCityResponse;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderNearbyResponse;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderRequest;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
@@ -110,6 +111,21 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
         }
         return serviceProviderRepository.findByCountyContainingIgnoreCaseOrderByNameAsc(county.trim()).stream()
                 .map(serviceProviderMapper::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ServiceProviderCityResponse> searchByCity(String city) {
+        Map<UUID, String> citiesByOrganizationId = organizationService.citiesMatching(city);
+        if (citiesByOrganizationId.isEmpty()) {
+            return List.of();
+        }
+        return serviceProviderRepository.findByOrganizationIdInOrderByNameAsc(citiesByOrganizationId.keySet())
+                .stream()
+                .map(provider -> new ServiceProviderCityResponse(
+                        serviceProviderMapper.toResponse(provider),
+                        citiesByOrganizationId.get(provider.getOrganizationId())))
                 .toList();
     }
 
