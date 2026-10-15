@@ -53,7 +53,7 @@ class PreauthorizationControllerTest {
 
     private PreauthorizationResponse sampleResponse(PreauthorizationStatus status) {
         return new PreauthorizationResponse(
-                preauthorizationId, policyId, UUID.randomUUID(), visitorId, "Jane Traveler",
+                preauthorizationId, policyId, UUID.randomUUID(), visitorId, "Jane Traveler", "A1234567",
                 icd11CodeId, "1A00", "Cholera", benefitId, "Medical Expenses",
                 serviceProviderId, "Aga Khan Hospital", null, null,
                 new BigDecimal("500.00"), null, "X-ray", null, status,
