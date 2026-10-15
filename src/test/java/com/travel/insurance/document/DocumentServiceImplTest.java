@@ -21,6 +21,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionSystemException;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -38,6 +42,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -56,6 +61,8 @@ class DocumentServiceImplTest {
     private PreauthorizationService preauthorizationService;
     @Mock
     private ServiceProviderService serviceProviderService;
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     private DocumentServiceImpl documentService;
 
@@ -68,7 +75,7 @@ class DocumentServiceImplTest {
     void setUp() {
         documentService = new DocumentServiceImpl(documentRepository, documentStorage,
                 new PdfMergeService(new DocumentProperties()), claimService, preauthorizationService,
-                serviceProviderService);
+                serviceProviderService, new TransactionTemplate(transactionManager));
     }
 
     @AfterEach
@@ -107,11 +114,21 @@ class DocumentServiceImplTest {
         return document;
     }
 
+    /** Starts a (fake) transaction and makes the repository assign an id on insert, like Hibernate does. */
+    private void stubInsertInsideTransaction() {
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        when(documentRepository.saveAndFlush(any(Document.class))).thenAnswer(inv -> {
+            Document inserted = inv.getArgument(0);
+            inserted.setId(UUID.randomUUID());
+            return inserted;
+        });
+    }
+
     @Test
     void uploadMergesStoresBlobAndSavesOneDocument() {
         authenticateAs("ADMIN");
         when(claimService.getEntityById(claimId)).thenReturn(claim(ClaimStatus.OPEN));
-        when(documentRepository.save(any(Document.class))).thenAnswer(inv -> inv.getArgument(0));
+        stubInsertInsideTransaction();
 
         DocumentResponse response = documentService.upload(
                 DocumentOwnerType.CLAIM, claimId, DocumentType.INVOICE, "Claim 42 / pack", twoPdfs());
@@ -121,18 +138,51 @@ class DocumentServiceImplTest {
         assertThat(response.filename()).isEqualTo("Claim 42   pack.pdf");
         assertThat(response.sourceFiles()).hasSize(2);
         ArgumentCaptor<Document> saved = ArgumentCaptor.forClass(Document.class);
-        verify(documentRepository).save(saved.capture());
+        verify(documentRepository).saveAndFlush(saved.capture());
         assertThat(saved.getValue().getUploadedBy()).isEqualTo(userId);
-        assertThat(saved.getValue().getStorageKey()).startsWith("claim/" + claimId + "/");
         verify(documentStorage).put(eq(saved.getValue().getStorageKey()), any(InputStream.class),
                 eq(saved.getValue().getSizeBytes()), eq("application/pdf"));
+        verify(transactionManager).commit(any());
+    }
+
+    @Test
+    void storageKeyUsesTheDocumentId() {
+        authenticateAs("ADMIN");
+        when(claimService.getEntityById(claimId)).thenReturn(claim(ClaimStatus.OPEN));
+        stubInsertInsideTransaction();
+
+        DocumentResponse response = documentService.upload(
+                DocumentOwnerType.CLAIM, claimId, DocumentType.INVOICE, null, twoPdfs());
+
+        ArgumentCaptor<Document> saved = ArgumentCaptor.forClass(Document.class);
+        verify(documentRepository).saveAndFlush(saved.capture());
+        String expectedKey = "claim/%s/%s".formatted(claimId, response.id());
+        assertThat(saved.getValue().getStorageKey()).isEqualTo(expectedKey);
+        verify(documentStorage).put(eq(expectedKey), any(InputStream.class), anyLong(), anyString());
+    }
+
+    @Test
+    void preauthorizationStorageKeyUsesOwnerTypePrefixAndDocumentId() {
+        authenticateAs("ADMIN");
+        UUID preauthId = UUID.randomUUID();
+        Preauthorization preauth = new Preauthorization();
+        preauth.setServiceProviderId(providerId);
+        preauth.setStatus(PreauthorizationStatus.PENDING);
+        when(preauthorizationService.getEntityById(preauthId)).thenReturn(preauth);
+        stubInsertInsideTransaction();
+
+        DocumentResponse response = documentService.upload(
+                DocumentOwnerType.PREAUTHORIZATION, preauthId, DocumentType.MEDICAL_REPORT, null, twoPdfs());
+
+        verify(documentStorage).put(eq("preauthorization/%s/%s".formatted(preauthId, response.id())),
+                any(InputStream.class), anyLong(), anyString());
     }
 
     @Test
     void uploadGeneratesFilenameWhenNoTitle() {
         authenticateAs("ADMIN");
         when(claimService.getEntityById(claimId)).thenReturn(claim(ClaimStatus.SUBMITTED));
-        when(documentRepository.save(any(Document.class))).thenAnswer(inv -> inv.getArgument(0));
+        stubInsertInsideTransaction();
 
         DocumentResponse response = documentService.upload(
                 DocumentOwnerType.CLAIM, claimId, DocumentType.CLAIM_FORM, null, twoPdfs());
@@ -141,14 +191,49 @@ class DocumentServiceImplTest {
     }
 
     @Test
-    void uploadDeletesBlobWhenDatabaseSaveFails() {
+    void uploadStoresNoBlobWhenInsertFails() {
         authenticateAs("ADMIN");
         when(claimService.getEntityById(claimId)).thenReturn(claim(ClaimStatus.OPEN));
-        when(documentRepository.save(any(Document.class))).thenThrow(new IllegalStateException("db down"));
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        when(documentRepository.saveAndFlush(any(Document.class))).thenThrow(new IllegalStateException("db down"));
 
         assertThatThrownBy(() -> documentService.upload(
                 DocumentOwnerType.CLAIM, claimId, DocumentType.INVOICE, null, twoPdfs()))
                 .isInstanceOf(IllegalStateException.class);
+
+        verifyNoInteractions(documentStorage);
+        verify(transactionManager).rollback(any());
+    }
+
+    @Test
+    void uploadRollsBackRowAndDeletesBlobWhenStorageFails() {
+        authenticateAs("ADMIN");
+        when(claimService.getEntityById(claimId)).thenReturn(claim(ClaimStatus.OPEN));
+        stubInsertInsideTransaction();
+        doThrow(new IllegalStateException("azure down"))
+                .when(documentStorage).put(anyString(), any(InputStream.class), anyLong(), anyString());
+
+        assertThatThrownBy(() -> documentService.upload(
+                DocumentOwnerType.CLAIM, claimId, DocumentType.INVOICE, null, twoPdfs()))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(transactionManager).rollback(any());
+        verify(transactionManager, never()).commit(any());
+        ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
+        verify(documentStorage).delete(key.capture());
+        assertThat(key.getValue()).startsWith("claim/" + claimId + "/");
+    }
+
+    @Test
+    void uploadDeletesBlobWhenCommitFails() {
+        authenticateAs("ADMIN");
+        when(claimService.getEntityById(claimId)).thenReturn(claim(ClaimStatus.OPEN));
+        stubInsertInsideTransaction();
+        doThrow(new TransactionSystemException("commit failed")).when(transactionManager).commit(any());
+
+        assertThatThrownBy(() -> documentService.upload(
+                DocumentOwnerType.CLAIM, claimId, DocumentType.INVOICE, null, twoPdfs()))
+                .isInstanceOf(TransactionSystemException.class);
 
         ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
         verify(documentStorage).put(key.capture(), any(InputStream.class), anyLong(), anyString());
@@ -166,7 +251,7 @@ class DocumentServiceImplTest {
                 .isInstanceOf(UnsupportedDocumentTypeException.class);
 
         verifyNoInteractions(documentStorage);
-        verify(documentRepository, never()).save(any());
+        verify(documentRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -213,7 +298,7 @@ class DocumentServiceImplTest {
         authenticateAs("PROVIDER_USER");
         when(claimService.getEntityById(claimId)).thenReturn(claim(ClaimStatus.OPEN));
         when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(providerId));
-        when(documentRepository.save(any(Document.class))).thenAnswer(inv -> inv.getArgument(0));
+        stubInsertInsideTransaction();
 
         DocumentResponse response = documentService.upload(
                 DocumentOwnerType.CLAIM, claimId, DocumentType.INVOICE, null, twoPdfs());

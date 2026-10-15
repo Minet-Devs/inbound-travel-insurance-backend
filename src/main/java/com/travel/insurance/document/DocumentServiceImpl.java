@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -33,6 +34,8 @@ public class DocumentServiceImpl implements DocumentService {
 
     private static final String PDF_CONTENT_TYPE = "application/pdf";
     private static final int MAX_FILENAME_LENGTH = 200;
+    /** Placeholder until the row id is known; replaced inside the same transaction before commit. */
+    private static final String PENDING_STORAGE_KEY = "pending";
 
     private final DocumentRepository documentRepository;
     private final DocumentStorage documentStorage;
@@ -40,6 +43,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final ClaimService claimService;
     private final PreauthorizationService preauthorizationService;
     private final ServiceProviderService serviceProviderService;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
     public DocumentResponse upload(DocumentOwnerType ownerType, UUID ownerId, DocumentType documentType,
@@ -49,14 +53,6 @@ public class DocumentServiceImpl implements DocumentService {
         AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
 
         try (MergedPdf merged = pdfMergeService.merge(files)) {
-            UUID documentId = UUID.randomUUID();
-            String storageKey = "%s/%s/%s".formatted(ownerType.name().toLowerCase(), ownerId, documentId);
-            try (InputStream in = Files.newInputStream(merged.file())) {
-                documentStorage.put(storageKey, in, merged.sizeBytes(), PDF_CONTENT_TYPE);
-            } catch (IOException e) {
-                throw new UncheckedIOException("Could not read merged document", e);
-            }
-
             Document document = new Document();
             document.setOwnerType(ownerType);
             document.setOwnerId(ownerId);
@@ -66,21 +62,40 @@ public class DocumentServiceImpl implements DocumentService {
             document.setPageCount(merged.pageCount());
             document.setSizeBytes(merged.sizeBytes());
             document.setSha256(merged.sha256());
-            document.setStorageKey(storageKey);
+            document.setStorageKey(PENDING_STORAGE_KEY);
             document.setSourceFiles(merged.sources());
             if (user != null) {
                 document.setUploadedBy(user.userId());
                 document.setUploadedByOrganizationId(user.organizationId());
             }
+
+            // The row id is generated on save, so insert first (inside a transaction, invisible to others),
+            // then store the blob under that id. A failure at any later point rolls the row back.
+            String[] storedKey = new String[1];
+            Document saved;
             try {
-                Document saved = documentRepository.save(document);
-                log.info("Document uploaded id={} owner={}:{} user={} pages={}", saved.getId(), ownerType, ownerId,
-                        user != null ? user.userId() : null, saved.getPageCount());
-                return toResponse(saved);
+                saved = transactionTemplate.execute(status -> {
+                    Document inserted = documentRepository.saveAndFlush(document);
+                    String storageKey = "%s/%s/%s".formatted(
+                            ownerType.name().toLowerCase(), ownerId, inserted.getId());
+                    storedKey[0] = storageKey;
+                    try (InputStream in = Files.newInputStream(merged.file())) {
+                        documentStorage.put(storageKey, in, merged.sizeBytes(), PDF_CONTENT_TYPE);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Could not read merged document", e);
+                    }
+                    inserted.setStorageKey(storageKey);
+                    return inserted;
+                });
             } catch (RuntimeException e) {
-                deleteBlobQuietly(storageKey);
+                if (storedKey[0] != null) {
+                    deleteBlobQuietly(storedKey[0]);
+                }
                 throw e;
             }
+            log.info("Document uploaded id={} owner={}:{} user={} pages={}", saved.getId(), ownerType, ownerId,
+                    user != null ? user.userId() : null, saved.getPageCount());
+            return toResponse(saved);
         }
     }
 
