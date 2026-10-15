@@ -1289,7 +1289,8 @@ container, and recorded as a single `documents` row.
 `sha256`, `storageKey`, `sourceFiles` (JSON array of `{filename, sizeBytes,
 pageCount}` for each merged input — metadata only, the originals are **not**
 kept), `uploadedBy`, `uploadedByOrganizationId`. The storage key is
-`{ownerType}/{ownerId}/{documentId}` and is never derived from a user filename.
+`{ownerType}/{ownerId}/{documentId}` (owner type lower-cased, `documentId` the
+row's own id) and is never derived from a user filename.
 
 **Endpoints**
 
@@ -1315,8 +1316,11 @@ the total page count is capped. PDFs are copied to a temp directory, merged
 with `PDFMergerUtility` (temp-file stream cache, so large uploads do not sit
 in heap), hashed, streamed to `DocumentStorage`, and the temp directory is
 deleted. The upload is all-or-nothing: any invalid file rejects the whole
-request and nothing is stored. If the DB save fails after the blob was
-written, the blob is deleted. Merging flattens the inputs, so the originals
+request and nothing is stored. Because the row id is generated on insert and
+the blob key embeds it, the row is inserted first inside a transaction
+(`TransactionTemplate`), then the blob is written under that id, then the
+transaction commits. If the blob write fails the row is rolled back; if the
+commit fails the blob is deleted, so a row is never visible without its blob. Merging flattens the inputs, so the originals
 and any per-file document type are not recoverable — upload separate document
 types in separate calls.
 
