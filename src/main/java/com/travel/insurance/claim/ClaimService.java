@@ -4,6 +4,7 @@ import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
+import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -14,6 +15,8 @@ import java.util.UUID;
 public interface ClaimService {
 
     ClaimResponse create(ClaimRequest request);
+
+    ClaimResponse createFromPreauthorization(UUID preauthorizationId, ConvertPreauthorizationRequest request);
 
     ClaimResponse update(UUID id, ClaimRequest request);
 
