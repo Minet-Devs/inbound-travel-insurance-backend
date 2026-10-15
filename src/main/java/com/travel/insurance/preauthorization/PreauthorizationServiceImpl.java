@@ -124,7 +124,9 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     public void markPreAuthorizationConvertedToClaim(UUID id) {
         Preauthorization preauthorization = getEntityById(id);
 
-        if (preauthorization != null && preauthorization.getConvertedToClaim().equals(false) && preauthorization.getStatus() == PreauthorizationStatus.APPROVED) {
+        boolean approved = preauthorization.getStatus() == PreauthorizationStatus.APPROVED
+                || preauthorization.getStatus() == PreauthorizationStatus.PARTIALLY_APPROVED;
+        if (approved && !Boolean.TRUE.equals(preauthorization.getConvertedToClaim())) {
             preauthorization.setConvertedToClaim(true);
 
             preauthorizationRepository.save(preauthorization);

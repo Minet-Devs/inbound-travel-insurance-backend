@@ -4,6 +4,7 @@ import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
+import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -32,6 +33,15 @@ public class ClaimController {
     @PostMapping
     public ResponseEntity<ClaimResponse> create(@RequestBody ClaimRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(claimService.create(request));
+    }
+
+    /** Claim + invoice built from an approved pre-authorization; the caller only supplies the invoice number. */
+    @PostMapping("/from-preauthorization/{preauthorizationId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CONTACT_CENTER')")
+    public ResponseEntity<ClaimResponse> createFromPreauthorization(
+            @PathVariable UUID preauthorizationId, @Valid @RequestBody ConvertPreauthorizationRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(claimService.createFromPreauthorization(preauthorizationId, request));
     }
 
     @PutMapping("/{id}/invoice")
