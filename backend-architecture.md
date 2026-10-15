@@ -59,7 +59,7 @@ com.travel.insurance/
 │   ├── JpaAuditingConfig.java              # @EnableJpaAuditing + AuditorAware
 │   ├── OpenApiConfig.java                  # Swagger/OpenAPI metadata
 │   ├── RabbitConfig.java                   # Exchanges, queues, bindings
-│   ├── MailProperties.java                 # app.mail.* (from address, activation BCC list, emergency-assistance contact)
+│   ├── MailProperties.java                 # app.mail.* (from address, emergency-assistance contact)
 │   └── UssdProperties.java                 # ussd.feedback.* (default-scheme-name, email.to)
 │
 ├── 📁 common/                              # Shared, feature-agnostic code
@@ -1280,10 +1280,8 @@ download links (a clickable Google Play badge image linking to
 badge hosted on Dropbox and rewritten via `LogoUrlNormalizer`; the iPhone / App
 Store link is omitted until the app is approved):
 
-The activation email is also BCC'd to the internal recipients in
-`app.mail.activation-bcc` (env `ACTIVATION_BCC`, comma-separated; defaults to three
-Minet staff addresses). `EmailService` has a `send(...)` overload taking a BCC list;
-an empty list adds no BCC header.
+The activation email is not BCC'd to anyone. `EmailService` has a `send(...)` overload
+taking a BCC list; an empty list adds no BCC header.
 The insurer's `contactEmail` is also visibly CC'd on the activation email (skipped, with
 the email still sent, if blank); `send(...)` takes a CC list alongside the BCC list.
 
