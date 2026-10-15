@@ -24,6 +24,8 @@ public interface ClaimService {
 
     ClaimResponse getById(UUID id);
 
+    Claim getEntityById(UUID id);
+
     Page<ClaimResponse> list(Pageable pageable);
 
     List<ClaimResponse> listByVisitor(UUID visitorId);

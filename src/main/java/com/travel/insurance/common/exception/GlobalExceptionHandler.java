@@ -9,6 +9,11 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import com.travel.insurance.document.DocumentTooLargeException;
+import com.travel.insurance.document.UnsupportedDocumentTypeException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -111,6 +116,23 @@ public class GlobalExceptionHandler {
         String requiredType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "a valid value";
         String message = "Invalid value for parameter '%s': expected %s".formatted(ex.getName(), requiredType);
         return build(HttpStatus.BAD_REQUEST, message, request);
+    }
+
+    @ExceptionHandler(UnsupportedDocumentTypeException.class)
+    public ResponseEntity<ApiError> handleUnsupportedDocument(
+            UnsupportedDocumentTypeException ex, HttpServletRequest request) {
+        return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getMessage(), request);
+    }
+
+    @ExceptionHandler({DocumentTooLargeException.class, MaxUploadSizeExceededException.class})
+    public ResponseEntity<ApiError> handleTooLarge(Exception ex, HttpServletRequest request) {
+        String message = ex instanceof DocumentTooLargeException ? ex.getMessage() : "Upload exceeds the maximum allowed size";
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, message, request);
+    }
+
+    @ExceptionHandler({MissingServletRequestPartException.class, MissingServletRequestParameterException.class})
+    public ResponseEntity<ApiError> handleMissingPart(Exception ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
     }
 
     @ExceptionHandler(Exception.class)
