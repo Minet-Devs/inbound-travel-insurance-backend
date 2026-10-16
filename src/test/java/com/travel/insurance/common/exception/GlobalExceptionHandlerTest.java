@@ -1,11 +1,13 @@
 package com.travel.insurance.common.exception;
 
+import com.travel.insurance.document.DocumentStorageException;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDate;
@@ -62,5 +64,25 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
+    }
+
+    @Test
+    void storageFailureIsReportedAsServiceUnavailableWithoutLeakingDetails() {
+        ResponseEntity<ApiError> response = handler.handleDocumentStorage(
+                new DocumentStorageException("Could not store document x", new RuntimeException("conn string")),
+                request("/api/v1/claims/1/documents"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(response.getBody().message()).isEqualTo("Document storage is temporarily unavailable");
+    }
+
+    @Test
+    void malformedMultipartIsReportedAsBadRequest() {
+        ResponseEntity<ApiError> response = handler.handleMalformedMultipart(
+                new MultipartException("Failed to parse multipart servlet request"),
+                request("/api/v1/claims/1/documents"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().message()).contains("Failed to parse multipart servlet request");
     }
 }
