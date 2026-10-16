@@ -1343,6 +1343,10 @@ pages; `415` a file that is not a PDF (`UnsupportedDocumentTypeException`);
 `413` a size limit exceeded (`DocumentTooLargeException`,
 `MaxUploadSizeExceededException`); `409` the owner no longer accepts changes;
 `404` unknown document, or an owner outside a `PROVIDER_USER`'s service provider.
+`503` the blob store failed (`DocumentStorageException`, thrown by both `DocumentStorage`
+backends; the cause is logged, the response carries a generic message); `400` also covers a
+malformed multipart body (`MultipartException`). Any other unhandled exception is now logged
+with its stack trace by `GlobalExceptionHandler.handleUnexpected` before the generic `500`.
 
 **Access rules**: the owning claim / pre-authorization is resolved through
 `ClaimService.getEntityById` / `PreauthorizationService.getEntityById`

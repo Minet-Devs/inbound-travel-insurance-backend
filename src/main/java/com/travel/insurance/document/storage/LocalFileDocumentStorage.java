@@ -1,12 +1,12 @@
 package com.travel.insurance.document.storage;
 
 import com.travel.insurance.config.DocumentProperties;
+import com.travel.insurance.document.DocumentStorageException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -29,7 +29,7 @@ public class LocalFileDocumentStorage implements DocumentStorage {
             Files.createDirectories(target.getParent());
             Files.copy(content, target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
-            throw new UncheckedIOException("Could not store document " + key, e);
+            throw new DocumentStorageException("Could not store document " + key, e);
         }
     }
 
@@ -38,7 +38,7 @@ public class LocalFileDocumentStorage implements DocumentStorage {
         try {
             return Files.newInputStream(resolve(key));
         } catch (IOException e) {
-            throw new UncheckedIOException("Could not read document " + key, e);
+            throw new DocumentStorageException("Could not read document " + key, e);
         }
     }
 
@@ -47,7 +47,7 @@ public class LocalFileDocumentStorage implements DocumentStorage {
         try {
             Files.deleteIfExists(resolve(key));
         } catch (IOException e) {
-            throw new UncheckedIOException("Could not delete document " + key, e);
+            throw new DocumentStorageException("Could not delete document " + key, e);
         }
     }
 
