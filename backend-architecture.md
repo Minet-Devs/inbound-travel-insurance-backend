@@ -783,8 +783,12 @@ Policy
   existing `PROVIDER_USER` auto-scoping (a `PROVIDER_USER` is always
   restricted to their own `serviceProviderId`; supplying `insurerId` narrows
   that further via `findAllByServiceProviderIdAndInsurerId` rather than
-  bypassing the scope, while any other role filters the full table via
-  `findAllByInsurerId`). Create
+  bypassing the scope; an `INSURER_USER` is always restricted to their own
+  insurer via `findAllByInsurerId` — the param is ignored, no linked insurer →
+  empty page; any other role filters the full table via
+  `findAllByInsurerId`). `GET /api/v1/preauthorizations/{id}` applies the same
+  row scoping: an `INSURER_USER`/`PROVIDER_USER` reading another insurer's /
+  service provider's pre-auth gets `AccessDeniedException` (403). Create
   requires the diagnosis (`icd11CodeId`, validated via `Icd11CodeService`),
   the patient (`visitorId`, validated via `VisitorService`, existence only —
   not checked against the request's `policyId`), the accessed hospital
@@ -1025,7 +1029,17 @@ entities:
   `Insurer` id from their `organizationId` before filtering
   `findAllByInsurerId`; if no `Insurer`/`ServiceProvider` currently has that
   `organizationId`, scoping returns an empty page rather than falling back to
-  unscoped access. Roles gate *which endpoints* a user can call;
+  unscoped access. `ClaimServiceImpl.findScoped` (`GET /api/v1/claims`) does
+  the same per role: `PROVIDER_USER` → `findAllByServiceProviderId`,
+  `INSURER_USER` → `findAllByInsurerId` on the claim's own `insurerId`
+  column (any `insurerId` query parameter is ignored), everyone else →
+  unscoped. `ClaimServiceImpl.getById` likewise rejects an `INSURER_USER`
+  reading another insurer's claim, and a `PROVIDER_USER` reading another
+  service provider's claim, with `AccessDeniedException` (403). `VISITOR`
+  tokens never reach these endpoints at all — see "Visitor self-service"
+  under Mobile Auth. Claims
+  saved with a null `insurerId` (predating `V026`) are invisible to insurer
+  users. Roles gate *which endpoints* a user can call;
   `organizationId` (via this bridge) gates *which rows* they can see.
 - `UserResponse` and the JWT (`JwtTokenProvider.CLAIM_SERVICE_PROVIDER_ID`/
   `CLAIM_INSURER_ID`) also expose the bridged `serviceProviderId`/`insurerId`
@@ -1715,6 +1729,21 @@ Design notes:
   `"VISITOR"` (not added to `user.Role`, which stays staff-only) — `JwtAuthenticationFilter` already
   builds `ROLE_<claim>` generically, so `hasRole("VISITOR")` works on future
   visitor-only endpoints without further filter changes.
+
+Visitor self-service (`mobile.VisitorSelfServiceController`, `VISITOR` only
+via `SecurityConfig`):
+- `GET /api/v1/mobile/me/claims` → `Page<ClaimResponse>`
+  (`ClaimService.listByVisitor(visitorId, Pageable)`)
+- `GET /api/v1/mobile/me/preauthorizations` → `Page<PreauthorizationResponse>`
+  (`PreauthorizationService.listByVisitor(visitorId, Pageable)`)
+
+Both default to `createdDate` descending (overridable with `page`/`size`/`sort`).
+The visitor is always the token's `sub` — there is no visitor-id parameter, so
+a visitor can only read their own records. Conversely `SecurityConfig`
+restricts `/api/v1/claims/**` and `/api/v1/preauthorizations/**` (including
+their `/documents` sub-resources) to the staff roles `ADMIN`, `INSURER_USER`,
+`PROVIDER_USER`, `CONTACT_CENTER`; before this, a visitor token fell through
+`anyRequest().authenticated()` and `GET /api/v1/claims` returned every claim.
 - **Deliberately not a generalization of the `otp` package** — see the note
   under OTP (Point-of-Service Verification) above. `Otp` hardcodes
   `serviceProviderId` as non-nullable with no purpose discriminator;

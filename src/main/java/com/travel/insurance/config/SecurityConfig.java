@@ -64,6 +64,11 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.PUT, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**", "/api/v1/tourist-attractions/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.PATCH, "/api/v1/organizations/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.DELETE, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**", "/api/v1/tourist-attractions/**").hasRole("ADMIN");
+                    // Visitors (mobile app) see only their own claims/pre-auths via /mobile/me; the
+                    // staff-wide claim and pre-auth endpoints (incl. their /documents) are closed to them.
+                    auth.requestMatchers("/api/v1/mobile/me/**").hasRole("VISITOR");
+                    auth.requestMatchers("/api/v1/claims/**", "/api/v1/preauthorizations/**")
+                            .hasAnyRole("ADMIN", "INSURER_USER", "PROVIDER_USER", "CONTACT_CENTER");
                     auth.anyRequest().authenticated();
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

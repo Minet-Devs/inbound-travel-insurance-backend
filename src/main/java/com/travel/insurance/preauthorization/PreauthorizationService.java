@@ -16,6 +16,8 @@ public interface PreauthorizationService {
 
     Page<PreauthorizationResponse> list(UUID insurerId, Pageable pageable);
 
+    Page<PreauthorizationResponse> listByVisitor(UUID visitorId, Pageable pageable);
+
     PreauthorizationResponse decide(UUID id, PreauthorizationDecisionRequest request);
 
     void delete(UUID id);

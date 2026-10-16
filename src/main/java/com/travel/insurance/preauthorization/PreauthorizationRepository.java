@@ -14,6 +14,8 @@ public interface PreauthorizationRepository extends JpaRepository<Preauthorizati
 
     Page<Preauthorization> findAllByInsurerId(UUID insurerId, Pageable pageable);
 
+    Page<Preauthorization> findAllByVisitorId(UUID visitorId, Pageable pageable);
+
     Page<Preauthorization> findAllByServiceProviderIdAndInsurerId(
             UUID serviceProviderId, UUID insurerId, Pageable pageable);
 }

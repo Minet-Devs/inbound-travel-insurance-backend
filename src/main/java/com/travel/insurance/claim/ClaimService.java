@@ -30,6 +30,8 @@ public interface ClaimService {
 
     List<ClaimResponse> listByVisitor(UUID visitorId);
 
+    Page<ClaimResponse> listByVisitor(UUID visitorId, Pageable pageable);
+
     ClaimResponse decide(UUID id, ClaimDecisionRequest request);
 
     ClaimResponse markPaid(UUID id);
