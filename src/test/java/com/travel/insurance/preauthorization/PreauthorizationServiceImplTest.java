@@ -8,6 +8,7 @@ import com.travel.insurance.common.util.AuthenticatedUser;
 import com.travel.insurance.config.RabbitConfig;
 import com.travel.insurance.icd11.Icd11Code;
 import com.travel.insurance.icd11.Icd11CodeService;
+import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.medicalservice.MedicalServiceService;
 import com.travel.insurance.medicalservice.dto.MedicalServiceResponse;
 import com.travel.insurance.policy.Policy;
@@ -31,6 +32,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -78,6 +80,9 @@ class PreauthorizationServiceImplTest {
     private ServiceProviderService serviceProviderService;
 
     @Mock
+    private InsurerService insurerService;
+
+    @Mock
     private MedicalServiceService medicalServiceService;
 
     @Mock
@@ -100,7 +105,7 @@ class PreauthorizationServiceImplTest {
         preauthorizationService = new PreauthorizationServiceImpl(
                 preauthorizationRepository, preauthorizationEnhancementRepository, preauthorizationItemRepository,
                 preauthorizationMapper, policyService, benefitService, visitorService, icd11CodeService,
-                serviceProviderService, medicalServiceService, eventPublisher);
+                serviceProviderService, insurerService, medicalServiceService, eventPublisher);
 
         lenient().when(policyService.getEntityById(policyId)).thenReturn(activePolicy());
         lenient().when(visitorService.getEntityById(visitorId)).thenReturn(visitor());
@@ -405,6 +410,95 @@ class PreauthorizationServiceImplTest {
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().getFirst().serviceProviderName()).isEqualTo("Aga Khan Hospital");
         verify(preauthorizationRepository).findAllByServiceProviderId(serviceProviderId, pageable);
+        verify(preauthorizationRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listScopesToOwnInsurerForInsurerUserIgnoringInsurerIdParam() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(insurerId));
+        Pageable pageable = PageRequest.of(0, 10);
+        when(preauthorizationRepository.findAllByInsurerId(insurerId, pageable))
+                .thenReturn(new PageImpl<>(List.of(pendingPreauthorization())));
+
+        Page<PreauthorizationResponse> result = preauthorizationService.list(UUID.randomUUID(), pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(preauthorizationRepository).findAllByInsurerId(insurerId, pageable);
+        verify(preauthorizationRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listReturnsEmptyForInsurerUserWithoutInsurer() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.empty());
+
+        Page<PreauthorizationResponse> result = preauthorizationService.list(null, PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).isEmpty();
+        verify(preauthorizationRepository, never()).findAll(any(Pageable.class));
+        verify(preauthorizationRepository, never()).findAllByInsurerId(any(), any());
+    }
+
+    @Test
+    void getByIdReturnsOwnPreauthorizationForInsurerUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(insurerId));
+        Preauthorization preauthorization = pendingPreauthorization();
+        when(preauthorizationRepository.findById(preauthorization.getId())).thenReturn(Optional.of(preauthorization));
+
+        assertThat(preauthorizationService.getById(preauthorization.getId()).id()).isEqualTo(preauthorization.getId());
+    }
+
+    @Test
+    void getByIdRejectsOtherInsurersPreauthorizationForInsurerUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(UUID.randomUUID()));
+        Preauthorization preauthorization = pendingPreauthorization();
+        when(preauthorizationRepository.findById(preauthorization.getId())).thenReturn(Optional.of(preauthorization));
+
+        assertThatThrownBy(() -> preauthorizationService.getById(preauthorization.getId()))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void getByIdReturnsOwnPreauthorizationForProviderUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(serviceProviderId));
+        Preauthorization preauthorization = pendingPreauthorization();
+        when(preauthorizationRepository.findById(preauthorization.getId())).thenReturn(Optional.of(preauthorization));
+
+        assertThat(preauthorizationService.getById(preauthorization.getId()).id()).isEqualTo(preauthorization.getId());
+    }
+
+    @Test
+    void getByIdRejectsOtherProvidersPreauthorizationForProviderUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(UUID.randomUUID()));
+        Preauthorization preauthorization = pendingPreauthorization();
+        when(preauthorizationRepository.findById(preauthorization.getId())).thenReturn(Optional.of(preauthorization));
+
+        assertThatThrownBy(() -> preauthorizationService.getById(preauthorization.getId()))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void listByVisitorReturnsOnlyThatVisitorsPreauthorizations() {
+        UUID visitorId = UUID.randomUUID();
+        Page<Preauthorization> page = new PageImpl<>(List.of(pendingPreauthorization()));
+        Pageable pageable = PageRequest.of(0, 10);
+        when(preauthorizationRepository.findAllByVisitorId(visitorId, pageable)).thenReturn(page);
+
+        Page<PreauthorizationResponse> result = preauthorizationService.listByVisitor(visitorId, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(preauthorizationRepository).findAllByVisitorId(visitorId, pageable);
         verify(preauthorizationRepository, never()).findAll(any(Pageable.class));
     }
 

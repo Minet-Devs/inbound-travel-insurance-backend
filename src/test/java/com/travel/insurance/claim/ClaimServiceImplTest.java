@@ -42,6 +42,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -455,6 +456,131 @@ class ClaimServiceImplTest {
 
         assertThat(result.getContent()).hasSize(1);
         verify(claimRepository).findAllByServiceProviderId(serviceProviderId, pageable);
+        verify(claimRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listScopesToInsurerForInsurerUserViaOrganizationId() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(insurerId));
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(UUID.randomUUID());
+        claim.setInsurerId(insurerId);
+        Pageable pageable = PageRequest.of(0, 10);
+        when(claimRepository.findAllByInsurerId(insurerId, pageable)).thenReturn(new PageImpl<>(List.of(claim)));
+        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of());
+
+        Page<ClaimResponse> result = claimService.list(pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(claimRepository).findAllByInsurerId(insurerId, pageable);
+        verify(claimRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listReturnsEmptyForInsurerUserWithoutInsurer() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.empty());
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Page<ClaimResponse> result = claimService.list(pageable);
+
+        assertThat(result.getContent()).isEmpty();
+        verify(claimRepository, never()).findAll(any(Pageable.class));
+        verify(claimRepository, never()).findAllByInsurerId(any(), any());
+    }
+
+    @Test
+    void listReturnsAllClaimsForAdmin() {
+        authenticateAs(null, "ADMIN");
+        Pageable pageable = PageRequest.of(0, 10);
+        when(claimRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of()));
+
+        claimService.list(pageable);
+
+        verify(claimRepository).findAll(pageable);
+        verify(claimRepository, never()).findAllByInsurerId(any(), any());
+    }
+
+    @Test
+    void getByIdReturnsOwnClaimForInsurerUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(insurerId));
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setInsurerId(insurerId);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of());
+
+        assertThat(claimService.getById(id).id()).isEqualTo(id);
+    }
+
+    @Test
+    void getByIdRejectsOtherInsurersClaimForInsurerUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(UUID.randomUUID()));
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setInsurerId(insurerId);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+
+        assertThatThrownBy(() -> claimService.getById(id))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void getByIdReturnsOwnClaimForProviderUser() {
+        UUID organizationId = UUID.randomUUID();
+        UUID serviceProviderId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(serviceProviderId));
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setServiceProviderId(serviceProviderId);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of());
+
+        assertThat(claimService.getById(id).id()).isEqualTo(id);
+    }
+
+    @Test
+    void getByIdRejectsOtherProvidersClaimForProviderUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(UUID.randomUUID()));
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setServiceProviderId(UUID.randomUUID());
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+
+        assertThatThrownBy(() -> claimService.getById(id))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void listByVisitorPagedReturnsOnlyThatVisitorsClaims() {
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(UUID.randomUUID());
+        claim.setVisitorId(visitorId);
+        Pageable pageable = PageRequest.of(0, 10);
+        when(claimRepository.findAllByVisitorId(visitorId, pageable)).thenReturn(new PageImpl<>(List.of(claim)));
+        when(visitorService.getById(visitorId)).thenReturn(visitorResponse());
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of());
+
+        Page<ClaimResponse> result = claimService.listByVisitor(visitorId, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().getFirst().visitorId()).isEqualTo(visitorId);
         verify(claimRepository, never()).findAll(any(Pageable.class));
     }
 

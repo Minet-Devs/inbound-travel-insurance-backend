@@ -37,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -200,7 +201,9 @@ public class ClaimServiceImpl implements ClaimService {
     @Override
     @Transactional(readOnly = true)
     public ClaimResponse getById(UUID id) {
-        return toResponse(getEntity(id));
+        Claim claim = getEntity(id);
+        assertVisibleToCurrentUser(claim);
+        return toResponse(claim);
     }
 
     @Override
@@ -215,6 +218,12 @@ public class ClaimServiceImpl implements ClaimService {
         return claimRepository.findAllByVisitorId(visitorId).stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ClaimResponse> listByVisitor(UUID visitorId, Pageable pageable) {
+        return claimRepository.findAllByVisitorId(visitorId, pageable).map(this::toResponse);
     }
 
     @Override
@@ -355,7 +364,37 @@ public class ClaimServiceImpl implements ClaimService {
             }
             return claimRepository.findAllByServiceProviderId(serviceProviderId, pageable);
         }
+        if (user != null && "INSURER_USER".equals(user.role())) {
+            UUID insurerId = insurerService.findIdByOrganizationId(user.organizationId()).orElse(null);
+            if (insurerId == null) {
+                return Page.empty(pageable);
+            }
+            return claimRepository.findAllByInsurerId(insurerId, pageable);
+        }
         return claimRepository.findAll(pageable);
+    }
+
+    /**
+     * Org-scoped users may only read their own organization's claims: an insurer user those raised
+     * against their insurer, a provider user those raised by their service provider.
+     */
+    private void assertVisibleToCurrentUser(Claim claim) {
+        AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
+        if (user == null) {
+            return;
+        }
+        if ("INSURER_USER".equals(user.role())) {
+            UUID insurerId = insurerService.findIdByOrganizationId(user.organizationId()).orElse(null);
+            if (insurerId == null || !insurerId.equals(claim.getInsurerId())) {
+                throw new AccessDeniedException("Claim belongs to another insurer");
+            }
+        } else if ("PROVIDER_USER".equals(user.role())) {
+            UUID serviceProviderId = serviceProviderService.findIdByOrganizationId(user.organizationId())
+                    .orElse(null);
+            if (serviceProviderId == null || !serviceProviderId.equals(claim.getServiceProviderId())) {
+                throw new AccessDeniedException("Claim belongs to another service provider");
+            }
+        }
     }
 
     private void publishIfApproved(Claim claim) {

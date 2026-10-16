@@ -9,6 +9,7 @@ import com.travel.insurance.common.util.SecurityUtils;
 import com.travel.insurance.config.RabbitConfig;
 import com.travel.insurance.icd11.Icd11Code;
 import com.travel.insurance.icd11.Icd11CodeService;
+import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.medicalservice.MedicalServiceService;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
@@ -23,6 +24,7 @@ import com.travel.insurance.visitor.VisitorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,6 +55,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     private final VisitorService visitorService;
     private final Icd11CodeService icd11CodeService;
     private final ServiceProviderService serviceProviderService;
+    private final InsurerService insurerService;
     private final MedicalServiceService medicalServiceService;
     private final EventPublisher eventPublisher;
 
@@ -78,13 +81,21 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     @Override
     @Transactional(readOnly = true)
     public PreauthorizationResponse getById(UUID id) {
-        return enrich(getEntityById(id));
+        Preauthorization preauthorization = getEntityById(id);
+        assertVisibleToCurrentUser(preauthorization);
+        return enrich(preauthorization);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<PreauthorizationResponse> list(UUID insurerId, Pageable pageable) {
         return findScoped(insurerId, pageable).map(this::enrich);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PreauthorizationResponse> listByVisitor(UUID visitorId, Pageable pageable) {
+        return preauthorizationRepository.findAllByVisitorId(visitorId, pageable).map(this::enrich);
     }
 
     @Override
@@ -204,9 +215,40 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
                     : preauthorizationRepository.findAllByServiceProviderIdAndInsurerId(
                             serviceProviderId, insurerId, pageable);
         }
+        if (user != null && "INSURER_USER".equals(user.role())) {
+            // Insurer users only ever see their own insurer's pre-auths, whatever insurerId they pass.
+            UUID ownInsurerId = insurerService.findIdByOrganizationId(user.organizationId()).orElse(null);
+            if (ownInsurerId == null) {
+                return Page.empty(pageable);
+            }
+            return preauthorizationRepository.findAllByInsurerId(ownInsurerId, pageable);
+        }
         return insurerId == null
                 ? preauthorizationRepository.findAll(pageable)
                 : preauthorizationRepository.findAllByInsurerId(insurerId, pageable);
+    }
+
+    /**
+     * Org-scoped users may only read their own organization's pre-auths: an insurer user those raised
+     * against their insurer, a provider user those raised by their service provider.
+     */
+    private void assertVisibleToCurrentUser(Preauthorization preauthorization) {
+        AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
+        if (user == null) {
+            return;
+        }
+        if ("INSURER_USER".equals(user.role())) {
+            UUID insurerId = insurerService.findIdByOrganizationId(user.organizationId()).orElse(null);
+            if (insurerId == null || !insurerId.equals(preauthorization.getInsurerId())) {
+                throw new AccessDeniedException("Pre-authorization belongs to another insurer");
+            }
+        } else if ("PROVIDER_USER".equals(user.role())) {
+            UUID serviceProviderId = serviceProviderService.findIdByOrganizationId(user.organizationId())
+                    .orElse(null);
+            if (serviceProviderId == null || !serviceProviderId.equals(preauthorization.getServiceProviderId())) {
+                throw new AccessDeniedException("Pre-authorization belongs to another service provider");
+            }
+        }
     }
 
     private void publishDecided(Preauthorization preauthorization) {
