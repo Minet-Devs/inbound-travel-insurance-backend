@@ -8,6 +8,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -69,7 +70,12 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/v1/mobile/me/**").hasRole("VISITOR");
                     auth.requestMatchers("/api/v1/claims/**", "/api/v1/preauthorizations/**")
                             .hasAnyRole("ADMIN", "INSURER_USER", "PROVIDER_USER", "CONTACT_CENTER");
-                    auth.anyRequest().authenticated();
+                    // KENYA_RE (reinsurer) is read-only reporting: GET /reports/** only, nothing else.
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/reports/**").authenticated();
+                    auth.anyRequest().access((authentication, context) -> new AuthorizationDecision(
+                            authentication.get().isAuthenticated()
+                                    && authentication.get().getAuthorities().stream()
+                                    .noneMatch(a -> "ROLE_KENYA_RE".equals(a.getAuthority()))));
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
