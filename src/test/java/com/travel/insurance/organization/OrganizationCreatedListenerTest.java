@@ -98,6 +98,18 @@ class OrganizationCreatedListenerTest {
     }
 
     @Test
+    void onOrganizationCreatedIgnoresReinsurerType() {
+        listener = new OrganizationCreatedListener(organizationService, insurerService, serviceProviderService);
+        Organization organization = organization(OrganizationType.REINSURER);
+        when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
+
+        listener.onOrganizationCreated(new OrganizationCreatedEvent(organization.getId(), null, null));
+
+        verify(insurerService, never()).create(any());
+        verify(serviceProviderService, never()).create(any());
+    }
+
+    @Test
     void onOrganizationCreatedIgnoresAdminType() {
         listener = new OrganizationCreatedListener(organizationService, insurerService, serviceProviderService);
         Organization organization = organization(OrganizationType.ADMIN);

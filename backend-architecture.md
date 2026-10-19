@@ -112,7 +112,7 @@ com.travel.insurance/
 │   ├── UserRepository.java                 # Data access (extends JpaRepository)
 │   ├── User.java                           # Domain entity (@Entity)
 │   ├── Role.java                           # Enum: ADMIN, INSURER_USER,
-│   │                                       #       PROVIDER_USER, CONTACT_CENTER
+│   │                                       #       PROVIDER_USER, CONTACT_CENTER, KENYA_RE
 │   ├── UserMapper.java                     # Entity ⇄ DTO mapping
 │   └── 📁 dto/
 │       ├── UserRequest.java
@@ -336,14 +336,14 @@ com.travel.insurance/
 │   │                                        # notificationEmailPassword (encrypted), host, port,
 │   │                                        # esignature, longitude/latitude (nullable, BigDecimal(9,6))
 │   │                                        # — all optional
-│   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER
+│   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER, REINSURER
 │   ├── OrganizationMapper.java
 │   ├── OrganizationCreatedEvent.java         # organizationId + longitude/latitude (mirrors the
 │   │                                         # create request, see below); published on
 │   │                                         # create, consumed below
 │   ├── OrganizationCreatedListener.java      # @EventListener — provisions the matching
 │   │                                         # Insurer/ServiceProvider for organizationType
-│   │                                         # INSURER/SERVICE_PROVIDER (ADMIN is a no-op)
+│   │                                         # INSURER/SERVICE_PROVIDER (ADMIN and REINSURER are no-ops)
 │   ├── OrganizationUpdatedEvent.java         # organizationId + longitude/latitude (null = "leave
 │   │                                         # the linked ServiceProvider's location unchanged");
 │   │                                         # published on update/patch, consumed below
@@ -587,7 +587,7 @@ Policy
   `/api/v1/departments` and `/api/v1/medical-services` are restricted to
   `ADMIN`; reads are open to any authenticated user.
 - An **Organization** is a standalone directory entry — `name` (unique),
-  `organizationType` (enum: `ADMIN`, `INSURER`, `SERVICE_PROVIDER`), `email`,
+  `organizationType` (enum: `ADMIN`, `INSURER`, `SERVICE_PROVIDER`, `REINSURER`), `email`,
   `phoneNumber`, `address`, `city`, `county` — with plain CRUD
   (`/api/v1/organizations`), following the same shape as Department. It is
   unrelated to the `organizationId` column described in
@@ -978,7 +978,7 @@ service provider staff. Users are distinguished by role, not by separate
 entities:
 
 - `User.role` is a single `Role` enum column (`ADMIN`, `INSURER_USER`,
-  `PROVIDER_USER`, `CONTACT_CENTER`) — a user has exactly one role, mapped to a single Spring
+  `PROVIDER_USER`, `CONTACT_CENTER`, `KENYA_RE`) — a user has exactly one role, mapped to a single Spring
   Security authority. `CONTACT_CENTER` is Minet-internal staff: like `ADMIN`
   they belong to the Minet admin organization and have no insurer/provider
   scoping (`insurerId`/`serviceProviderId` are `null`); it can list visitors
@@ -987,6 +987,11 @@ entities:
   (`POST /api/v1/visitors/by-passport/resend-activation-email`). The JWT carries it as a single `role` claim
   (`JwtTokenProvider.CLAIM_ROLE`); `AuthenticatedUser.role` is a single
   `String`, not a set.
+- `KENYA_RE` is the Kenya Re (reinsurer) role, belonging to an organization of
+  type `REINSURER` (no `Insurer`/`ServiceProvider` is provisioned; `insurerId`/
+  `serviceProviderId` are `null`). It is **read-only reporting**: `SecurityConfig`
+  allows it `GET /api/v1/reports/**` only; every other endpoint that is not
+  already role-restricted is closed to it via the final `anyRequest()` rule.
 - Besides the standard `sub` claim (the user id — clients should read the
   user id from `sub`, not a duplicate claim), the JWT also carries
   `firstName`, `lastName`, and `email` claims
