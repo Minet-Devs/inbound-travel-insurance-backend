@@ -49,7 +49,7 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET,"/api/v1/users").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/insurers").denyAll();
                     // CONTACT_CENTER may list insurers (paged) — must come BEFORE the broader insurers rule.
-                    auth.requestMatchers(HttpMethod.GET, "/api/v1/insurers").hasAnyRole("ADMIN", "CONTACT_CENTER");
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/insurers").hasAnyRole("ADMIN", "CONTACT_CENTER", "KENYA_RE");
                     auth.requestMatchers("/api/v1/insurers/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/policies").denyAll();
                     // Disable POST create endpoint specifically — must come BEFORE the broader service-providers rule
@@ -73,8 +73,12 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/v1/mobile/me/**").hasRole("VISITOR");
                     auth.requestMatchers("/api/v1/claims/**", "/api/v1/preauthorizations/**")
                             .hasAnyRole("ADMIN", "INSURER_USER", "PROVIDER_USER", "CONTACT_CENTER");
-                    // KENYA_RE (reinsurer) is read-only reporting: GET /reports/** only, nothing else.
-                    auth.requestMatchers(HttpMethod.GET, "/api/v1/reports/**").authenticated();
+                    // KENYA_RE (reinsurer) is read-only reporting: GET /reports/**, the visitor dashboard
+                    // distributions and the insurer list (onboarded-insurers count) only, nothing else.
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/reports/**",
+                            "/api/v1/visitors/distribution-by-insurer",
+                            "/api/v1/visitors/distribution-by-age-group",
+                            "/api/v1/visitors/distribution-by-insurer-and-age-group").authenticated();
                     auth.anyRequest().access((authentication, context) -> new AuthorizationDecision(
                             authentication.get().isAuthenticated()
                                     && authentication.get().getAuthorities().stream()
