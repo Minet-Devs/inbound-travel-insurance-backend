@@ -993,7 +993,8 @@ entities:
 - `KENYA_RE` is the Kenya Re (reinsurer) role, belonging to an organization of
   type `REINSURER` (no `Insurer`/`ServiceProvider` is provisioned; `insurerId`/
   `serviceProviderId` are `null`). It is **read-only reporting**: `SecurityConfig`
-  allows it `GET /api/v1/reports/**` only; every other endpoint that is not
+  allows it `GET /api/v1/reports/**`, the three `GET /api/v1/visitors/distribution-by-*`
+  dashboard endpoints and the paged `GET /api/v1/insurers` only; every other endpoint that is not
   already role-restricted is closed to it via the final `anyRequest()` rule.
 - Besides the standard `sub` claim (the user id — clients should read the
   user id from `sub`, not a duplicate claim), the JWT also carries

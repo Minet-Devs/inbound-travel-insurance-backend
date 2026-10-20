@@ -43,8 +43,23 @@ class ReportAccessControlTest {
 
     @Test
     @WithMockUser(roles = "KENYA_RE")
+    void kenyaReCanReachDashboardEndpoints() throws Exception {
+        // No controllers are mapped in this slice (404); security just must not block (403).
+        for (String path : new String[]{"/api/v1/visitors/distribution-by-insurer",
+                "/api/v1/visitors/distribution-by-age-group",
+                "/api/v1/visitors/distribution-by-insurer-and-age-group",
+                "/api/v1/insurers"}) {
+            mockMvc.perform(get(path))
+                    .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(403));
+        }
+    }
+
+    @Test
+    @WithMockUser(roles = "KENYA_RE")
     void kenyaReCannotReadOtherEndpoints() throws Exception {
         mockMvc.perform(get("/api/v1/visitors"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/insurers/detailed"))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/claims/{id}", UUID.randomUUID()))
                 .andExpect(status().isForbidden());
