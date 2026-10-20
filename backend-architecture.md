@@ -637,7 +637,8 @@ Policy
   computed in-app (`ServiceProviderServiceImpl.findNearby`) rather than in
   the database — there's no PostGIS/spatial extension in this project.
   Access follows the rest of `/api/v1/service-providers/**`: `ADMIN` or
-  `PROVIDER_USER` only (`SecurityConfig`).
+  `PROVIDER_USER` only (`SecurityConfig`), except the paged list
+  `GET /api/v1/service-providers`, which `CONTACT_CENTER` may also call.
 - A **TouristAttraction** (`name` unique, case-insensitively at the service
   layer; `county`, both required) maps a park/reserve/landmark to the county it
   sits in. It has plain CRUD at `/api/v1/tourist-attractions` — writes are
@@ -983,7 +984,9 @@ entities:
   they belong to the Minet admin organization and have no insurer/provider
   scoping (`insurerId`/`serviceProviderId` are `null`); it can list visitors
   (`GET /api/v1/visitors`), list insurers (`GET /api/v1/insurers`, paged only —
-  the rest of `/insurers/**` stays ADMIN-only) and resend activation emails
+  the rest of `/insurers/**` stays ADMIN-only), list service providers
+  (`GET /api/v1/service-providers`, paged only — the rest of
+  `/service-providers/**` stays ADMIN/PROVIDER_USER) and resend activation emails
   (`POST /api/v1/visitors/by-passport/resend-activation-email`). The JWT carries it as a single `role` claim
   (`JwtTokenProvider.CLAIM_ROLE`); `AuthenticatedUser.role` is a single
   `String`, not a set.
