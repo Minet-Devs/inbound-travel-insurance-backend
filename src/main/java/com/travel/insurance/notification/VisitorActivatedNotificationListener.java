@@ -189,6 +189,71 @@ public class VisitorActivatedNotificationListener {
         }
 
         Insurer insurer = insurerService.getEntityById(policy.getInsurerId());
+        String underwriterLogoUrl = normalizeOrNull(insurer.getLogoUrl());
+        String esignatureUrl = normalizeOrNull(insurer.getEsignature());
+        byte[] combinedPdf = renderCertificateAndReceipt(visitor, insurer, visitorBenefits);
+        List<EmailAttachment> attachments = new ArrayList<>();
+        attachments.add(new EmailAttachment("Insurance Policy.pdf", combinedPdf));
+
+        byte[] brandedPolicyDocument = loadBrandedPolicyDocument(insurer.getId(), underwriterLogoUrl, esignatureUrl);
+        if (brandedPolicyDocument != null) {
+            byte[] policyDocument = fillPolicyAgreementDetails(
+                    brandedPolicyDocument, insurer, visitor);
+            attachments.add(new EmailAttachment(POLICY_DOCUMENT_ATTACHMENT_NAME, policyDocument));
+        }
+        byte[] welcomePackPdf = loadWelcomePackPdf();
+        if (welcomePackPdf != null) {
+            attachments.add(new EmailAttachment(WELCOME_PACK_ATTACHMENT_NAME, welcomePackPdf));
+        }
+        byte[] faqsPdf = loadFaqsPdf();
+        if (faqsPdf != null) {
+            attachments.add(new EmailAttachment(FAQS_ATTACHMENT_NAME, faqsPdf));
+        }
+        byte[] signatureImage = loadSignatureImage();
+        List<InlineImage> inlineImages = signatureImage == null
+                ? List.of()
+                : List.of(new InlineImage(SIGNATURE_CONTENT_ID, "image/png", signatureImage));
+        InsurerMailSettings mailSettings = resolveMailSettings(insurer);
+        boolean sent = emailService.send(
+                mailSettings.credentials(),
+                mailSettings.from(),
+                visitor.getEmail(),
+                isNotBlank(insurer.getContactEmail()) ? List.of(insurer.getContactEmail().trim()) : List.of(),
+                List.of(),
+                "Welcome to Kenya – Your Medical Cover Is Now Active",
+                buildActivationEmailHtml(firstNameOf(visitor.getFullName()), signatureImage != null),
+                attachments,
+                inlineImages);
+        if (!sent) {
+            log.error("Activation email for visitor {} to {} was not delivered; leaving it unmarked so it can be re-sent",
+                    visitorId, visitor.getEmail());
+            return false;
+        }
+        visitorService.markActivationEmailSent(visitorId);
+        log.info("Sent activation email for visitor {} to {}", visitorId, visitor.getEmail());
+        return true;
+    }
+
+    /**
+     * Renders the visitor's policy certificate merged with their premium receipt into one PDF —
+     * the same document attached to the activation email. Unlike the email paths this is
+     * available for any visitor status; it fails with {@link IllegalStateException} (→ 409) only
+     * when the benefit schedule is incomplete, since the certificate must list every benefit.
+     */
+    public byte[] generateCertificateAndReceiptPdf(UUID visitorId) {
+        Visitor visitor = visitorService.getEntityById(visitorId);
+        Policy policy = policyService.getEntityById(visitor.getPolicyId());
+        List<VisitorBenefitResponse> visitorBenefits = visitorBenefitService.listAllByVisitor(visitorId);
+        if (!hasEntireCatalog(visitorBenefits)) {
+            throw new IllegalStateException(
+                    "Policy certificate cannot be generated: the visitor's benefit schedule is incomplete");
+        }
+        Insurer insurer = insurerService.getEntityById(policy.getInsurerId());
+        return renderCertificateAndReceipt(visitor, insurer, visitorBenefits);
+    }
+
+    private byte[] renderCertificateAndReceipt(
+            Visitor visitor, Insurer insurer, List<VisitorBenefitResponse> visitorBenefits) {
         List<String> insurerNames = List.of(insurer.getName());
         String underwriterLogoUrl = normalizeOrNull(insurer.getLogoUrl());
         String esignatureUrl = normalizeOrNull(insurer.getEsignature());
@@ -232,47 +297,7 @@ public class VisitorActivatedNotificationListener {
                 totalPremium);
         byte[] premiumReceiptPdf = renderer.renderPremiumReceiptPdf(premiumReceiptData);
 
-        byte[] combinedPdf = renderer.mergePdfs(pdf, premiumReceiptPdf);
-        List<EmailAttachment> attachments = new ArrayList<>();
-        attachments.add(new EmailAttachment("Insurance Policy.pdf", combinedPdf));
-
-        byte[] brandedPolicyDocument = loadBrandedPolicyDocument(insurer.getId(), underwriterLogoUrl, esignatureUrl);
-        if (brandedPolicyDocument != null) {
-            byte[] policyDocument = fillPolicyAgreementDetails(
-                    brandedPolicyDocument, insurer, visitor);
-            attachments.add(new EmailAttachment(POLICY_DOCUMENT_ATTACHMENT_NAME, policyDocument));
-        }
-        byte[] welcomePackPdf = loadWelcomePackPdf();
-        if (welcomePackPdf != null) {
-            attachments.add(new EmailAttachment(WELCOME_PACK_ATTACHMENT_NAME, welcomePackPdf));
-        }
-        byte[] faqsPdf = loadFaqsPdf();
-        if (faqsPdf != null) {
-            attachments.add(new EmailAttachment(FAQS_ATTACHMENT_NAME, faqsPdf));
-        }
-        byte[] signatureImage = loadSignatureImage();
-        List<InlineImage> inlineImages = signatureImage == null
-                ? List.of()
-                : List.of(new InlineImage(SIGNATURE_CONTENT_ID, "image/png", signatureImage));
-        InsurerMailSettings mailSettings = resolveMailSettings(insurer);
-        boolean sent = emailService.send(
-                mailSettings.credentials(),
-                mailSettings.from(),
-                visitor.getEmail(),
-                isNotBlank(insurer.getContactEmail()) ? List.of(insurer.getContactEmail().trim()) : List.of(),
-                List.of(),
-                "Welcome to Kenya – Your Medical Cover Is Now Active",
-                buildActivationEmailHtml(firstNameOf(visitor.getFullName()), signatureImage != null),
-                attachments,
-                inlineImages);
-        if (!sent) {
-            log.error("Activation email for visitor {} to {} was not delivered; leaving it unmarked so it can be re-sent",
-                    visitorId, visitor.getEmail());
-            return false;
-        }
-        visitorService.markActivationEmailSent(visitorId);
-        log.info("Sent activation email for visitor {} to {}", visitorId, visitor.getEmail());
-        return true;
+        return renderer.mergePdfs(pdf, premiumReceiptPdf);
     }
 
     private boolean hasEntireCatalog(List<VisitorBenefitResponse> visitorBenefits) {

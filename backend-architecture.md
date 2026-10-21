@@ -90,6 +90,7 @@ com.travel.insurance/
 │   │                                       # (certificate + Welcome Pack copy/attachment)
 │   ├── ActivationEmailController.java      # POST /api/v1/visitors/by-passport/resend-activation-email
 │   │                                       # ?passportNumber=… (manual resend, see Notifications section)
+│   ├── PolicyDocumentController.java       # GET /api/v1/visitors/{id}/policy-documents (certificate + receipt PDF)
 │   ├── ActivationEmailResendJob.java       # @Scheduled safety net: re-sends the activation email to
 │   │                                       # ACTIVE visitors with activationEmailSentAt null (app.mail.resend.*:
 │   │                                       # interval 10m, min-age 5m, max-age 7d, batch 50, enabled flag)
@@ -1462,6 +1463,11 @@ and the email goes out without it.
   **regardless of `activationEmailSentAt`** and re-stamps it on delivery. Synchronous: `200`
   `{visitorId, message}` when delivered; `404` unknown passport; `409` if the visitor is not
   `ACTIVE`, the benefit schedule is incomplete, or SMTP delivery failed.
+- **Certificate + receipt download:** `GET /api/v1/visitors/{id}/policy-documents`
+  (`PolicyDocumentController` → `VisitorActivatedNotificationListener.generateCertificateAndReceiptPdf`)
+  returns `application/pdf`: the policy certificate merged with the premium receipt — the same
+  document attached to the activation email. Works for any visitor status; `404` unknown visitor;
+  `409` if the benefit schedule is incomplete. Sends no email and changes no state.
 - The listener composes data via `VisitorService`, `PolicyService`,
   `VisitorBenefitService`, and `InsurerService` (the same "fan-in at a
   boundary" shape already used for `VisitorDetailResponse`), builds a

@@ -442,6 +442,28 @@ class VisitorActivatedNotificationListenerTest {
         verifyNoInteractions(renderer, emailService);
     }
 
+    @Test
+    void generateCertificateAndReceiptPdfReturnsMergedPdf() {
+        stubFullSend();
+        byte[] merged = "%PDF-MERGED".getBytes();
+        when(renderer.mergePdfs(any(), any())).thenReturn(merged);
+
+        assertThat(listener.generateCertificateAndReceiptPdf(visitorId)).isEqualTo(merged);
+        verify(renderer).mergePdfs("%PDF-1.4".getBytes(), "%PDF-RECEIPT".getBytes());
+        verifyNoInteractions(emailService);
+    }
+
+    @Test
+    void generateCertificateAndReceiptPdfFailsWhenBenefitScheduleIncomplete() {
+        when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(List.of());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> listener.generateCertificateAndReceiptPdf(visitorId))
+                .isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(renderer);
+    }
+
     private void stubFullSend() {
         when(visitorService.getEntityById(visitorId)).thenReturn(sampleVisitor());
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
