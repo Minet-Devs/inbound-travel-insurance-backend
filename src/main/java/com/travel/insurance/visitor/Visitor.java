@@ -8,6 +8,8 @@ import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import lombok.Getter;
@@ -92,6 +94,16 @@ public class Visitor extends BaseEntity {
     @Transient
     public int getAgeAtTravel() {
         return Period.between(dateOfBirth, dateIn).getYears();
+    }
+
+    /** Persisted copy of {@link #getAgeAtTravel()}, kept in sync on every write. */
+    @Column
+    private Integer age;
+
+    @PrePersist
+    @PreUpdate
+    void syncAge() {
+        age = dateOfBirth != null && dateIn != null ? getAgeAtTravel() : null;
     }
 
     @Enumerated(EnumType.STRING)

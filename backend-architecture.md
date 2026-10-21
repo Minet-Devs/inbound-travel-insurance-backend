@@ -2173,6 +2173,17 @@ Main Menu → 1. Find Hospital
     step entirely — the hash is always populated at write time by
     `VisitorServiceImpl`.
 
+### Visitor age column
+
+`V202610211446__add_visitor_age.sql` adds nullable `visitors.age` — whole years as
+at `date_in` (start of cover), the same value as `Visitor.getAgeAtTravel()`. It is
+set by `Visitor.syncAge()` (`@PrePersist`/`@PreUpdate`), so it is filled on create
+and recomputed whenever `dateOfBirth` or `dateIn` change. Not yet exposed in any
+response DTO. **Backfill:** `date_of_birth` is encrypted, so existing rows are
+filled by `VisitorAgeBackfillRunner` (`visitor`), not SQL. Deploy once with
+`APP_VISITOR_AGE_BACKFILL_ENABLED=true`, then set it back to `false`. It only
+touches rows where `age` is null (idempotent) and includes soft-deleted rows.
+
 ## Database Connection Pool (HikariCP)
 
 Spring Boot's default pool is HikariCP. The sizing rule of thumb is
