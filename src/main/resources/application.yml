@@ -89,6 +89,11 @@ app:
       # One-off: enable for exactly one deploy to encrypt pre-existing
       # plaintext data, then set back to false. See backend-architecture.md.
       enabled: ${APP_ENCRYPTION_BACKFILL_ENABLED:false}
+  visitor-age:
+    backfill:
+      # One-off: enable for exactly one deploy to fill visitors.age for
+      # pre-existing rows, then set back to false.
+      enabled: ${APP_VISITOR_AGE_BACKFILL_ENABLED:false}
   mail:
     from: ${SMTP_USERNAME}
     resend:
