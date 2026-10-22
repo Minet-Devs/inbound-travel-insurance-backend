@@ -15,6 +15,7 @@ public record VisitorResponse(
         String fullName,
         String passportNumber,
         LocalDate dateOfBirth,
+        Integer age,
         Gender gender,
         String nationality,
         String address,

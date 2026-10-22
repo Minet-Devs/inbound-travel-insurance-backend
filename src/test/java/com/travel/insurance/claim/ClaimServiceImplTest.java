@@ -180,7 +180,7 @@ class ClaimServiceImplTest {
 
     private VisitorResponse visitorResponse() {
         return new VisitorResponse(visitorId, policyId, insurerId, "Jane Traveler", "P1234567",
-                null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, Instant.now(), Instant.now());
     }
 

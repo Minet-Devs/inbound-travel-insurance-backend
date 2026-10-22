@@ -297,7 +297,7 @@ class ReportServiceImplTest {
 
     private VisitorResponse exportVisitor(UUID insurerId) {
         return new VisitorResponse(visitorId, UUID.randomUUID(), insurerId, "Jane Traveler", "P1234567",
-                LocalDate.of(1990, 5, 12), Gender.FEMALE, "German", "Berlin",
+                LocalDate.of(1990, 5, 12), 36, Gender.FEMALE, "German", "Berlin",
                 "jane@example.com", "+254700000000",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1), LocalDate.of(2027, 8, 1),
                 null, "Tourism", "photo", null, VisitorStatus.ACTIVE, null, null,
