@@ -26,6 +26,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -110,6 +111,7 @@ class VisitorServiceImplTest {
                 null,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -117,6 +119,22 @@ class VisitorServiceImplTest {
         Policy policy = new Policy();
         policy.setInsurerId(insurerId);
         return policy;
+    }
+
+    @Test
+    void mapperCarriesPremiumAmountPaidFromRequestToResponse() {
+        VisitorRequest withPremium = new VisitorRequest(
+                request.policyId(), request.fullName(), request.passportNumber(), request.dateOfBirth(),
+                request.gender(), request.nationality(), request.address(), request.email(),
+                request.phoneNumber(), request.dateIn(), request.dateOut(), request.maritalStatus(),
+                request.reasonForTravel(), request.facePhotoUrl(), null, null, null,
+                "PAY-1", new BigDecimal("150.50"), null, null, null, null);
+
+        Visitor visitor = visitorMapper.toEntity(withPremium);
+
+        assertThat(visitor.getPremiumAmountPaid()).isEqualByComparingTo("150.50");
+        assertThat(visitorMapper.toResponse(visitor).premiumAmountPaid()).isEqualByComparingTo("150.50");
+        assertThat(visitorMapper.toResponse(visitorMapper.toEntity(request)).premiumAmountPaid()).isNull();
     }
 
     @Test
@@ -188,6 +206,7 @@ class VisitorServiceImplTest {
                 null,
                 null,
                 null,
+                null,
                 null);
 
         VisitorResponse response = visitorService.create(secondVisitor);
@@ -213,7 +232,7 @@ class VisitorServiceImplTest {
                 "Germany", "12 Example Street, Berlin", "jane.traveler@example.com", "+254700000000",
                 dateIn, dateOut, MaritalStatus.SINGLE, "Tourism",
                 "https://storage.example.com/photos/jane.jpg", null, "John Traveler", "+254711111111",
-                null, null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     @Test

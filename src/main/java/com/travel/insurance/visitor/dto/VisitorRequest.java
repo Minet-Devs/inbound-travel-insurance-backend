@@ -2,11 +2,14 @@ package com.travel.insurance.visitor.dto;
 
 import com.travel.insurance.visitor.Gender;
 import com.travel.insurance.visitor.MaritalStatus;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -30,6 +33,7 @@ public record VisitorRequest(
         String nextOfKinName,
         String nextOfKinPhone,
         String paymentReference,
+        @DecimalMin("0.00") @Digits(integer = 10, fraction = 2) BigDecimal premiumAmountPaid,
         String etaReference,
         Instant entryTimestamp,
         Instant exitTimestamp,

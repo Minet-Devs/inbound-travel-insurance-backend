@@ -301,7 +301,7 @@ class ReportServiceImplTest {
                 "jane@example.com", "+254700000000",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1), LocalDate.of(2027, 8, 1),
                 null, "Tourism", "photo", null, VisitorStatus.ACTIVE, null, null,
-                null, null, null, null, null, null, Instant.now(), Instant.now());
+                null, null, null, null, null, null, null, Instant.now(), Instant.now());
     }
 
     private Sheet readSheet(byte[] xlsx) throws Exception {

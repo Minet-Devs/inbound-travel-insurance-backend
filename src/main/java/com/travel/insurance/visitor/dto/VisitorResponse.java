@@ -4,6 +4,7 @@ import com.travel.insurance.visitor.Gender;
 import com.travel.insurance.visitor.MaritalStatus;
 import com.travel.insurance.visitor.VisitorStatus;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -32,6 +33,7 @@ public record VisitorResponse(
         String nextOfKinName,
         String nextOfKinPhone,
         String paymentReference,
+        BigDecimal premiumAmountPaid,
         String etaReference,
         Instant entryTimestamp,
         Instant exitTimestamp,
