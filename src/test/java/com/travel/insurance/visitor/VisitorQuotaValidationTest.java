@@ -88,6 +88,7 @@ class VisitorQuotaValidationTest {
                 null,
                 null,
                 null,
+                null,
                 null);
     }
 

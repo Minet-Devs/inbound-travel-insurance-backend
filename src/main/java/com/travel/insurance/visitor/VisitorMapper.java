@@ -32,6 +32,7 @@ public class VisitorMapper {
         visitor.setNextOfKinName(request.nextOfKinName());
         visitor.setNextOfKinPhone(request.nextOfKinPhone());
         visitor.setPaymentReference(request.paymentReference());
+        visitor.setPremiumAmountPaid(request.premiumAmountPaid());
         visitor.setEtaReference(request.etaReference());
         visitor.setEntryTimestamp(request.entryTimestamp());
         visitor.setExitTimestamp(request.exitTimestamp());
@@ -63,6 +64,7 @@ public class VisitorMapper {
                 visitor.getNextOfKinName(),
                 visitor.getNextOfKinPhone(),
                 visitor.getPaymentReference(),
+                visitor.getPremiumAmountPaid(),
                 visitor.getEtaReference(),
                 visitor.getEntryTimestamp(),
                 visitor.getExitTimestamp(),

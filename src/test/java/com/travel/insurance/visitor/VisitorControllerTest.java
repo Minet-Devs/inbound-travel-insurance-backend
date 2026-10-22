@@ -65,7 +65,7 @@ class VisitorControllerTest {
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1), LocalDate.of(2027, 8, 1),
                 MaritalStatus.SINGLE, "Tourism", "https://storage.example.com/photos/jane.jpg", null,
                 VisitorStatus.PENDING, "John Traveler", "+254711111111",
-                null, null, null, null, null, null,
+                null, new BigDecimal("150.50"), null, null, null, null, null,
                 Instant.now(), Instant.now());
     }
 
@@ -76,7 +76,7 @@ class VisitorControllerTest {
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
                 MaritalStatus.SINGLE, "Tourism", "https://storage.example.com/photos/jane.jpg", null,
                 "John Traveler", "+254711111111",
-                null, null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     private VisitorBenefitResponse sampleBenefit() {
@@ -99,6 +99,7 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$.fullName").value("Jane Traveler"))
                 .andExpect(jsonPath("$.passportNumber").value("P1234567"))
                 .andExpect(jsonPath("$.age").value(36))
+                .andExpect(jsonPath("$.premiumAmountPaid").value(150.50))
                 .andExpect(jsonPath("$.policyId").value(policyId.toString()))
                 .andExpect(jsonPath("$.visitorBenefits[0].benefitId").value(benefitId.toString()))
                 .andExpect(jsonPath("$.visitorBenefits[0].benefitName").value("Medical Expenses"))
@@ -224,7 +225,7 @@ class VisitorControllerTest {
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
                 MaritalStatus.SINGLE, "", "", null,
                 "John Traveler", "+254711111111",
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/visitors")
                         .with(csrf())

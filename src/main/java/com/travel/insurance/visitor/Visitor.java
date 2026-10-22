@@ -18,6 +18,7 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Period;
@@ -133,6 +134,10 @@ public class Visitor extends BaseEntity {
     private String nextOfKinPhone;
 
     private String paymentReference;
+
+    /** Premium actually paid by the visitor; optional, recorded to 2 decimal places. */
+    @Column(precision = 12, scale = 2)
+    private BigDecimal premiumAmountPaid;
 
     private String etaReference;
 

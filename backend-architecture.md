@@ -183,7 +183,8 @@ com.travel.insurance/
 │   ├── Visitor.java                        # policyId + passport-based KYC attributes,
 │   │                                       # incl. address, facePhotoUrl, reasonForTravel,
 │   │                                       # underlyingConditions; plus nullable
-│   │                                       # paymentReference, etaReference, portOfEntry,
+│   │                                       # paymentReference, premiumAmountPaid
+│   │                                       # (BigDecimal, 2dp), etaReference, portOfEntry,
 │   │                                       # entryTimestamp, exitTimestamp
 │   ├── VisitorCreatedEvent.java            # In-process event on visitor creation;
 │   │                                       # consumed by visitorbenefit to seed benefits
@@ -685,7 +686,9 @@ Policy
   policy. `dateOut` remains the visitor's own declared travel end date, used
   for the 1-to-365-day validation above and reporting. It also carries a
   set of nullable border/payment-tracking attributes populated after
-  onboarding: `paymentReference`, `etaReference` (eTA/authorization
+  onboarding: `paymentReference`, `premiumAmountPaid` (premium actually paid,
+  `numeric(12,2)`, must be ≥ 0 with at most 2 decimals; accepted on
+  create/update and returned in the visitor responses), `etaReference` (eTA/authorization
   reference), `portOfEntry`, and `entryTimestamp`/`exitTimestamp` (actual
   border-crossing times, distinct from the declared `dateIn`/`dateOut`
   cover dates). `entryTimestamp`/`exitTimestamp` are set independently via
