@@ -46,6 +46,7 @@ public class VisitorMapper {
                 visitor.getFullName(),
                 visitor.getPassportNumber(),
                 visitor.getDateOfBirth(),
+                visitor.getAge(),
                 visitor.getGender(),
                 visitor.getNationality(),
                 visitor.getAddress(),

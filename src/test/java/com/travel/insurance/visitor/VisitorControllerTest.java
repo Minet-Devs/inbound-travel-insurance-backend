@@ -60,7 +60,7 @@ class VisitorControllerTest {
 
     private VisitorResponse sampleVisitor() {
         return new VisitorResponse(visitorId, policyId, UUID.randomUUID(), "Jane Traveler", "P1234567",
-                LocalDate.of(1990, 5, 12), Gender.FEMALE, "Germany", "12 Example Street, Berlin",
+                LocalDate.of(1990, 5, 12), 36, Gender.FEMALE, "Germany", "12 Example Street, Berlin",
                 "jane.traveler@example.com", "+254700000000",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1), LocalDate.of(2027, 8, 1),
                 MaritalStatus.SINGLE, "Tourism", "https://storage.example.com/photos/jane.jpg", null,
@@ -98,6 +98,7 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$.id").value(visitorId.toString()))
                 .andExpect(jsonPath("$.fullName").value("Jane Traveler"))
                 .andExpect(jsonPath("$.passportNumber").value("P1234567"))
+                .andExpect(jsonPath("$.age").value(36))
                 .andExpect(jsonPath("$.policyId").value(policyId.toString()))
                 .andExpect(jsonPath("$.visitorBenefits[0].benefitId").value(benefitId.toString()))
                 .andExpect(jsonPath("$.visitorBenefits[0].benefitName").value("Medical Expenses"))
