@@ -7,6 +7,7 @@ import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.common.util.LogoUrlNormalizer;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.benefit.dto.BenefitResponse;
+import com.travel.insurance.config.AsyncConfig;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerService;
@@ -25,6 +26,7 @@ import com.travel.insurance.visitorbenefit.dto.VisitorBenefitResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -102,6 +104,7 @@ public class VisitorActivatedNotificationListener {
     private final EmailService emailService;
     private final MailProperties mailProperties;
 
+    @Async(AsyncConfig.NOTIFICATION_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onVisitorStatusChanged(VisitorStatusChangedEvent event) {
         if (event.newStatus() != VisitorStatus.ACTIVE) {
@@ -110,6 +113,7 @@ public class VisitorActivatedNotificationListener {
         sendActivationDocumentQuietly(event.visitorId());
     }
 
+    @Async(AsyncConfig.NOTIFICATION_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onVisitorCreated(VisitorCreatedEvent event) {
         if (visitorService.getEntityById(event.visitorId()).getVisitorStatus() != VisitorStatus.ACTIVE) {
@@ -124,6 +128,7 @@ public class VisitorActivatedNotificationListener {
      * assigned, send it. Only fires for an ACTIVE visitor that has never been
      * emailed, so a visitor who already got the email is never sent a second.
      */
+    @Async(AsyncConfig.NOTIFICATION_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onVisitorBenefitAssigned(VisitorBenefitAssignedEvent event) {
         Visitor visitor = visitorService.getEntityById(event.visitorId());

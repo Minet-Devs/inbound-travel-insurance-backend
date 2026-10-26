@@ -12,12 +12,17 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -244,5 +249,36 @@ class EmailServiceTest {
                 .extracting(Object::toString).containsExactly("cc@example.com");
         assertThat(message.getRecipients(jakarta.mail.Message.RecipientType.TO))
                 .extracting(Object::toString).containsExactly("to@example.com");
+    }
+
+    @Test
+    void doesNotHoldSendLockDuringRetryBackoff() throws Exception {
+        emailService = new EmailService(mailSender, smtpSenderFactory, 1_000);
+        when(mailSender.createMimeMessage()).thenAnswer(inv -> newMimeMessage());
+        List<String> sendOrder = Collections.synchronizedList(new java.util.ArrayList<>());
+        CountDownLatch firstAttemptFailed = new CountDownLatch(1);
+        doAnswer(inv -> {
+            MimeMessage sent = inv.getArgument(0);
+            String recipient = sent.getAllRecipients()[0].toString();
+            sendOrder.add(recipient);
+            if (sendOrder.size() == 1) {
+                firstAttemptFailed.countDown();
+                throw concurrentLimitFailure();
+            }
+            return null;
+        }).when(mailSender).send(any(MimeMessage.class));
+
+        CompletableFuture<Boolean> retrying = CompletableFuture.supplyAsync(() ->
+                emailService.send(null, "from@example.com", "first@example.com", List.of(), List.of(), "Subject",
+                        "<p>Body</p>", List.of()));
+        assertThat(firstAttemptFailed.await(5, TimeUnit.SECONDS)).isTrue();
+
+        boolean other = emailService.send(null, "from@example.com", "second@example.com", List.of(), List.of(),
+                "Subject", "<p>Body</p>", List.of());
+
+        assertThat(other).isTrue();
+        assertThat(retrying.isDone()).isFalse();
+        assertThat(retrying.get(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(sendOrder).containsExactly("first@example.com", "second@example.com", "first@example.com");
     }
 }

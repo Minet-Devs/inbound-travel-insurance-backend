@@ -54,6 +54,9 @@ spring:
           starttls:
             enable: true
             required: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
   data:
     redis:
       host: ${REDIS_HOST:localhost}

@@ -3,6 +3,7 @@ package com.travel.insurance.otp;
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.config.AsyncConfig;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.organization.Organization;
 import com.travel.insurance.organization.OrganizationService;
@@ -12,8 +13,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -109,5 +113,15 @@ class OtpNotificationListenerTest {
                 eq("no-reply@travelinsurance.example"), eq("traveler@example.com"),
                 eq(List.of("inbound.travel@minet.co.ke")), eq(List.of()),
                 eq("Your verification code"), org.mockito.ArgumentMatchers.anyString(), eq(List.of()));
+    }
+
+    @Test
+    void afterCommitListenersRunOnTheNotificationExecutor() {
+        assertThat(Arrays.stream(OtpNotificationListener.class.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(TransactionalEventListener.class)))
+                .isNotEmpty()
+                .allSatisfy(m -> assertThat(m.getAnnotation(Async.class))
+                        .isNotNull()
+                        .extracting(Async::value).isEqualTo(AsyncConfig.NOTIFICATION_EXECUTOR));
     }
 }
