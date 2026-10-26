@@ -1419,6 +1419,11 @@ accepts and returns `documentIds`) and are deprecated in favour of this feature.
 > exception rethrown, matching the old single-transaction rollback behaviour. Exchange-rate
 > lookups in invoice/claim services still run inside their transactions but are cached for 24h
 > and bounded by the timeouts.
+>
+> Hikari leak detection is on (`spring.datasource.hikari.leak-detection-threshold`, default 20s,
+> env `DB_LEAK_DETECTION_THRESHOLD_MS`): any code holding a pooled connection longer than that logs
+> a warning with the stack trace of where the connection was acquired. Use it to find pool exhaustion
+> causes ("Connection is not available" errors).
 
 When a `Visitor`'s cover becomes `ACTIVE`, the `notification` package sends
 them a single email — their personalized policy certificate plus the "Welcome

@@ -14,6 +14,8 @@ spring:
       minimum-idle: 10
       connection-timeout: 30000
       max-lifetime: 1800000
+      # Logs the stack trace of any code holding a connection longer than this, to find pool leaks.
+      leak-detection-threshold: ${DB_LEAK_DETECTION_THRESHOLD_MS:20000}
 
   servlet:
     multipart:
