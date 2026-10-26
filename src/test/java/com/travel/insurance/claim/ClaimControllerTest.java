@@ -27,6 +27,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -41,6 +43,9 @@ class ClaimControllerTest {
 
     @MockBean
     private ClaimService claimService;
+
+    @MockBean
+    private ClaimExcelWriter claimExcelWriter;
 
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
@@ -158,5 +163,25 @@ class ClaimControllerTest {
     void getWithoutAuthenticationIsRejected() throws Exception {
         mockMvc.perform(get("/api/v1/claims/{id}", claimId))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void exportExcelReturnsWorkbookAttachment() throws Exception {
+        when(claimService.listForExport(ClaimStatus.APPROVED, insurerId,
+                java.time.LocalDate.of(2026, 10, 1), java.time.LocalDate.of(2026, 10, 31)))
+                .thenReturn(List.of());
+        when(claimExcelWriter.write(List.of())).thenReturn(new byte[]{1, 2, 3});
+
+        mockMvc.perform(get("/api/v1/claims/export/excel")
+                        .param("status", "APPROVED")
+                        .param("insurerId", insurerId.toString())
+                        .param("dateFrom", "2026-10-01")
+                        .param("dateTo", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"claims.xlsx\""))
+                .andExpect(content().bytes(new byte[]{1, 2, 3}));
     }
 }

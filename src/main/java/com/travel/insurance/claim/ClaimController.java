@@ -5,10 +5,13 @@ import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
+import com.travel.insurance.claim.dto.ClaimExportRow;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,8 +22,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -28,7 +34,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ClaimController {
 
+    private static final String XLSX_CONTENT_TYPE =
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
     private final ClaimService claimService;
+    private final ClaimExcelWriter claimExcelWriter;
 
     @PostMapping
     public ResponseEntity<ClaimResponse> create(@RequestBody ClaimRequest request) {
@@ -49,6 +59,20 @@ public class ClaimController {
     public ResponseEntity<ClaimResponse> attachInvoice(
             @PathVariable UUID id, @RequestBody AttachInvoiceRequest request) {
         return ResponseEntity.ok(claimService.attachInvoice(id, request));
+    }
+
+    @GetMapping("/export/excel")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> exportExcel(
+            @RequestParam(required = false) ClaimStatus status,
+            @RequestParam(required = false) UUID insurerId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        List<ClaimExportRow> rows = claimService.listForExport(status, insurerId, dateFrom, dateTo);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, XLSX_CONTENT_TYPE)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"claims.xlsx\"")
+                .body(claimExcelWriter.write(rows));
     }
 
     @GetMapping("/{id}")

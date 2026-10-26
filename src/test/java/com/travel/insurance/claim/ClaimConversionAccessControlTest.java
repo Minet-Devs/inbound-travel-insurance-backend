@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.UUID;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -32,6 +33,9 @@ class ClaimConversionAccessControlTest {
 
     @MockBean
     private ClaimService claimService;
+
+    @MockBean
+    private ClaimExcelWriter claimExcelWriter;
 
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
@@ -76,5 +80,19 @@ class ClaimConversionAccessControlTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"invoiceNumber\":\"  \"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminCanExportClaimsExcel() throws Exception {
+        mockMvc.perform(get("/api/v1/claims/export/excel"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "INSURER_USER")
+    void insurerUserCannotExportClaimsExcel() throws Exception {
+        mockMvc.perform(get("/api/v1/claims/export/excel"))
+                .andExpect(status().isForbidden());
     }
 }
