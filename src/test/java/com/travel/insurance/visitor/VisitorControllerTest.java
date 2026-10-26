@@ -255,7 +255,8 @@ class VisitorControllerTest {
         when(visitorService.countByAgeGroup()).thenReturn(List.of(
                 new AgeGroupVisitorCount("0-2", 1),
                 new AgeGroupVisitorCount("3-17", 2),
-                new AgeGroupVisitorCount("18+", 3)));
+                new AgeGroupVisitorCount("18+", 3),
+                new AgeGroupVisitorCount("Unknown", 4)));
 
         mockMvc.perform(get("/api/v1/visitors/distribution-by-age-group"))
                 .andExpect(status().isOk())
@@ -263,7 +264,9 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$[0].totalVisitors").value(1))
                 .andExpect(jsonPath("$[1].ageGroup").value("3-17"))
                 .andExpect(jsonPath("$[2].ageGroup").value("18+"))
-                .andExpect(jsonPath("$[2].totalVisitors").value(3));
+                .andExpect(jsonPath("$[2].totalVisitors").value(3))
+                .andExpect(jsonPath("$[3].ageGroup").value("Unknown"))
+                .andExpect(jsonPath("$[3].totalVisitors").value(4));
     }
 
     @Test
@@ -274,13 +277,14 @@ class VisitorControllerTest {
                 new InsurerAgeGroupVisitorCount(insurerId, "Minet Insurance", List.of(
                         new AgeGroupVisitorCount("0-2", 1),
                         new AgeGroupVisitorCount("3-17", 2),
-                        new AgeGroupVisitorCount("18+", 3)), 6)));
+                        new AgeGroupVisitorCount("18+", 3),
+                        new AgeGroupVisitorCount("Unknown", 4)), 10)));
 
         mockMvc.perform(get("/api/v1/visitors/distribution-by-insurer-and-age-group"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].insurerId").value(insurerId.toString()))
                 .andExpect(jsonPath("$[0].insurerName").value("Minet Insurance"))
-                .andExpect(jsonPath("$[0].totalVisitors").value(6))
+                .andExpect(jsonPath("$[0].totalVisitors").value(10))
                 .andExpect(jsonPath("$[0].ageGroups[0].ageGroup").value("0-2"))
                 .andExpect(jsonPath("$[0].ageGroups[2].ageGroup").value("18+"))
                 .andExpect(jsonPath("$[0].ageGroups[2].totalVisitors").value(3));

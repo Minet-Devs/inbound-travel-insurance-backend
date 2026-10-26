@@ -36,12 +36,13 @@ public interface VisitorService {
 
     /**
      * Total visitors (any status) per age group, by age today: "0-2" (0 to under 3),
-     * "3-17" (3 to under 18) and "18+". All three groups are always returned, in that order.
+     * "3-17" (3 to under 18), "18+" and "Unknown" (age not populated). All four groups are
+     * always returned, in that order, so they sum to the total visitor count.
      */
     List<AgeGroupVisitorCount> countByAgeGroup();
 
     /**
-     * Age-group breakdown (same "0-2", "3-17", "18+" buckets, always all three) per insurer, any
+     * Age-group breakdown (same "0-2", "3-17", "18+", "Unknown" buckets, always all four) per insurer, any
      * visitor status. Every insurer is listed, including those with zero visitors.
      */
     List<InsurerAgeGroupVisitorCount> countByInsurerAndAgeGroup();

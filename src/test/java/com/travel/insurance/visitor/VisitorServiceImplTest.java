@@ -652,17 +652,17 @@ class VisitorServiceImplTest {
                 new InsurerVisitorCount(emptyInsurerId, "Empty Insurance", 0));
     }
 
-    private static VisitorRepository.AgeVisitorTotal ageTotal(int age, long total) {
+    private static VisitorRepository.AgeVisitorTotal ageTotal(Integer age, long total) {
         return new VisitorRepository.AgeVisitorTotal() {
-            public int getAge() { return age; }
+            public Integer getAge() { return age; }
             public long getTotal() { return total; }
         };
     }
 
-    private static VisitorRepository.InsurerAgeVisitorTotal insurerAgeTotal(UUID insurerId, int age, long total) {
+    private static VisitorRepository.InsurerAgeVisitorTotal insurerAgeTotal(UUID insurerId, Integer age, long total) {
         return new VisitorRepository.InsurerAgeVisitorTotal() {
             public UUID getInsurerId() { return insurerId; }
-            public int getAge() { return age; }
+            public Integer getAge() { return age; }
             public long getTotal() { return total; }
         };
     }
@@ -672,14 +672,16 @@ class VisitorServiceImplTest {
         when(visitorRepository.countVisitorsGroupedByAge()).thenReturn(List.of(
                 ageTotal(0, 1), ageTotal(2, 1),      // 0-2
                 ageTotal(3, 1), ageTotal(17, 1),     // 3-17
-                ageTotal(18, 1), ageTotal(70, 1)));  // 18+
+                ageTotal(18, 1), ageTotal(70, 1),    // 18+
+                ageTotal(null, 5)));                 // Unknown
 
         List<AgeGroupVisitorCount> result = visitorService.countByAgeGroup();
 
         assertThat(result).containsExactly(
                 new AgeGroupVisitorCount("0-2", 2),
                 new AgeGroupVisitorCount("3-17", 2),
-                new AgeGroupVisitorCount("18+", 2));
+                new AgeGroupVisitorCount("18+", 2),
+                new AgeGroupVisitorCount("Unknown", 5));
     }
 
     @Test
@@ -689,7 +691,8 @@ class VisitorServiceImplTest {
         assertThat(visitorService.countByAgeGroup()).containsExactly(
                 new AgeGroupVisitorCount("0-2", 0),
                 new AgeGroupVisitorCount("3-17", 0),
-                new AgeGroupVisitorCount("18+", 0));
+                new AgeGroupVisitorCount("18+", 0),
+                new AgeGroupVisitorCount("Unknown", 0));
     }
 
     @Test
@@ -704,7 +707,8 @@ class VisitorServiceImplTest {
         when(visitorRepository.countVisitorsGroupedByInsurerAndAge()).thenReturn(List.of(
                 insurerAgeTotal(insurerId, 2, 1),
                 insurerAgeTotal(insurerId, 3, 1),
-                insurerAgeTotal(insurerId, 18, 1)));
+                insurerAgeTotal(insurerId, 18, 1),
+                insurerAgeTotal(insurerId, null, 2)));
         when(insurerRepository.findAll()).thenReturn(List.of(minet, empty));
 
         List<InsurerAgeGroupVisitorCount> result = visitorService.countByInsurerAndAgeGroup();
@@ -713,10 +717,12 @@ class VisitorServiceImplTest {
                 new InsurerAgeGroupVisitorCount(insurerId, "Minet Insurance", List.of(
                         new AgeGroupVisitorCount("0-2", 1),
                         new AgeGroupVisitorCount("3-17", 1),
-                        new AgeGroupVisitorCount("18+", 1)), 3),
+                        new AgeGroupVisitorCount("18+", 1),
+                        new AgeGroupVisitorCount("Unknown", 2)), 5),
                 new InsurerAgeGroupVisitorCount(emptyInsurerId, "Empty Insurance", List.of(
                         new AgeGroupVisitorCount("0-2", 0),
                         new AgeGroupVisitorCount("3-17", 0),
-                        new AgeGroupVisitorCount("18+", 0)), 0));
+                        new AgeGroupVisitorCount("18+", 0),
+                        new AgeGroupVisitorCount("Unknown", 0)), 0));
     }
 }
