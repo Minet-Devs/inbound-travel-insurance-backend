@@ -652,23 +652,27 @@ class VisitorServiceImplTest {
                 new InsurerVisitorCount(emptyInsurerId, "Empty Insurance", 0));
     }
 
-    private static Visitor visitorBornOn(LocalDate dateOfBirth) {
-        Visitor visitor = new Visitor();
-        visitor.setDateOfBirth(dateOfBirth);
-        return visitor;
+    private static VisitorRepository.AgeVisitorTotal ageTotal(int age, long total) {
+        return new VisitorRepository.AgeVisitorTotal() {
+            public int getAge() { return age; }
+            public long getTotal() { return total; }
+        };
+    }
+
+    private static VisitorRepository.InsurerAgeVisitorTotal insurerAgeTotal(UUID insurerId, int age, long total) {
+        return new VisitorRepository.InsurerAgeVisitorTotal() {
+            public UUID getInsurerId() { return insurerId; }
+            public int getAge() { return age; }
+            public long getTotal() { return total; }
+        };
     }
 
     @Test
     void countByAgeGroupBucketsOnBoundaries() {
-        LocalDate today = LocalDate.now();
-        when(visitorRepository.findAll()).thenReturn(List.of(
-                visitorBornOn(today),                                   // 0
-                visitorBornOn(today.minusYears(3).plusDays(1)),         // 2, turns 3 tomorrow
-                visitorBornOn(today.minusYears(3)),                     // 3
-                visitorBornOn(today.minusYears(18).plusDays(1)),        // 17, turns 18 tomorrow
-                visitorBornOn(today.minusYears(18)),                    // 18
-                visitorBornOn(today.minusYears(70)),                    // 70
-                visitorBornOn(null)));                                  // ignored
+        when(visitorRepository.countVisitorsGroupedByAge()).thenReturn(List.of(
+                ageTotal(0, 1), ageTotal(2, 1),      // 0-2
+                ageTotal(3, 1), ageTotal(17, 1),     // 3-17
+                ageTotal(18, 1), ageTotal(70, 1)));  // 18+
 
         List<AgeGroupVisitorCount> result = visitorService.countByAgeGroup();
 
@@ -680,7 +684,7 @@ class VisitorServiceImplTest {
 
     @Test
     void countByAgeGroupReturnsAllGroupsWhenNoVisitors() {
-        when(visitorRepository.findAll()).thenReturn(List.of());
+        when(visitorRepository.countVisitorsGroupedByAge()).thenReturn(List.of());
 
         assertThat(visitorService.countByAgeGroup()).containsExactly(
                 new AgeGroupVisitorCount("0-2", 0),
@@ -690,7 +694,6 @@ class VisitorServiceImplTest {
 
     @Test
     void countByInsurerAndAgeGroupBucketsPerInsurer() {
-        LocalDate today = LocalDate.now();
         UUID emptyInsurerId = UUID.randomUUID();
         Insurer minet = new Insurer();
         minet.setId(insurerId);
@@ -698,16 +701,10 @@ class VisitorServiceImplTest {
         Insurer empty = new Insurer();
         empty.setId(emptyInsurerId);
         empty.setName("Empty Insurance");
-        Visitor infant = visitorBornOn(today.minusYears(3).plusDays(1));
-        infant.setInsurerId(insurerId);
-        Visitor minor = visitorBornOn(today.minusYears(3));
-        minor.setInsurerId(insurerId);
-        Visitor adult = visitorBornOn(today.minusYears(18));
-        adult.setInsurerId(insurerId);
-        Visitor noInsurer = visitorBornOn(today.minusYears(30));
-        Visitor noDob = visitorBornOn(null);
-        noDob.setInsurerId(insurerId);
-        when(visitorRepository.findAll()).thenReturn(List.of(infant, minor, adult, noInsurer, noDob));
+        when(visitorRepository.countVisitorsGroupedByInsurerAndAge()).thenReturn(List.of(
+                insurerAgeTotal(insurerId, 2, 1),
+                insurerAgeTotal(insurerId, 3, 1),
+                insurerAgeTotal(insurerId, 18, 1)));
         when(insurerRepository.findAll()).thenReturn(List.of(minet, empty));
 
         List<InsurerAgeGroupVisitorCount> result = visitorService.countByInsurerAndAgeGroup();
