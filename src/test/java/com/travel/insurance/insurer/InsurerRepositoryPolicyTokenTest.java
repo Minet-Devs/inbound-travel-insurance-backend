@@ -83,4 +83,37 @@ class InsurerRepositoryPolicyTokenTest {
         assertThat(cached.getPolicyToken()).isEqualTo(5L);
         assertThat(insurerRepository.findPolicyTokenById(id)).contains(4L);
     }
+
+    @Test
+    void restoreOnePolicyTokenIncrementsByOne() {
+        UUID id = saveInsurer("acme", 5L);
+
+        assertThat(insurerRepository.restoreOnePolicyToken(id)).isEqualTo(1);
+
+        assertThat(insurerRepository.findPolicyTokenById(id)).contains(6L);
+    }
+
+    @Test
+    void restoreOnePolicyTokenInitializesNullQuotaToOne() {
+        UUID id = saveInsurer("acme", null);
+
+        assertThat(insurerRepository.restoreOnePolicyToken(id)).isEqualTo(1);
+
+        assertThat(insurerRepository.findPolicyTokenById(id)).contains(1L);
+    }
+
+    @Test
+    void restoreOnePolicyTokenOnlyTouchesTheGivenInsurer() {
+        UUID target = saveInsurer("acme", 3L);
+        UUID other = saveInsurer("globex", 3L);
+
+        insurerRepository.restoreOnePolicyToken(target);
+
+        assertThat(insurerRepository.findPolicyTokenById(other)).contains(3L);
+    }
+
+    @Test
+    void restoreOnePolicyTokenReportsZeroForUnknownInsurer() {
+        assertThat(insurerRepository.restoreOnePolicyToken(UUID.randomUUID())).isEqualTo(0);
+    }
 }
