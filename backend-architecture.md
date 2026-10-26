@@ -1255,6 +1255,7 @@ The system enforces **per-insurer policy quotas** to prevent insurers from overs
    - `Organization.policyToken` mirrors the linked insurer's token (organization → insurer on PUT/PATCH via `OrganizationUpdatedListener`; insurer → organization in the other direction)
    - After `PolicyConsumptionListener`/`PolicyRestorationListener` change the insurer's token, and after `InsurerService.update`, `OrganizationService.syncPolicyToken(organizationId, token)` copies the value onto the insurer's organization (no-op when the insurer has no `organizationId`). It publishes no event, so it cannot loop back into the insurer.
    - Result: `GET /api/v1/organizations/{id}` reflects consumed/restored policies
+   - `V202610261810__backfill_organization_policy_token.sql` one-off copied each insurer's token onto its organization (skipping organizations linked to more than one insurer) to fix drift from before the write-back existed
 
 4. **Quota Exhaustion**
    - When `policyToken` reaches 0, any attempt to create a visitor using that insurer's policy fails with:
