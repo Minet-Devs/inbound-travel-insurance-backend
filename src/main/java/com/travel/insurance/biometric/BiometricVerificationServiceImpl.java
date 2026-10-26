@@ -13,7 +13,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Map;
 import java.util.UUID;
@@ -28,21 +30,36 @@ public class BiometricVerificationServiceImpl implements BiometricVerificationSe
     private final BiometricVerificationMapper mapper;
     private final BiometricMicroserviceClient microserviceClient;
     private final EventPublisher eventPublisher;
+    private final TransactionTemplate transactionTemplate;
 
+    /**
+     * Runs without an ambient transaction on purpose: the microservice call can be slow, and
+     * holding a pooled DB connection across it exhausts the Hikari pool. The DB writes are
+     * short transactions either side of the call.
+     */
     @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BiometricVerificationResponse create(BiometricVerificationRequest request) {
-        BiometricVerification verification = repository.save(mapper.toEntity(request));
-        BiometricMicroserviceResponse embeded = microserviceClient.createVerification(
-                new BiometricMicroserviceRequest(
-                        verification.getSubjectIdNumber(),
-                        verification.getSubjectIdType(),
-                        verification.getWorkstationId(),
-                        verification.getId().toString()));
+        BiometricVerification verification = transactionTemplate.execute(
+                status -> repository.save(mapper.toEntity(request)));
+        BiometricMicroserviceResponse embeded;
+        try {
+            embeded = microserviceClient.createVerification(
+                    new BiometricMicroserviceRequest(
+                            verification.getSubjectIdNumber(),
+                            verification.getSubjectIdType(),
+                            verification.getWorkstationId(),
+                            verification.getId().toString()));
+        } catch (RuntimeException ex) {
+            // The row used to be rolled back with the surrounding transaction; undo it by hand.
+            transactionTemplate.executeWithoutResult(status -> repository.deleteById(verification.getId()));
+            throw ex;
+        }
         verification.setEkycRequestId(embeded.requestId());
         verification.setEmbededToken(embeded.embededToken());
         verification.setEmbededExpiry(embeded.embededExpiry());
         verification.setRequestUrl(embeded.requestUrl());
-        return mapper.toResponse(repository.save(verification));
+        return mapper.toResponse(transactionTemplate.execute(status -> repository.save(verification)));
     }
 
     @Override
@@ -98,6 +115,7 @@ public class BiometricVerificationServiceImpl implements BiometricVerificationSe
     }
 
     @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public HttpStatusCode resend(UUID id) {
         BiometricVerification verification = getEntityById(id);
         if (verification.getStatus() != BiometricVerificationStatus.PENDING) {

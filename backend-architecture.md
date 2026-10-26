@@ -59,6 +59,7 @@ com.travel.insurance/
 │   ├── SecurityConfig.java                 # Filter chain, route rules, PasswordEncoder
 │   ├── JpaAuditingConfig.java              # @EnableJpaAuditing + AuditorAware
 │   ├── AsyncConfig.java                    # @EnableAsync + bounded "notificationExecutor" for post-commit emails
+│   ├── HttpClientConfig.java               # RestClientCustomizer: connect/read timeouts on all RestClients
 │   ├── OpenApiConfig.java                  # Swagger/OpenAPI metadata
 │   ├── RabbitConfig.java                   # Exchanges, queues, bindings
 │   ├── MailProperties.java                 # app.mail.* (from address, emergency-assistance contact)
@@ -1408,6 +1409,16 @@ accepts and returns `documentIds`) and are deprecated in favour of this feature.
 > SMTP also has 10s connect/read/write timeouts (`spring.mail.properties.mail.smtp.*` and
 > `DefaultSmtpSenderFactory`). `EmailService` still serializes the SMTP exchange (Office 365 432
 > concurrent-connection limit) but releases the lock while sleeping between retries.
+>
+> **Outbound HTTP never holds a DB connection.** All `RestClient`s (biometrics microservice,
+> exchange-rate API) get a 5s connect / 15s read timeout from `HttpClientConfig`
+> (`app.http-client.connect-timeout` / `read-timeout`). `BiometricVerificationServiceImpl.create`
+> and `resend` run with `Propagation.NOT_SUPPORTED`: `create` commits the PENDING row, calls the
+> microservice, then commits the eKYC details in a second short transaction (via
+> `TransactionTemplate`). If the microservice call fails the inserted row is deleted and the
+> exception rethrown, matching the old single-transaction rollback behaviour. Exchange-rate
+> lookups in invoice/claim services still run inside their transactions but are cached for 24h
+> and bounded by the timeouts.
 
 When a `Visitor`'s cover becomes `ACTIVE`, the `notification` package sends
 them a single email — their personalized policy certificate plus the "Welcome

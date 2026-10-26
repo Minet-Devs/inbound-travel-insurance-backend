@@ -13,9 +13,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -23,6 +26,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,13 +44,16 @@ class BiometricVerificationServiceImplTest {
     @Mock
     private EventPublisher eventPublisher;
 
+    private final PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
+
     private final BiometricVerificationMapper mapper = new BiometricVerificationMapper();
 
     private BiometricVerificationServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new BiometricVerificationServiceImpl(repository, mapper, microserviceClient, eventPublisher);
+        service = new BiometricVerificationServiceImpl(repository, mapper, microserviceClient, eventPublisher,
+                new TransactionTemplate(transactionManager));
     }
 
     @Test
@@ -77,6 +85,46 @@ class BiometricVerificationServiceImplTest {
         assertThat(sent.workstationId()).isEqualTo("WS-NRB-014");
         assertThat(sent.verificationRequestId()).isEqualTo(response.id().toString());
         verify(repository, org.mockito.Mockito.times(2)).save(any(BiometricVerification.class));
+    }
+
+    @Test
+    void createCommitsTheRowBeforeCallingTheMicroserviceSoNoConnectionIsHeldAcrossIt() {
+        when(repository.save(any(BiometricVerification.class))).thenAnswer(invocation -> {
+            BiometricVerification verification = invocation.getArgument(0);
+            if (verification.getId() == null) {
+                verification.setId(UUID.randomUUID());
+            }
+            return verification;
+        });
+        when(microserviceClient.createVerification(any(BiometricMicroserviceRequest.class)))
+                .thenReturn(new BiometricMicroserviceResponse("ekyc-req-1", "rp-1", "token-1",
+                        "2026-08-04T12:00:00Z", "https://micro.example/embeded?request_id=ekyc-req-1"));
+
+        service.create(new BiometricVerificationRequest("39289507", "citizen", "VMI-POL-001", "WS-NRB-014"));
+
+        InOrder order = inOrder(transactionManager, microserviceClient);
+        order.verify(transactionManager).commit(any());
+        order.verify(microserviceClient).createVerification(any(BiometricMicroserviceRequest.class));
+        order.verify(transactionManager).commit(any());
+    }
+
+    @Test
+    void createDeletesTheInsertedRowAndRethrowsWhenMicroserviceFails() {
+        UUID id = UUID.randomUUID();
+        when(repository.save(any(BiometricVerification.class))).thenAnswer(invocation -> {
+            BiometricVerification verification = invocation.getArgument(0);
+            verification.setId(id);
+            return verification;
+        });
+        when(microserviceClient.createVerification(any(BiometricMicroserviceRequest.class)))
+                .thenThrow(new com.travel.insurance.biometric.client.BiometricMicroserviceException("down"));
+
+        assertThatThrownBy(() -> service.create(
+                new BiometricVerificationRequest("39289507", "citizen", "VMI-POL-001", "WS-NRB-014")))
+                .isInstanceOf(com.travel.insurance.biometric.client.BiometricMicroserviceException.class);
+
+        verify(repository).deleteById(id);
+        verify(repository, org.mockito.Mockito.times(1)).save(any(BiometricVerification.class));
     }
 
     @Test
