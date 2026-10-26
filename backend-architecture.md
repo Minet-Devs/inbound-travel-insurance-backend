@@ -534,7 +534,9 @@ Policy
   signature block (`policy-certificate.html`'s `.sign` table), replacing the
   default "No wet signature required" copy with "Digitally signed by the
   underwriter" so the certificate reads as genuinely signed when an insurer
-  has provided one.
+  has provided one. On the certificate's schedule of benefits, the benefit
+  "Emergency Medical Transportation/Evacuation" is rendered as "… within Kenya
+  Only" (`PolicyDocumentRenderer.certificateLabel`); the catalog name is unchanged.
 - **Benefit** is a standalone **global catalog** entry: a `benefitName` (free
   text) and a `limitAmount` (limit of cover). It is no longer scoped to a
   policy — there is no `policyId` or fixed `BenefitType` enum. The catalog is
