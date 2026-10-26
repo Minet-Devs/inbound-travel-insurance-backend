@@ -14,6 +14,14 @@ spring:
       minimum-idle: 10
       connection-timeout: 30000
       max-lifetime: 1800000
+      # pgpool in front of the DB drops clients idle for 120s (client_idle_limit); ping idle
+      # connections more often than that so Hikari never lends out a connection pgpool has killed.
+      keepalive-time: ${DB_KEEPALIVE_TIME_MS:60000}
+      data-source-properties:
+        # pgjdbc waits forever by default; a dead connection would pin a pool slot (and a request thread).
+        socketTimeout: ${DB_SOCKET_TIMEOUT_SECONDS:60}
+        connectTimeout: 10
+        tcpKeepAlive: true
       # Logs the stack trace of any code holding a connection longer than this, to find pool leaks.
       leak-detection-threshold: ${DB_LEAK_DETECTION_THRESHOLD_MS:20000}
 
