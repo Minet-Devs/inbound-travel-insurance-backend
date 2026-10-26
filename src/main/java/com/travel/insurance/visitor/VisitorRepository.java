@@ -38,6 +38,28 @@ public interface VisitorRepository extends JpaRepository<Visitor, UUID>, JpaSpec
         long getTotal();
     }
 
+    @Query("select v.age as age, count(v) as total from Visitor v "
+            + "where v.age is not null group by v.age")
+    List<AgeVisitorTotal> countVisitorsGroupedByAge();
+
+    interface AgeVisitorTotal {
+        int getAge();
+
+        long getTotal();
+    }
+
+    @Query("select v.insurerId as insurerId, v.age as age, count(v) as total from Visitor v "
+            + "where v.age is not null and v.insurerId is not null group by v.insurerId, v.age")
+    List<InsurerAgeVisitorTotal> countVisitorsGroupedByInsurerAndAge();
+
+    interface InsurerAgeVisitorTotal {
+        UUID getInsurerId();
+
+        int getAge();
+
+        long getTotal();
+    }
+
     @Query(value = "select nextval('certificate_serial_seq')", nativeQuery = true)
     long nextCertificateSerialValue();
 }

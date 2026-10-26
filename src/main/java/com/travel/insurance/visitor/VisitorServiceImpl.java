@@ -26,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.Period;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -111,44 +110,22 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     @Transactional(readOnly = true)
     public List<AgeGroupVisitorCount> countByAgeGroup() {
-        // date_of_birth is encrypted at rest, so it cannot be bucketed in SQL.
-        LocalDate today = LocalDate.now();
-        long infants = 0;
-        long minors = 0;
-        long adults = 0;
-        for (Visitor visitor : visitorRepository.findAll()) {
-            if (visitor.getDateOfBirth() == null) {
-                continue;
-            }
-            int age = Period.between(visitor.getDateOfBirth(), today).getYears();
-            if (age < 3) {
-                infants++;
-            } else if (age < 18) {
-                minors++;
-            } else {
-                adults++;
-            }
-        }
+        long[] counts = new long[3];
+        visitorRepository.countVisitorsGroupedByAge()
+                .forEach(row -> counts[ageBucket(row.getAge())] += row.getTotal());
         return List.of(
-                new AgeGroupVisitorCount("0-2", infants),
-                new AgeGroupVisitorCount("3-17", minors),
-                new AgeGroupVisitorCount("18+", adults));
+                new AgeGroupVisitorCount("0-2", counts[0]),
+                new AgeGroupVisitorCount("3-17", counts[1]),
+                new AgeGroupVisitorCount("18+", counts[2]));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<InsurerAgeGroupVisitorCount> countByInsurerAndAgeGroup() {
-        // date_of_birth is encrypted at rest, so it cannot be bucketed in SQL.
-        LocalDate today = LocalDate.now();
         Map<UUID, long[]> buckets = new HashMap<>();
-        for (Visitor visitor : visitorRepository.findAll()) {
-            if (visitor.getDateOfBirth() == null || visitor.getInsurerId() == null) {
-                continue;
-            }
-            int age = Period.between(visitor.getDateOfBirth(), today).getYears();
-            int bucket = age < 3 ? 0 : age < 18 ? 1 : 2;
-            buckets.computeIfAbsent(visitor.getInsurerId(), id -> new long[3])[bucket]++;
-        }
+        visitorRepository.countVisitorsGroupedByInsurerAndAge()
+                .forEach(row -> buckets.computeIfAbsent(row.getInsurerId(), id -> new long[3])
+                        [ageBucket(row.getAge())] += row.getTotal());
         return insurerRepository.findAll().stream()
                 .map(insurer -> {
                     long[] counts = buckets.getOrDefault(insurer.getId(), new long[3]);
@@ -160,6 +137,10 @@ public class VisitorServiceImpl implements VisitorService {
                             counts[0] + counts[1] + counts[2]);
                 })
                 .toList();
+    }
+
+    private static int ageBucket(int age) {
+        return age < 3 ? 0 : age < 18 ? 1 : 2;
     }
 
     @Override
