@@ -2223,10 +2223,15 @@ Main Menu → 1. Find Hospital
        interrupted. Set the flag back to `false` afterward.
     2. Once backfill is confirmed complete (no `NULL`
        `passport_number_hash` among live rows, no duplicate hashes), ship
-       a follow-up migration adding `alter table visitors alter column
-       passport_number_hash set not null` and the
-       `uq_visitors_passport_number_hash` unique index (see the dropped
-       `uq_visitors_passport_number` index it replaces).
+       a follow-up migration adding the `uq_visitors_passport_number_hash`
+       unique index (see the dropped `uq_visitors_passport_number` index it
+       replaces). That index is `V202610261954__visitor_passport_number_hash_index.sql`,
+       a partial unique index `on visitors (passport_number_hash) where deleted = false`
+       (live rows only, so soft-deleted visitors can be re-created). It was missing
+       until then, which made every create's `existsByPassportNumberHash` and every
+       by-passport lookup a sequential scan; it also enforces no duplicate live
+       passports under concurrent creates. The `alter column passport_number_hash
+       set not null` step is still not applied (the entity declares it `nullable = false`).
     A fresh environment with no pre-existing data can skip the backfill
     step entirely — the hash is always populated at write time by
     `VisitorServiceImpl`.
