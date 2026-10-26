@@ -49,26 +49,17 @@ public class PolicyRestorationListener {
                 .orElseThrow(() -> new IllegalStateException(
                         "Insurer not found: " + policy.getInsurerId()));
 
-        if (insurer.getPolicyToken() != null) {
-            long newToken = insurer.getPolicyToken() + 1;
-            insurer.setPolicyToken(newToken);
-            insurerRepository.save(insurer);
-            syncOrganization(insurer);
-            log.info("Policy restored for insurer: {}. Available tokens: {}",
-                    insurer.getName(), newToken);
-        } else {
-            // Initialize token to 1 if it was null
-            insurer.setPolicyToken(1L);
-            insurerRepository.save(insurer);
-            syncOrganization(insurer);
-            log.info("Policy token initialized for insurer: {}. Available tokens: 1",
-                    insurer.getName());
-        }
+        // Single atomic UPDATE (not read-modify-write on the entity) so concurrent deletes and
+        // creates for the same insurer cannot lose an increment; a null quota becomes 1.
+        insurerRepository.restoreOnePolicyToken(insurer.getId());
+        long newToken = insurerRepository.findPolicyTokenById(insurer.getId()).orElseThrow();
+        syncOrganization(insurer, newToken);
+        log.info("Policy restored for insurer: {}. Available tokens: {}", insurer.getName(), newToken);
     }
 
-    private void syncOrganization(Insurer insurer) {
+    private void syncOrganization(Insurer insurer, long token) {
         if (insurer.getOrganizationId() != null) {
-            organizationService.syncPolicyToken(insurer.getOrganizationId(), insurer.getPolicyToken());
+            organizationService.syncPolicyToken(insurer.getOrganizationId(), token);
         }
     }
 }

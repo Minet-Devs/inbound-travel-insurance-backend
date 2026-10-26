@@ -1259,6 +1259,7 @@ The system enforces **per-insurer policy quotas** to prevent insurers from overs
 2. **Visitor Deletion → Policy Restoration**
    - `VisitorServiceImpl.delete()` soft-deletes the visitor and publishes `VisitorDeletedEvent`
    - `PolicyRestorationListener` receives the event and restores (increments) `policyToken` for the backing insurer
+   - Like the decrement, the increment is one atomic statement, `InsurerRepository.restoreOnePolicyToken` (`policy_token = coalesce(policy_token, 0) + 1`, so a null quota becomes 1); the new value is read back with `findPolicyTokenById` and synced to the organization
    - Example: Minet Insurance 999 → 1000 when that visitor is deleted
 
 3. **Organization Write-Back**
@@ -1277,7 +1278,7 @@ The system enforces **per-insurer policy quotas** to prevent insurers from overs
 | Component | Responsibility |
 |-----------|-----------------|
 | `PolicyConsumptionListener` | Listens to `VisitorCreatedEvent`; atomically decrements `policyToken` for the backing insurer via `InsurerRepository.consumeOnePolicyToken` |
-| `PolicyRestorationListener` | Listens to `VisitorDeletedEvent`; restores `policyToken` for the backing insurer |
+| `PolicyRestorationListener` | Listens to `VisitorDeletedEvent`; atomically restores `policyToken` for the backing insurer via `InsurerRepository.restoreOnePolicyToken` |
 | `VisitorServiceImpl.requireInsurerWithQuota()` | Pre-creation validation; checks the backing insurer has available policies, returns it |
 | `VisitorServiceImpl.delete()` | Publishes `VisitorDeletedEvent` after soft-delete |
 | `InsurerResponse.availablePolicies` | Exposes quota count in API responses for admin monitoring |
