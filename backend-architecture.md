@@ -1424,6 +1424,13 @@ accepts and returns `documentIds`) and are deprecated in favour of this feature.
 > env `DB_LEAK_DETECTION_THRESHOLD_MS`): any code holding a pooled connection longer than that logs
 > a warning with the stack trace of where the connection was acquired. Use it to find pool exhaustion
 > causes ("Connection is not available" errors).
+>
+> **pgpool in front of the DB.** Production reaches Postgres through pgpool-II, which closes clients
+> idle longer than `client_idle_limit` (120s) — surfacing in the app as `child connection forced to
+> terminate due to client_idle_limit:120` and `Connection is closed` on rollback. Hikari therefore
+> pings idle connections every 60s (`keepalive-time`, env `DB_KEEPALIVE_TIME_MS`) and pgjdbc has
+> `socketTimeout` 60s (env `DB_SOCKET_TIMEOUT_SECONDS`), `connectTimeout` 10s and `tcpKeepAlive`, so a
+> connection killed by the proxy fails fast instead of blocking a request thread forever.
 
 When a `Visitor`'s cover becomes `ACTIVE`, the `notification` package sends
 them a single email — their personalized policy certificate plus the "Welcome
