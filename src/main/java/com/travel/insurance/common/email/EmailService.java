@@ -22,7 +22,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * to relay a single send through a different mail server (e.g. a per-tenant
  * mailbox) instead of the globally configured {@link #mailSender}.
  * <p>
- * Sends are serialized and transient SMTP failures (4xx replies, e.g. Office 365's
+ * Each SMTP exchange is serialized (the lock is released during retry backoff) and transient SMTP failures (4xx replies, e.g. Office 365's
  * "432 Concurrent connections limit exceeded") are retried with backoff. Callers that
  * must know whether the mail went out can use the {@code boolean}-returning overload.
  */
@@ -89,28 +89,30 @@ public class EmailService {
     private boolean sendVia(SmtpCredentials credentials, String from, String to, List<String> cc,
                              List<String> bcc, String subject, String htmlBody, List<EmailAttachment> attachments,
                              List<InlineImage> inlineImages) {
-        sendLock.lock();
-        try {
-            for (int attempt = 1; ; attempt++) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                // The lock covers only the SMTP exchange, never the backoff sleep, so a
+                // retrying send doesn't stall every other sender for the whole backoff.
+                sendLock.lock();
                 try {
                     doSend(credentials, from, to, cc, bcc, subject, htmlBody, attachments, inlineImages);
-                    return true;
-                } catch (Exception ex) {
-                    if (attempt < MAX_ATTEMPTS && isTransient(ex)) {
-                        log.warn("Transient failure sending email to [{}] (attempt {}/{}), retrying: {}",
-                                to, attempt, MAX_ATTEMPTS, ex.getMessage());
-                        if (!pause(backoffMillis * attempt)) {
-                            return false;
-                        }
-                        continue;
-                    }
-                    log.error("Failed to send email from [{}] to [{}] (subject=[{}]): {}",
-                            from, to, subject, ex.getMessage(), ex);
-                    return false;
+                } finally {
+                    sendLock.unlock();
                 }
+                return true;
+            } catch (Exception ex) {
+                if (attempt < MAX_ATTEMPTS && isTransient(ex)) {
+                    log.warn("Transient failure sending email to [{}] (attempt {}/{}), retrying: {}",
+                            to, attempt, MAX_ATTEMPTS, ex.getMessage());
+                    if (!pause(backoffMillis * attempt)) {
+                        return false;
+                    }
+                    continue;
+                }
+                log.error("Failed to send email from [{}] to [{}] (subject=[{}]): {}",
+                        from, to, subject, ex.getMessage(), ex);
+                return false;
             }
-        } finally {
-            sendLock.unlock();
         }
     }
 

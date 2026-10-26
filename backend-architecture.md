@@ -58,6 +58,7 @@ com.travel.insurance/
 ├── 📁 config/                              # Global configuration
 │   ├── SecurityConfig.java                 # Filter chain, route rules, PasswordEncoder
 │   ├── JpaAuditingConfig.java              # @EnableJpaAuditing + AuditorAware
+│   ├── AsyncConfig.java                    # @EnableAsync + bounded "notificationExecutor" for post-commit emails
 │   ├── OpenApiConfig.java                  # Swagger/OpenAPI metadata
 │   ├── RabbitConfig.java                   # Exchanges, queues, bindings
 │   ├── MailProperties.java                 # app.mail.* (from address, emergency-assistance contact)
@@ -76,9 +77,9 @@ com.travel.insurance/
 │   ├── 📁 messaging/
 │   │   └── EventPublisher.java             # Thin wrapper over RabbitTemplate
 │   ├── 📁 email/
-│   │   └── EmailService.java               # Thin wrapper over JavaMailSender; sends serialized,
-│   │                                       # retries transient SMTP 4xx (e.g. 432 concurrent limit)
-│   │                                       # up to 3x with backoff; 7-arg send returns delivered?
+│   │   └── EmailService.java               # Thin wrapper over JavaMailSender; SMTP exchanges serialized
+│   │                                       # (lock NOT held during backoff), retries transient SMTP 4xx
+│   │                                       # (e.g. 432 concurrent limit) up to 3x with backoff; 7-arg send returns delivered?
 │   └── 📁 util/
 │
 ├── 📁 notification/                        # Feature: Visitor-facing notifications
@@ -1397,6 +1398,16 @@ accepts and returns `documentIds`) and are deprecated in favour of this feature.
   the event.
 
 ## Notifications (Policy Document Email)
+
+> **Email sending is off the request thread.** The `@TransactionalEventListener(AFTER_COMMIT)`
+> listeners that send email (`VisitorActivatedNotificationListener`, `otp.OtpNotificationListener`,
+> `mobileauth.VisitorOtpNotificationListener`) are also `@Async` on `AsyncConfig.NOTIFICATION_EXECUTOR`
+> (2–4 threads, queue 500, `CallerRunsPolicy` so nothing is dropped). An AFTER_COMMIT callback runs
+> before the request's JDBC connection is released, so a synchronous SMTP call used to pin one Hikari
+> connection per request and exhaust the pool ("Connection is not available") when SMTP was slow.
+> SMTP also has 10s connect/read/write timeouts (`spring.mail.properties.mail.smtp.*` and
+> `DefaultSmtpSenderFactory`). `EmailService` still serializes the SMTP exchange (Office 365 432
+> concurrent-connection limit) but releases the lock while sleeping between retries.
 
 When a `Visitor`'s cover becomes `ACTIVE`, the `notification` package sends
 them a single email — their personalized policy certificate plus the "Welcome

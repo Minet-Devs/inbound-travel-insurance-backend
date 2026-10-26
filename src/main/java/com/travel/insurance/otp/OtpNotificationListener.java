@@ -3,11 +3,13 @@ package com.travel.insurance.otp;
 import com.travel.insurance.common.email.EmailService;
 import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.config.AsyncConfig;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.organization.Organization;
 import com.travel.insurance.organization.OrganizationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -34,6 +36,7 @@ public class OtpNotificationListener {
     private final EmailService emailService;
     private final MailProperties mailProperties;
 
+    @Async(AsyncConfig.NOTIFICATION_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onOtpGenerated(OtpGeneratedEvent event) {
         try {

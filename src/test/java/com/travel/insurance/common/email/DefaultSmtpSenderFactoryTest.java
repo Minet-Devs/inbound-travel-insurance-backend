@@ -22,4 +22,17 @@ class DefaultSmtpSenderFactoryTest {
             assertThat(impl.getPassword()).isEqualTo("s3cr3t");
         });
     }
+
+    @Test
+    void setsSmtpTimeoutsSoAHungRelayCannotBlockForever() {
+        DefaultSmtpSenderFactory factory = new DefaultSmtpSenderFactory();
+        SmtpCredentials credentials = new SmtpCredentials("smtp.acme.example", 587, "notify@acme.example", "s3cr3t");
+
+        JavaMailSenderImpl sender = (JavaMailSenderImpl) factory.create(credentials);
+
+        assertThat(sender.getJavaMailProperties())
+                .containsEntry("mail.smtp.connectiontimeout", "10000")
+                .containsEntry("mail.smtp.timeout", "10000")
+                .containsEntry("mail.smtp.writetimeout", "10000");
+    }
 }

@@ -6,6 +6,7 @@ import com.travel.insurance.common.email.InlineImage;
 import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.benefit.dto.BenefitResponse;
+import com.travel.insurance.config.AsyncConfig;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerService;
@@ -28,10 +29,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -684,5 +688,15 @@ class VisitorActivatedNotificationListenerTest {
         verify(emailService).send(any(), anyString(), anyString(), ccCaptor.capture(), anyList(),
                 anyString(), anyString(), anyList(), anyList());
         assertThat(ccCaptor.getValue()).isEmpty();
+    }
+
+    @Test
+    void afterCommitListenersRunOnTheNotificationExecutor() {
+        assertThat(Arrays.stream(VisitorActivatedNotificationListener.class.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(TransactionalEventListener.class)))
+                .isNotEmpty()
+                .allSatisfy(m -> assertThat(m.getAnnotation(Async.class))
+                        .isNotNull()
+                        .extracting(Async::value).isEqualTo(AsyncConfig.NOTIFICATION_EXECUTOR));
     }
 }
