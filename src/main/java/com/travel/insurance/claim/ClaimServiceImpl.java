@@ -3,6 +3,7 @@ package com.travel.insurance.claim;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
+import com.travel.insurance.claim.dto.ClaimExportRow;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
@@ -43,14 +44,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 
 @Service
 @RequiredArgsConstructor
@@ -224,6 +230,39 @@ public class ClaimServiceImpl implements ClaimService {
     @Transactional(readOnly = true)
     public Page<ClaimResponse> listByVisitor(UUID visitorId, Pageable pageable) {
         return claimRepository.findAllByVisitorId(visitorId, pageable).map(this::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClaimExportRow> listForExport(ClaimStatus status, UUID insurerId,
+                                              LocalDate dateFrom, LocalDate dateTo) {
+        Instant from = dateFrom != null ? dateFrom.atStartOfDay().toInstant(ZoneOffset.UTC) : null;
+        Instant to = dateTo != null ? dateTo.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC) : null;
+        Map<UUID, VisitorResponse> visitors = new HashMap<>();
+        Map<UUID, String> providers = new HashMap<>();
+        Map<UUID, String> benefits = new HashMap<>();
+        Map<UUID, String> insurers = new HashMap<>();
+        return claimRepository.findAllForExport(status, insurerId, from, to).stream()
+                .map(claim -> {
+                    VisitorResponse visitor = cached(visitors, claim.getVisitorId(), visitorService::getById);
+                    return new ClaimExportRow(
+                            visitor != null ? visitor.fullName() : null,
+                            visitor != null ? visitor.passportNumber() : null,
+                            cached(providers, claim.getServiceProviderId(),
+                                    id -> serviceProviderService.getById(id).name()),
+                            cached(benefits, claim.getBenefitId(), id -> benefitService.getById(id).benefitName()),
+                            cached(insurers, claim.getInsurerId(), id -> insurerService.getById(id).name()),
+                            claim.getClaimedAmount(),
+                            claim.getCreatedDate());
+                })
+                .toList();
+    }
+
+    private <T> T cached(Map<UUID, T> cache, UUID id, Function<UUID, T> loader) {
+        if (id == null) {
+            return null;
+        }
+        return cache.computeIfAbsent(id, loader);
     }
 
     @Override

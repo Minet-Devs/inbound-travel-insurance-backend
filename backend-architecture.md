@@ -253,6 +253,7 @@ com.travel.insurance/
 │   ├── ClaimService.java                   # Interface
 │   ├── ClaimServiceImpl.java
 │   ├── ClaimRepository.java
+│   ├── ClaimExcelWriter.java               # Apache POI writer for the claims export
 │   ├── Claim.java                          # policyId, benefitId, serviceProviderId,
 │   │                                       # preauthorizationId, visitorId (all nullable
 │   │                                       # except policy/benefit), insurerId (derived
@@ -270,6 +271,7 @@ com.travel.insurance/
 │   └── 📁 dto/
 │       ├── ClaimRequest.java               # insurerId NOT accepted — derived server-side
 │       ├── ClaimDecisionRequest.java
+│       ├── ClaimExportRow.java             # One row of the Excel export (resolved names)
 │       └── ClaimResponse.java              # embeds full visitor/insurer/invoices/
 │                                           # diagnoses (ICD-11)/procedures objects
 │
@@ -858,6 +860,13 @@ Policy
   preauthorization's `icd11CodeId`. `procedureIds` are always required on
   `POST /api/v1/claims` — the preauthorization feature does not carry
   procedure references.
+- **Excel export**: `GET /api/v1/claims/export/excel` (`ADMIN` only, enforced by
+  `@PreAuthorize`; optional filters `status`, `insurerId`, `dateFrom`, `dateTo` —
+  ISO dates, inclusive, matched on `createdDate`, UTC). `ClaimServiceImpl.listForExport`
+  resolves names via `VisitorService`/`ServiceProviderService`/`BenefitService`/`InsurerService`
+  (each id looked up once per export) and `ClaimExcelWriter` returns
+  `claims.xlsx` with columns Visitor Name, Passport Number, Service Provider, Benefit,
+  Insurer, Amount (`claimedAmount`, claim currency), Claim Date (`createdDate`, ISO instant).
 - **Pre-auth → claim conversion**: `POST /api/v1/claims/from-preauthorization/{preauthorizationId}`
   (`ADMIN`, `CONTACT_CENTER`; body `ConvertPreauthorizationRequest` —
   `invoiceNumber` required, `issueDate` optional). `ClaimServiceImpl.createFromPreauthorization`

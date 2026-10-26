@@ -80,4 +80,14 @@ public interface ClaimRepository extends JpaRepository<Claim, UUID> {
     List<Object[]> countByStatusForProvider(@Param("providerId") UUID providerId,
                                             @Param("dateFrom") Instant dateFrom,
                                             @Param("dateTo") Instant dateTo);
+
+    @Query("SELECT c FROM Claim c WHERE c.status = COALESCE(:status, c.status) "
+            + "AND (:insurerId IS NULL OR c.insurerId = :insurerId) "
+            + "AND c.createdDate >= COALESCE(:dateFrom, c.createdDate) "
+            + "AND c.createdDate <= COALESCE(:dateTo, c.createdDate) "
+            + "ORDER BY c.createdDate DESC")
+    List<Claim> findAllForExport(@Param("status") ClaimStatus status,
+                                 @Param("insurerId") UUID insurerId,
+                                 @Param("dateFrom") Instant dateFrom,
+                                 @Param("dateTo") Instant dateTo);
 }
