@@ -1253,6 +1253,7 @@ The system enforces **per-insurer policy quotas** to prevent insurers from overs
    - `VisitorServiceImpl.create()` validates that the backing insurer has `policyToken > 0`
    - If validation passes, visitor is saved and `VisitorCreatedEvent` is published
    - `PolicyConsumptionListener` receives the event and decrements `policyToken` for the backing insurer
+   - The decrement is one atomic statement, `InsurerRepository.consumeOnePolicyToken` (`update insurers set policy_token = policy_token - 1 where id = ? and policy_token > 0`), not a read-modify-write on the entity: concurrent visitor creations for the same insurer can no longer lose a decrement, and the insurer row lock is held only for that statement. It returns 0 (logged as a warning, no organization sync) when the quota is null or already exhausted, e.g. a concurrent create took the last token after `requireInsurerWithQuota` passed. The new value is read back with `findPolicyTokenById` (a scalar query, so it ignores the stale entity in the session) and is what gets written to the organization
    - Example: Minet Insurance 1000 → 999 when first visitor is created
 
 2. **Visitor Deletion → Policy Restoration**
@@ -1275,7 +1276,7 @@ The system enforces **per-insurer policy quotas** to prevent insurers from overs
 
 | Component | Responsibility |
 |-----------|-----------------|
-| `PolicyConsumptionListener` | Listens to `VisitorCreatedEvent`; decrements `policyToken` for the backing insurer |
+| `PolicyConsumptionListener` | Listens to `VisitorCreatedEvent`; atomically decrements `policyToken` for the backing insurer via `InsurerRepository.consumeOnePolicyToken` |
 | `PolicyRestorationListener` | Listens to `VisitorDeletedEvent`; restores `policyToken` for the backing insurer |
 | `VisitorServiceImpl.requireInsurerWithQuota()` | Pre-creation validation; checks the backing insurer has available policies, returns it |
 | `VisitorServiceImpl.delete()` | Publishes `VisitorDeletedEvent` after soft-delete |
