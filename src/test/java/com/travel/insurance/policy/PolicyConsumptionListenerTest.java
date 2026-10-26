@@ -7,17 +7,16 @@ import com.travel.insurance.visitor.VisitorCreatedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,170 +43,113 @@ class PolicyConsumptionListenerTest {
         listener = new PolicyConsumptionListener(policyRepository, insurerRepository, organizationService);
     }
 
-    @Test
-    void onVisitorCreatedDecrementsInsurerPolicyToken() {
-        // Setup: Create policy with one insurer
-        Policy policy = new Policy();
-        policy.setId(policyId);
-        policy.setInsurerId(insurerId);
-
+    private Insurer insurerWithToken(Long token, UUID organizationId) {
         Insurer insurer = new Insurer();
         insurer.setId(insurerId);
         insurer.setName("Minet Insurance");
-        insurer.setPolicyToken(1000L);
+        insurer.setPolicyToken(token);
+        insurer.setOrganizationId(organizationId);
+        return insurer;
+    }
 
+    private void givenPolicyAndInsurer(Insurer insurer) {
+        Policy policy = new Policy();
+        policy.setId(policyId);
+        policy.setInsurerId(insurerId);
         when(policyRepository.findById(policyId)).thenReturn(Optional.of(policy));
         when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer));
-        when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        // Act: Fire visitor created event
-        VisitorCreatedEvent event = new VisitorCreatedEvent(visitorId, policyId);
-        listener.onVisitorCreated(event);
-
-        // Assert: Policy token was decremented
-        ArgumentCaptor<Insurer> insurerCaptor = ArgumentCaptor.forClass(Insurer.class);
-        verify(insurerRepository).save(insurerCaptor.capture());
-        assertThat(insurerCaptor.getValue().getPolicyToken()).isEqualTo(999L);
     }
 
     @Test
-    void onVisitorCreatedHandlesNullPolicyToken() {
-        // Setup: Insurer with null policy token
-        Policy policy = new Policy();
-        policy.setId(policyId);
-        policy.setInsurerId(insurerId);
+    void onVisitorCreatedConsumesOneTokenAtomicallyInsteadOfSavingTheEntity() {
+        givenPolicyAndInsurer(insurerWithToken(1000L, null));
+        when(insurerRepository.consumeOnePolicyToken(insurerId)).thenReturn(1);
+        when(insurerRepository.findPolicyTokenById(insurerId)).thenReturn(Optional.of(999L));
 
-        Insurer insurer = new Insurer();
-        insurer.setId(insurerId);
-        insurer.setName("Minet Insurance");
-        insurer.setPolicyToken(null);
+        listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
 
-        when(policyRepository.findById(policyId)).thenReturn(Optional.of(policy));
-        when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer));
-
-        // Act: Fire visitor created event
-        VisitorCreatedEvent event = new VisitorCreatedEvent(visitorId, policyId);
-        listener.onVisitorCreated(event);
-
-        // Assert: No save called (gracefully handled null case)
+        verify(insurerRepository, times(1)).consumeOnePolicyToken(insurerId);
         verify(insurerRepository, never()).save(any(Insurer.class));
     }
 
     @Test
-    void onVisitorCreatedHandlesZeroPolicyToken() {
-        // Setup: Insurer with zero policy token
-        Policy policy = new Policy();
-        policy.setId(policyId);
-        policy.setInsurerId(insurerId);
+    void onVisitorCreatedDoesNothingMoreWhenQuotaIsNull() {
+        givenPolicyAndInsurer(insurerWithToken(null, UUID.randomUUID()));
+        when(insurerRepository.consumeOnePolicyToken(insurerId)).thenReturn(0);
 
-        Insurer insurer = new Insurer();
-        insurer.setId(insurerId);
-        insurer.setName("Minet Insurance");
-        insurer.setPolicyToken(0L);
+        listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
 
-        when(policyRepository.findById(policyId)).thenReturn(Optional.of(policy));
-        when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer));
-
-        // Act: Fire visitor created event
-        VisitorCreatedEvent event = new VisitorCreatedEvent(visitorId, policyId);
-        listener.onVisitorCreated(event);
-
-        // Assert: No save called (gracefully handled zero case)
         verify(insurerRepository, never()).save(any(Insurer.class));
+        verify(insurerRepository, never()).findPolicyTokenById(any());
+        verify(organizationService, never()).syncPolicyToken(any(), any());
+    }
+
+    @Test
+    void onVisitorCreatedDoesNothingMoreWhenQuotaIsExhausted() {
+        givenPolicyAndInsurer(insurerWithToken(0L, UUID.randomUUID()));
+        when(insurerRepository.consumeOnePolicyToken(insurerId)).thenReturn(0);
+
+        listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
+
+        verify(insurerRepository, never()).save(any(Insurer.class));
+        verify(organizationService, never()).syncPolicyToken(any(), any());
+    }
+
+    @Test
+    void onVisitorCreatedHandlesQuotaExhaustedByAConcurrentCreate() {
+        // The session's entity still shows 1, but another transaction took the last token first.
+        givenPolicyAndInsurer(insurerWithToken(1L, UUID.randomUUID()));
+        when(insurerRepository.consumeOnePolicyToken(insurerId)).thenReturn(0);
+
+        listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
+
+        verify(organizationService, never()).syncPolicyToken(any(), any());
     }
 
     @Test
     void onVisitorCreatedThrowsExceptionWhenPolicyNotFound() {
-        // Setup: Policy doesn't exist
         when(policyRepository.findById(policyId)).thenReturn(Optional.empty());
 
-        // Act & Assert: Exception thrown
         VisitorCreatedEvent event = new VisitorCreatedEvent(visitorId, policyId);
         assertThatThrownBy(() -> listener.onVisitorCreated(event))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Policy not found");
-        verify(insurerRepository, never()).save(any(Insurer.class));
+        verify(insurerRepository, never()).consumeOnePolicyToken(any());
     }
 
     @Test
     void onVisitorCreatedThrowsExceptionWhenInsurerNotFound() {
-        // Setup: Policy exists but insurer doesn't
         Policy policy = new Policy();
         policy.setId(policyId);
         policy.setInsurerId(insurerId);
-
         when(policyRepository.findById(policyId)).thenReturn(Optional.of(policy));
         when(insurerRepository.findById(insurerId)).thenReturn(Optional.empty());
 
-        // Act & Assert: Exception thrown
         VisitorCreatedEvent event = new VisitorCreatedEvent(visitorId, policyId);
         assertThatThrownBy(() -> listener.onVisitorCreated(event))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Insurer not found");
+        verify(insurerRepository, never()).consumeOnePolicyToken(any());
     }
 
     @Test
-    void onVisitorCreatedDecrementsTokenFromHighValue() {
-        // Setup: High initial token value
-        Policy policy = new Policy();
-        policy.setId(policyId);
-        policy.setInsurerId(insurerId);
-
-        Insurer insurer = new Insurer();
-        insurer.setId(insurerId);
-        insurer.setName("Minet Insurance");
-        insurer.setPolicyToken(999999L);
-
-        when(policyRepository.findById(policyId)).thenReturn(Optional.of(policy));
-        when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer));
-        when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        // Act: Fire visitor created event
-        VisitorCreatedEvent event = new VisitorCreatedEvent(visitorId, policyId);
-        listener.onVisitorCreated(event);
-
-        // Assert: Token properly decremented
-        ArgumentCaptor<Insurer> insurerCaptor = ArgumentCaptor.forClass(Insurer.class);
-        verify(insurerRepository).save(insurerCaptor.capture());
-        assertThat(insurerCaptor.getValue().getPolicyToken()).isEqualTo(999998L);
-    }
-
-    @Test
-    void onVisitorCreatedSyncsDecrementedTokenToOrganization() {
+    void onVisitorCreatedSyncsTheTokenReadBackFromTheDatabaseToTheOrganization() {
         UUID organizationId = UUID.randomUUID();
-        Policy policy = new Policy();
-        policy.setId(policyId);
-        policy.setInsurerId(insurerId);
-
-        Insurer insurer = new Insurer();
-        insurer.setId(insurerId);
-        insurer.setName("Minet Insurance");
-        insurer.setPolicyToken(1000L);
-        insurer.setOrganizationId(organizationId);
-
-        when(policyRepository.findById(policyId)).thenReturn(Optional.of(policy));
-        when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer));
-        when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        // Stale entity value (1000) deliberately differs from the DB value after concurrent decrements.
+        givenPolicyAndInsurer(insurerWithToken(1000L, organizationId));
+        when(insurerRepository.consumeOnePolicyToken(insurerId)).thenReturn(1);
+        when(insurerRepository.findPolicyTokenById(insurerId)).thenReturn(Optional.of(997L));
 
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
 
-        verify(organizationService).syncPolicyToken(organizationId, 999L);
+        verify(organizationService).syncPolicyToken(organizationId, 997L);
     }
 
     @Test
     void onVisitorCreatedSkipsOrganizationSyncWhenInsurerHasNoOrganization() {
-        Policy policy = new Policy();
-        policy.setId(policyId);
-        policy.setInsurerId(insurerId);
-
-        Insurer insurer = new Insurer();
-        insurer.setId(insurerId);
-        insurer.setName("Minet Insurance");
-        insurer.setPolicyToken(10L);
-
-        when(policyRepository.findById(policyId)).thenReturn(Optional.of(policy));
-        when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer));
-        when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        givenPolicyAndInsurer(insurerWithToken(10L, null));
+        when(insurerRepository.consumeOnePolicyToken(insurerId)).thenReturn(1);
+        when(insurerRepository.findPolicyTokenById(insurerId)).thenReturn(Optional.of(9L));
 
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
 
