@@ -711,17 +711,19 @@ Policy
   `insurerId` skipped). Backed by `VisitorService.countByInsurer`
   (`VisitorRepository.countVisitorsGroupedByInsurer` + `InsurerRepository.findAll`).
   `GET /api/v1/visitors/distribution-by-age-group` (dashboard) returns
-  `[{ageGroup, totalVisitors}]` — all visitors regardless of status, always three
-  entries in order: `0-2` (age 0 to under 3), `3-17` (3 to under 18), `18+`. Age is
+  `[{ageGroup, totalVisitors}]` — all visitors regardless of status, always four
+  entries in order: `0-2` (age 0 to under 3), `3-17` (3 to under 18), `18+`, `Unknown`
+  (`age` not populated, e.g. rows awaiting `VisitorAgeBackfillRunner`). Age is
   the persisted `Visitor.age` column (age at travel, as at `dateIn`, kept in sync on
   every write), not age as of today. `VisitorServiceImpl.countByAgeGroup` runs a
   grouped count in SQL (`VisitorRepository.countVisitorsGroupedByAge`) and folds the
-  per-age counts into the three buckets; visitors with a null `age` are skipped.
+  per-age counts into the four buckets; null-`age` visitors land in `Unknown`, so the
+  buckets sum to the total visitor count.
   `GET /api/v1/visitors/distribution-by-insurer-and-age-group` (dashboard) returns
   `[{insurerId, insurerName, ageGroups:[{ageGroup, totalVisitors}], totalVisitors}]` —
   the two distributions above combined: one entry per insurer (zero-visitor insurers
-  included), each with the three age buckets `0-2`, `3-17`, `18+` in order, all statuses.
-  Visitors with a null `insurerId` or `age` are skipped. Backed by
+  included), each with the four age buckets `0-2`, `3-17`, `18+`, `Unknown` in order, all statuses.
+  Visitors with a null `insurerId` are skipped; null `age` goes to `Unknown`. Backed by
   `VisitorService.countByInsurerAndAgeGroup`
   (`VisitorRepository.countVisitorsGroupedByInsurerAndAge`), also from the `age`
   column.

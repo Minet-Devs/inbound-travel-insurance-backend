@@ -110,13 +110,10 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     @Transactional(readOnly = true)
     public List<AgeGroupVisitorCount> countByAgeGroup() {
-        long[] counts = new long[3];
+        long[] counts = new long[4];
         visitorRepository.countVisitorsGroupedByAge()
                 .forEach(row -> counts[ageBucket(row.getAge())] += row.getTotal());
-        return List.of(
-                new AgeGroupVisitorCount("0-2", counts[0]),
-                new AgeGroupVisitorCount("3-17", counts[1]),
-                new AgeGroupVisitorCount("18+", counts[2]));
+        return toAgeGroups(counts);
     }
 
     @Override
@@ -124,23 +121,30 @@ public class VisitorServiceImpl implements VisitorService {
     public List<InsurerAgeGroupVisitorCount> countByInsurerAndAgeGroup() {
         Map<UUID, long[]> buckets = new HashMap<>();
         visitorRepository.countVisitorsGroupedByInsurerAndAge()
-                .forEach(row -> buckets.computeIfAbsent(row.getInsurerId(), id -> new long[3])
+                .forEach(row -> buckets.computeIfAbsent(row.getInsurerId(), id -> new long[4])
                         [ageBucket(row.getAge())] += row.getTotal());
         return insurerRepository.findAll().stream()
                 .map(insurer -> {
-                    long[] counts = buckets.getOrDefault(insurer.getId(), new long[3]);
+                    long[] counts = buckets.getOrDefault(insurer.getId(), new long[4]);
                     return new InsurerAgeGroupVisitorCount(
                             insurer.getId(), insurer.getName(),
-                            List.of(new AgeGroupVisitorCount("0-2", counts[0]),
-                                    new AgeGroupVisitorCount("3-17", counts[1]),
-                                    new AgeGroupVisitorCount("18+", counts[2])),
-                            counts[0] + counts[1] + counts[2]);
+                            toAgeGroups(counts),
+                            counts[0] + counts[1] + counts[2] + counts[3]);
                 })
                 .toList();
     }
 
-    private static int ageBucket(int age) {
-        return age < 3 ? 0 : age < 18 ? 1 : 2;
+    /** Bucket index: 0 = "0-2", 1 = "3-17", 2 = "18+", 3 = "Unknown" (age not yet populated). */
+    private static int ageBucket(Integer age) {
+        return age == null ? 3 : age < 3 ? 0 : age < 18 ? 1 : 2;
+    }
+
+    private static List<AgeGroupVisitorCount> toAgeGroups(long[] counts) {
+        return List.of(
+                new AgeGroupVisitorCount("0-2", counts[0]),
+                new AgeGroupVisitorCount("3-17", counts[1]),
+                new AgeGroupVisitorCount("18+", counts[2]),
+                new AgeGroupVisitorCount("Unknown", counts[3]));
     }
 
     @Override
