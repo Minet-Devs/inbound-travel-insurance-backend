@@ -213,6 +213,17 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
+    void appendsKenyaOnlyToEmergencyMedicalTransportationEvacuation() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Emergency Medical Transportation/Evacuation", new BigDecimal("25000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("Emergency Medical Transportation/Evacuation within Kenya Only");
+    }
+
+    @Test
     void doesNotAddAsteriskToOtherBenefits() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of(
