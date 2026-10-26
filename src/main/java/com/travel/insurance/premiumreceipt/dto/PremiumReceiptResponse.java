@@ -8,7 +8,6 @@ public record PremiumReceiptResponse(
         UUID id,
         BigDecimal totalPremium,
         BigDecimal minorPremium,
-        BigDecimal infantPremium,
         BigDecimal pcfLevy,
         BigDecimal insurancePremiumLevy,
         BigDecimal stampDuty,
