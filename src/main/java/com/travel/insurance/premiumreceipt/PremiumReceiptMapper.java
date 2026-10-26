@@ -14,9 +14,6 @@ public class PremiumReceiptMapper {
         if (request.minorPremium() != null) {
             premiumReceipt.setMinorPremium(request.minorPremium());
         }
-        if (request.infantPremium() != null) {
-            premiumReceipt.setInfantPremium(request.infantPremium());
-        }
         if (request.pcfLevy() != null) {
             premiumReceipt.setPcfLevy(request.pcfLevy());
         }
@@ -36,7 +33,6 @@ public class PremiumReceiptMapper {
                 premiumReceipt.getId(),
                 premiumReceipt.getTotalPremium(),
                 premiumReceipt.getMinorPremium(),
-                premiumReceipt.getInfantPremium(),
                 premiumReceipt.getPcfLevy(),
                 premiumReceipt.getInsurancePremiumLevy(),
                 premiumReceipt.getStampDuty(),

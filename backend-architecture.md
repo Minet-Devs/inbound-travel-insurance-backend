@@ -428,7 +428,7 @@ com.travel.insurance/
 │   ├── PremiumReceiptService.java          # Interface
 │   ├── PremiumReceiptServiceImpl.java
 │   ├── PremiumReceiptRepository.java
-│   ├── PremiumReceipt.java                 # totalPremium/minorPremium/infantPremium (age-tiered),
+│   ├── PremiumReceipt.java                 # totalPremium/minorPremium (age-tiered),
 │   │                                        # pcfLevy, insurancePremiumLevy, stampDuty, trainingLevy
 │   │                                        # — one fixed row, no create/delete
 │   ├── PremiumReceiptMapper.java
@@ -1635,11 +1635,11 @@ and the email goes out without it.
   still shown, and unlike every other field on the receipt it's not a flat
   echo of visitor/insurer data — `VisitorActivatedNotificationListener` calls
   `PremiumReceiptService.calculateTotalPremium(visitor.getAgeAtTravel())`,
-  which resolves one of three age-tiered rates configured on the same
+  which resolves one of two age-tiered rates configured on the same
   singleton config exposed by `GET /api/v1/premium-receipts` (see
   [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)):
-  `infantPremium` for age 2 and below, `minorPremium` for ages 3–17, and
-  `totalPremium` (the pre-existing field) for age 18 and above.
+  `minorPremium` (USD 22) for ages 0–17 and `totalPremium` (USD 44) for age
+  18 and above.
   `Visitor.getAgeAtTravel()` is a `@Transient` helper computing
   `Period.between(dateOfBirth, dateIn).getYears()` — age as at the start of
   cover (`dateIn`), not the visitor's current age — so the resolved rate is
@@ -1844,7 +1844,7 @@ their `/documents` sub-resources) to the staff roles `ADMIN`, `INSURER_USER`,
 ## Premium Receipt (Singleton Levy Rates)
 
 The `premiumreceipt` package holds the levy rates applied when computing a
-policy's premium: `totalPremium`, `minorPremium`, `infantPremium` (age-tiered
+policy's premium: `totalPremium`, `minorPremium` (age-tiered
 base rates, `BigDecimal`, see below), `pcfLevy`, `insurancePremiumLevy`,
 `trainingLevy` (percentages expressed as `0`–`1`
 fractions), and `stampDuty` (a flat `BigDecimal` amount, not a percentage).
@@ -1868,19 +1868,19 @@ Design notes:
   instead of relying on `BaseEntity`'s `@UuidGenerator`. GET/PATCH always
   fetch by that fixed constant — no create-or-lookup branching needed.
 - Percentage fields are validated with `@DecimalMin("0")`/`@DecimalMax("1")`;
-  `totalPremium`/`minorPremium`/`infantPremium`/`stampDuty` with
+  `totalPremium`/`minorPremium`/`stampDuty` with
   `@DecimalMin("0")` only, since they're amounts, not fractions.
-- **Age-tiered premium.** `totalPremium` (18+), `minorPremium` (ages 3–17,
-  default 22) and `infantPremium` (age 2 and below, default 0) are three
-  independently admin-editable rates rather than one flat figure —
-  added by `V202609081352__premium_receipt_age_tiers.sql` (`alter table ...
-  add column ... default`, so the existing singleton row picked up the
-  defaults without a separate data migration). `PremiumReceiptService
+- **Age-tiered premium.** `totalPremium` (18+, USD 44) and `minorPremium`
+  (ages 0–17, USD 22) are two independently admin-editable rates rather than
+  one flat figure — tiers added by `V202609081352__premium_receipt_age_tiers.sql`
+  and collapsed to two by `V202610261654__premium_receipt_two_age_tiers.sql`,
+  which dropped the former `infant_premium` column (ages 0–2 now use
+  `minorPremium`) and set the singleton row to 22/44. `PremiumReceiptService
   .calculateTotalPremium(int ageInYears)` resolves the applicable rate; the
   only caller is `VisitorActivatedNotificationListener`, which passes
   `visitor.getAgeAtTravel()` (age as at `Visitor.dateIn`, not the visitor's
   current age) when building the activation email's premium receipt PDF.
-  The plain `GET`/`PATCH` endpoints above still return/accept all three rate
+  The plain `GET`/`PATCH` endpoints above still return/accept both rate
   fields unchanged — there is no per-visitor calculation endpoint.
 
 ## Claims Reports
