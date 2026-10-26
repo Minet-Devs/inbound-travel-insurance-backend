@@ -214,4 +214,32 @@ class InsurerServiceImplTest {
         assertThat(response.name()).isEqualTo("Acme Re");
         assertThat(response.contactEmail()).isEqualTo("hello@acme.example");
     }
+
+    @Test
+    void updateSyncsPolicyTokenToLinkedOrganization() {
+        UUID id = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
+        Insurer existing = insurerMapper.toEntity(request);
+        when(insurerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(organizationService.getEntityById(organizationId)).thenReturn(new Organization());
+
+        InsurerRequest update = new InsurerRequest("Acme Insurance", "contact@acme.example", null, null, null, 7L,
+                null, null, null, null, null, organizationId);
+        insurerService.update(id, update);
+
+        verify(organizationService).syncPolicyToken(organizationId, 7L);
+    }
+
+    @Test
+    void updateSkipsOrganizationSyncWhenNotLinked() {
+        UUID id = UUID.randomUUID();
+        Insurer existing = insurerMapper.toEntity(request);
+        when(insurerRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        insurerService.update(id, request);
+
+        verify(organizationService, never()).syncPolicyToken(any(), any());
+    }
 }
