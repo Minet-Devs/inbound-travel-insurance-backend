@@ -97,6 +97,13 @@ public class OrganizationServiceImpl implements OrganizationService {
     }
 
     @Override
+    public void syncPolicyToken(UUID organizationId, Long policyToken) {
+        Organization organization = getEntityById(organizationId);
+        organization.setPolicyToken(policyToken);
+        organizationRepository.save(organization);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Map<UUID, String> namesByIds(Collection<UUID> organizationIds) {
         if (organizationIds.isEmpty()) {

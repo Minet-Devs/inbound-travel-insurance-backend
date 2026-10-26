@@ -2,6 +2,7 @@ package com.travel.insurance.policy;
 
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
+import com.travel.insurance.organization.OrganizationService;
 import com.travel.insurance.visitor.VisitorCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class PolicyConsumptionListener {
 
     private final PolicyRepository policyRepository;
     private final InsurerRepository insurerRepository;
+    private final OrganizationService organizationService;
 
     /**
      * Listens for visitor creation events and decrements the policy token
@@ -49,10 +51,17 @@ public class PolicyConsumptionListener {
             long newToken = insurer.getPolicyToken() - 1;
             insurer.setPolicyToken(newToken);
             insurerRepository.save(insurer);
+            syncOrganization(insurer);
             log.info("Policy consumed for insurer: {}. Remaining tokens: {}",
                     insurer.getName(), newToken);
         } else {
             log.warn("Insurer {} has no available policies left", insurer.getName());
+        }
+    }
+
+    private void syncOrganization(Insurer insurer) {
+        if (insurer.getOrganizationId() != null) {
+            organizationService.syncPolicyToken(insurer.getOrganizationId(), insurer.getPolicyToken());
         }
     }
 }

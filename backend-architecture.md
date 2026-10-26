@@ -1251,7 +1251,12 @@ The system enforces **per-insurer policy quotas** to prevent insurers from overs
    - `PolicyRestorationListener` receives the event and restores (increments) `policyToken` for the backing insurer
    - Example: Minet Insurance 999 → 1000 when that visitor is deleted
 
-3. **Quota Exhaustion**
+3. **Organization Write-Back**
+   - `Organization.policyToken` mirrors the linked insurer's token (organization → insurer on PUT/PATCH via `OrganizationUpdatedListener`; insurer → organization in the other direction)
+   - After `PolicyConsumptionListener`/`PolicyRestorationListener` change the insurer's token, and after `InsurerService.update`, `OrganizationService.syncPolicyToken(organizationId, token)` copies the value onto the insurer's organization (no-op when the insurer has no `organizationId`). It publishes no event, so it cannot loop back into the insurer.
+   - Result: `GET /api/v1/organizations/{id}` reflects consumed/restored policies
+
+4. **Quota Exhaustion**
    - When `policyToken` reaches 0, any attempt to create a visitor using that insurer's policy fails with:
    - `IllegalStateException: "Insurer 'Minet Insurance' has no available policies left"`
    - HTTP 400 (Bad Request)

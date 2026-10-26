@@ -2,6 +2,7 @@ package com.travel.insurance.policy;
 
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
+import com.travel.insurance.organization.OrganizationService;
 import com.travel.insurance.visitor.VisitorDeletedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ public class PolicyRestorationListener {
 
     private final PolicyRepository policyRepository;
     private final InsurerRepository insurerRepository;
+    private final OrganizationService organizationService;
 
     /**
      * Listens for visitor deletion events and restores the policy token
@@ -51,14 +53,22 @@ public class PolicyRestorationListener {
             long newToken = insurer.getPolicyToken() + 1;
             insurer.setPolicyToken(newToken);
             insurerRepository.save(insurer);
+            syncOrganization(insurer);
             log.info("Policy restored for insurer: {}. Available tokens: {}",
                     insurer.getName(), newToken);
         } else {
             // Initialize token to 1 if it was null
             insurer.setPolicyToken(1L);
             insurerRepository.save(insurer);
+            syncOrganization(insurer);
             log.info("Policy token initialized for insurer: {}. Available tokens: 1",
                     insurer.getName());
+        }
+    }
+
+    private void syncOrganization(Insurer insurer) {
+        if (insurer.getOrganizationId() != null) {
+            organizationService.syncPolicyToken(insurer.getOrganizationId(), insurer.getPolicyToken());
         }
     }
 }

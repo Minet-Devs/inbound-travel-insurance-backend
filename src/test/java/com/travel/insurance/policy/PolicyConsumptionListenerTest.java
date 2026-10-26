@@ -2,6 +2,7 @@ package com.travel.insurance.policy;
 
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
+import com.travel.insurance.organization.OrganizationService;
 import com.travel.insurance.visitor.VisitorCreatedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,9 @@ class PolicyConsumptionListenerTest {
     @Mock
     private InsurerRepository insurerRepository;
 
+    @Mock
+    private OrganizationService organizationService;
+
     private PolicyConsumptionListener listener;
 
     private final UUID policyId = UUID.randomUUID();
@@ -37,7 +41,7 @@ class PolicyConsumptionListenerTest {
 
     @BeforeEach
     void setUp() {
-        listener = new PolicyConsumptionListener(policyRepository, insurerRepository);
+        listener = new PolicyConsumptionListener(policyRepository, insurerRepository, organizationService);
     }
 
     @Test
@@ -166,5 +170,47 @@ class PolicyConsumptionListenerTest {
         ArgumentCaptor<Insurer> insurerCaptor = ArgumentCaptor.forClass(Insurer.class);
         verify(insurerRepository).save(insurerCaptor.capture());
         assertThat(insurerCaptor.getValue().getPolicyToken()).isEqualTo(999998L);
+    }
+
+    @Test
+    void onVisitorCreatedSyncsDecrementedTokenToOrganization() {
+        UUID organizationId = UUID.randomUUID();
+        Policy policy = new Policy();
+        policy.setId(policyId);
+        policy.setInsurerId(insurerId);
+
+        Insurer insurer = new Insurer();
+        insurer.setId(insurerId);
+        insurer.setName("Minet Insurance");
+        insurer.setPolicyToken(1000L);
+        insurer.setOrganizationId(organizationId);
+
+        when(policyRepository.findById(policyId)).thenReturn(Optional.of(policy));
+        when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer));
+        when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
+
+        verify(organizationService).syncPolicyToken(organizationId, 999L);
+    }
+
+    @Test
+    void onVisitorCreatedSkipsOrganizationSyncWhenInsurerHasNoOrganization() {
+        Policy policy = new Policy();
+        policy.setId(policyId);
+        policy.setInsurerId(insurerId);
+
+        Insurer insurer = new Insurer();
+        insurer.setId(insurerId);
+        insurer.setName("Minet Insurance");
+        insurer.setPolicyToken(10L);
+
+        when(policyRepository.findById(policyId)).thenReturn(Optional.of(policy));
+        when(insurerRepository.findById(insurerId)).thenReturn(Optional.of(insurer));
+        when(insurerRepository.save(any(Insurer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
+
+        verify(organizationService, never()).syncPolicyToken(any(), any());
     }
 }
