@@ -36,7 +36,6 @@ class PremiumReceiptServiceImplTest {
         premiumReceiptService = new PremiumReceiptServiceImpl(premiumReceiptRepository, premiumReceiptMapper);
         existing = new PremiumReceipt();
         existing.setTotalPremium(new BigDecimal("44"));
-        existing.setMinorPremium(new BigDecimal("22"));
         existing.setPcfLevy(new BigDecimal("0.0001"));
         existing.setInsurancePremiumLevy(new BigDecimal("0.0005"));
         existing.setStampDuty(new BigDecimal("40"));
@@ -70,7 +69,7 @@ class PremiumReceiptServiceImplTest {
         when(premiumReceiptRepository.save(any(PremiumReceipt.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         PremiumReceiptPatchRequest patchRequest =
-                new PremiumReceiptPatchRequest(new BigDecimal("50"), null, null, null, null, null);
+                new PremiumReceiptPatchRequest(new BigDecimal("50"), null, null, null, null);
 
         PremiumReceiptResponse response = premiumReceiptService.patch(patchRequest);
 
@@ -86,7 +85,7 @@ class PremiumReceiptServiceImplTest {
         when(premiumReceiptRepository.findById(PremiumReceiptServiceImpl.SINGLETON_ID))
                 .thenReturn(Optional.empty());
         PremiumReceiptPatchRequest patchRequest =
-                new PremiumReceiptPatchRequest(new BigDecimal("50"), null, null, null, null, null);
+                new PremiumReceiptPatchRequest(new BigDecimal("50"), null, null, null, null);
 
         assertThatThrownBy(() -> premiumReceiptService.patch(patchRequest))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -94,22 +93,10 @@ class PremiumReceiptServiceImplTest {
     }
 
     @Test
-    void calculateTotalPremiumReturnsMinorRateForAgeZeroToSeventeen() {
+    void calculateTotalPremiumReturnsFlatRate() {
         when(premiumReceiptRepository.findById(PremiumReceiptServiceImpl.SINGLETON_ID))
                 .thenReturn(Optional.of(existing));
 
-        assertThat(premiumReceiptService.calculateTotalPremium(0)).isEqualByComparingTo("22");
-        assertThat(premiumReceiptService.calculateTotalPremium(2)).isEqualByComparingTo("22");
-        assertThat(premiumReceiptService.calculateTotalPremium(3)).isEqualByComparingTo("22");
-        assertThat(premiumReceiptService.calculateTotalPremium(17)).isEqualByComparingTo("22");
-    }
-
-    @Test
-    void calculateTotalPremiumReturnsAdultRateForAgeEighteenAndAbove() {
-        when(premiumReceiptRepository.findById(PremiumReceiptServiceImpl.SINGLETON_ID))
-                .thenReturn(Optional.of(existing));
-
-        assertThat(premiumReceiptService.calculateTotalPremium(18)).isEqualByComparingTo("44");
-        assertThat(premiumReceiptService.calculateTotalPremium(80)).isEqualByComparingTo("44");
+        assertThat(premiumReceiptService.calculateTotalPremium()).isEqualByComparingTo("44");
     }
 }

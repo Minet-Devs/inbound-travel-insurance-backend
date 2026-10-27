@@ -11,7 +11,6 @@ import java.math.BigDecimal;
  */
 public record PremiumReceiptPatchRequest(
         @DecimalMin("0") BigDecimal totalPremium,
-        @DecimalMin("0") BigDecimal minorPremium,
         @DecimalMin("0") @DecimalMax("1") BigDecimal pcfLevy,
         @DecimalMin("0") @DecimalMax("1") BigDecimal insurancePremiumLevy,
         @DecimalMin("0") BigDecimal stampDuty,
