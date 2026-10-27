@@ -6,6 +6,7 @@ import com.travel.insurance.common.email.InlineImage;
 import com.travel.insurance.common.email.SmtpCredentials;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.benefit.dto.BenefitResponse;
+import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.config.AsyncConfig;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.insurer.Insurer;
@@ -41,6 +42,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -48,6 +50,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -96,6 +99,7 @@ class VisitorActivatedNotificationListenerTest {
         listener = new VisitorActivatedNotificationListener(
                 visitorService, policyService, visitorBenefitService, benefitService, insurerService,
                 premiumReceiptService, renderer, emailService, mailProperties);
+        listener.visitorLookupBackoffMillis = 1;
         lenient().when(emailService.send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), anyList(), anyList()))
                 .thenReturn(true);
         lenient().when(benefitService.listAll()).thenReturn(List.of(
@@ -687,6 +691,35 @@ class VisitorActivatedNotificationListenerTest {
         verify(emailService).send(any(), anyString(), anyString(), ccCaptor.capture(), anyList(),
                 anyString(), anyString(), anyList(), anyList());
         assertThat(ccCaptor.getValue()).isEmpty();
+    }
+
+    @Test
+    void retriesVisitorLookupWhenStandbyHasNotReplayedTheInsertYet() {
+        when(visitorService.getEntityById(visitorId))
+                .thenThrow(new ResourceNotFoundException("Visitor", visitorId))
+                .thenThrow(new ResourceNotFoundException("Visitor", visitorId))
+                .thenReturn(sampleVisitor());
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
+        when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
+        when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
+        when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
+
+        listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
+
+        verify(emailService).send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), anyList(), anyList());
+    }
+
+    @Test
+    void givesUpAfterConfiguredLookupAttemptsWhenVisitorNeverAppears() {
+        when(visitorService.getEntityById(visitorId)).thenThrow(new ResourceNotFoundException("Visitor", visitorId));
+
+        assertThatThrownBy(() -> listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId)))
+                .isInstanceOf(ResourceNotFoundException.class);
+
+        verify(visitorService, times(listener.visitorLookupAttempts)).getEntityById(visitorId);
+        verifyNoInteractions(emailService);
     }
 
     @Test

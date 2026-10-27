@@ -8,6 +8,7 @@ import com.travel.insurance.common.util.LogoUrlNormalizer;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.benefit.dto.BenefitResponse;
 import com.travel.insurance.config.AsyncConfig;
+import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.config.MailProperties;
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerService;
@@ -94,6 +95,12 @@ public class VisitorActivatedNotificationListener {
     private byte[] signatureImageCache;
     private final Map<UUID, byte[]> brandedPolicyDocumentCache = new ConcurrentHashMap<>();
 
+    // Production reads go through pgpool, which load-balances SELECTs onto async standbys. An
+    // AFTER_COMMIT listener's first read can therefore reach a standby that has not yet replayed the
+    // visitor insert; the lookup is retried briefly (about 1s in total) before giving up.
+    int visitorLookupAttempts = 5;
+    long visitorLookupBackoffMillis = 100;
+
     private final VisitorService visitorService;
     private final PolicyService policyService;
     private final VisitorBenefitService visitorBenefitService;
@@ -116,7 +123,7 @@ public class VisitorActivatedNotificationListener {
     @Async(AsyncConfig.NOTIFICATION_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onVisitorCreated(VisitorCreatedEvent event) {
-        if (visitorService.getEntityById(event.visitorId()).getVisitorStatus() != VisitorStatus.ACTIVE) {
+        if (getVisitorAfterCommit(event.visitorId()).getVisitorStatus() != VisitorStatus.ACTIVE) {
             return;
         }
         sendActivationDocumentQuietly(event.visitorId());
@@ -131,7 +138,7 @@ public class VisitorActivatedNotificationListener {
     @Async(AsyncConfig.NOTIFICATION_EXECUTOR)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onVisitorBenefitAssigned(VisitorBenefitAssignedEvent event) {
-        Visitor visitor = visitorService.getEntityById(event.visitorId());
+        Visitor visitor = getVisitorAfterCommit(event.visitorId());
         if (visitor.getVisitorStatus() != VisitorStatus.ACTIVE || visitor.getActivationEmailSentAt() != null) {
             return;
         }
@@ -173,6 +180,30 @@ public class VisitorActivatedNotificationListener {
         return visitor.getId();
     }
 
+    /**
+     * Loads a visitor whose creating/updating transaction has just committed, retrying on
+     * {@link ResourceNotFoundException} to ride out standby replication lag behind pgpool.
+     */
+    private Visitor getVisitorAfterCommit(UUID visitorId) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return visitorService.getEntityById(visitorId);
+            } catch (ResourceNotFoundException ex) {
+                if (attempt >= visitorLookupAttempts) {
+                    throw ex;
+                }
+                log.debug("Visitor {} not visible yet (attempt {}/{}); retrying", visitorId, attempt,
+                        visitorLookupAttempts);
+                try {
+                    Thread.sleep(visitorLookupBackoffMillis * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw ex;
+                }
+            }
+        }
+    }
+
     private void sendActivationDocumentQuietly(UUID visitorId) {
         try {
             sendActivationDocument(visitorId);
@@ -184,7 +215,7 @@ public class VisitorActivatedNotificationListener {
 
     /** @return true if the email was delivered and stamped; false if held back or undelivered. */
     private boolean sendActivationDocument(UUID visitorId) {
-        Visitor visitor = visitorService.getEntityById(visitorId);
+        Visitor visitor = getVisitorAfterCommit(visitorId);
         Policy policy = policyService.getEntityById(visitor.getPolicyId());
         List<VisitorBenefitResponse> visitorBenefits = visitorBenefitService.listAllByVisitor(visitorId);
         if (!hasEntireCatalog(visitorBenefits)) {

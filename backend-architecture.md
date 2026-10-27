@@ -1433,6 +1433,12 @@ accepts and returns `documentIds`) and are deprecated in favour of this feature.
 > `DefaultSmtpSenderFactory`). `EmailService` still serializes the SMTP exchange (Office 365 432
 > concurrent-connection limit) but releases the lock while sleeping between retries.
 >
+> **AFTER_COMMIT reads tolerate standby lag.** pgpool load-balances SELECTs onto async streaming
+> standbys (~2ms replication delay), so the first read in an `@Async` AFTER_COMMIT listener can miss a
+> row that was just committed (`ResourceNotFoundException: Visitor not found`).
+> `VisitorActivatedNotificationListener` therefore loads the visitor through `getVisitorAfterCommit`,
+> which retries up to 5 times with a linear 100ms backoff (~1s total) before rethrowing.
+>
 > **Outbound HTTP never holds a DB connection.** All `RestClient`s (biometrics microservice,
 > exchange-rate API) get a 5s connect / 15s read timeout from `HttpClientConfig`
 > (`app.http-client.connect-timeout` / `read-timeout`). `BiometricVerificationServiceImpl.create`
