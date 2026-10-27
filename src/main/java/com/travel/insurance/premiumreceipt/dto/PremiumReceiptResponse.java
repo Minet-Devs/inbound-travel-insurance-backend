@@ -7,7 +7,6 @@ import java.util.UUID;
 public record PremiumReceiptResponse(
         UUID id,
         BigDecimal totalPremium,
-        BigDecimal minorPremium,
         BigDecimal pcfLevy,
         BigDecimal insurancePremiumLevy,
         BigDecimal stampDuty,

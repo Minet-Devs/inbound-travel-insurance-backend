@@ -35,12 +35,8 @@ public class PremiumReceiptServiceImpl implements PremiumReceiptService {
 
     @Override
     @Transactional(readOnly = true)
-    public BigDecimal calculateTotalPremium(int ageInYears) {
-        PremiumReceipt premiumReceipt = getEntity();
-        if (ageInYears <= 17) {
-            return premiumReceipt.getMinorPremium();
-        }
-        return premiumReceipt.getTotalPremium();
+    public BigDecimal calculateTotalPremium() {
+        return getEntity().getTotalPremium();
     }
 
     private PremiumReceipt getEntity() {

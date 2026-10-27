@@ -18,16 +18,10 @@ import java.math.BigDecimal;
 public class PremiumReceipt extends BaseEntity {
 
     /**
-     * Rate for visitors aged 18 and above.
+     * Flat premium applied to every visitor, regardless of age.
      */
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal totalPremium;
-
-    /**
-     * Rate for visitors aged 0 to 17.
-     */
-    @Column(nullable = false, precision = 15, scale = 2)
-    private BigDecimal minorPremium;
 
     @Column(nullable = false, precision = 10, scale = 6)
     private BigDecimal pcfLevy;

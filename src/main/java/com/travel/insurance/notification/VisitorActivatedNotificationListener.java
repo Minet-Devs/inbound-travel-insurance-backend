@@ -289,7 +289,7 @@ public class VisitorActivatedNotificationListener {
 
         byte[] pdf = renderer.renderPdf(data);
 
-        BigDecimal totalPremium = premiumReceiptService.calculateTotalPremium(visitor.getAgeAtTravel());
+        BigDecimal totalPremium = premiumReceiptService.calculateTotalPremium();
         PremiumReceiptData premiumReceiptData = new PremiumReceiptData(
                 visitor.getFullName(),
                 visitor.getPassportNumber(),

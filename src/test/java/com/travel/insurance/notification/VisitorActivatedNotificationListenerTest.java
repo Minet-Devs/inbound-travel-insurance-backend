@@ -42,7 +42,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -188,7 +187,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%R".getBytes());
         when(renderer.mergePdfs(any(), any())).thenReturn("%M".getBytes());
 
@@ -207,7 +206,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%R".getBytes());
         when(renderer.mergePdfs(any(), any())).thenReturn("%M".getBytes());
         when(emailService.send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(), anyList(), anyList()))
@@ -241,7 +240,7 @@ class VisitorActivatedNotificationListenerTest {
                         VisitorStatus.ACTIVE, Instant.now(), Instant.now())));
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
         when(renderer.mergePdfs("%PDF-1.4".getBytes(), "%PDF-RECEIPT".getBytes())).thenReturn("%PDF-MERGED".getBytes());
         when(renderer.brandPolicyWording(any(byte[].class), eq("https://cdn.example/acme.png"), isNull()))
@@ -276,7 +275,7 @@ class VisitorActivatedNotificationListenerTest {
         assertThat(receiptCaptor.getValue().insurerLogoUrl()).isEqualTo("https://cdn.example/acme.png");
         assertThat(receiptCaptor.getValue().insurerAddress()).isEqualTo("PO Box 500, Nairobi");
         assertThat(receiptCaptor.getValue().totalPremium()).isEqualTo(new BigDecimal("44"));
-        verify(premiumReceiptService).calculateTotalPremium(36);
+        verify(premiumReceiptService).calculateTotalPremium();
 
         ArgumentCaptor<List<String>> ccCaptor = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<List<String>> bccCaptor = ArgumentCaptor.forClass(List.class);
@@ -328,7 +327,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -474,7 +473,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
     }
 
@@ -485,7 +484,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
 
         listener.onVisitorCreated(new VisitorCreatedEvent(visitorId, policyId));
@@ -518,7 +517,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -546,7 +545,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -568,7 +567,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
         when(renderer.brandPolicyWording(any(byte[].class), anyString(), isNull()))
                 .thenThrow(new IllegalStateException("logo fetch failed"));
@@ -591,7 +590,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
         when(renderer.brandPolicyWording(any(byte[].class), eq("https://cdn.example/acme.png"), isNull()))
                 .thenReturn("%PDF-BRANDED".getBytes());
@@ -617,7 +616,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -636,7 +635,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(sampleInsurer());
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
@@ -661,7 +660,7 @@ class VisitorActivatedNotificationListenerTest {
         when(visitorBenefitService.listAllByVisitor(visitorId)).thenReturn(sampleBenefits());
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
         when(renderer.renderPdf(any(PolicyDocumentData.class))).thenReturn("%PDF-1.4".getBytes());
-        when(premiumReceiptService.calculateTotalPremium(anyInt())).thenReturn(new BigDecimal("44"));
+        when(premiumReceiptService.calculateTotalPremium()).thenReturn(new BigDecimal("44"));
         when(renderer.renderPremiumReceiptPdf(any(PremiumReceiptData.class))).thenReturn("%PDF-RECEIPT".getBytes());
 
         listener.onVisitorStatusChanged(new VisitorStatusChangedEvent(visitorId, VisitorStatus.ACTIVE));
