@@ -73,7 +73,7 @@ public class VisitorActivatedNotificationListener {
 
     private static final String POLICY_DOCUMENT_RESOURCE = "templates/Inbound-Travel-Health-Policy-Document.pdf";
     private static final String POLICY_DOCUMENT_ATTACHMENT_NAME = "Policy Document.pdf";
-    private static final String WELCOME_PACK_RESOURCE = "templates/Inbound-Travel-Health-Insurance-Welcome-Pack.pdf";
+    private static final String WELCOME_PACK_RESOURCE = "templates/Minet-Inbound-Travel-Health-Insurance-Welcome-Pack.pdf";
     private static final String WELCOME_PACK_ATTACHMENT_NAME = "Inbound-Travel-Health-Welcome-Pack.pdf";
 
     private static final String FAQS_RESOURCE = "templates/Inbound-Travel-Health-Insurance-FAQs.pdf";
