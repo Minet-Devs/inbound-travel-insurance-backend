@@ -61,4 +61,26 @@ class PolicyDocumentControllerTest {
         mockMvc.perform(get("/api/v1/visitors/{id}/policy-documents", visitorId))
                 .andExpect(status().isConflict());
     }
+
+    @Test
+    @WithMockUser
+    void returnsPolicyWordingPdf() throws Exception {
+        byte[] pdf = "%PDF-1.4".getBytes();
+        when(documentGenerator.generatePolicyWordingPdf(visitorId)).thenReturn(pdf);
+
+        mockMvc.perform(get("/api/v1/visitors/{id}/policy-document", visitorId))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/pdf"))
+                .andExpect(content().bytes(pdf));
+    }
+
+    @Test
+    @WithMockUser
+    void policyWordingReturns404WhenVisitorUnknown() throws Exception {
+        when(documentGenerator.generatePolicyWordingPdf(visitorId))
+                .thenThrow(new ResourceNotFoundException("Visitor", visitorId.toString()));
+
+        mockMvc.perform(get("/api/v1/visitors/{id}/policy-document", visitorId))
+                .andExpect(status().isNotFound());
+    }
 }

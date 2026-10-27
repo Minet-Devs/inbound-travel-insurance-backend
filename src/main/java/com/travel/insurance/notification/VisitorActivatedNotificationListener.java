@@ -288,6 +288,33 @@ public class VisitorActivatedNotificationListener {
         return renderCertificateAndReceipt(visitor, insurer, visitorBenefits);
     }
 
+    /**
+     * Renders the visitor's policy wording PDF — the "Policy Document.pdf" attached to the
+     * activation email: insurer-branded, with the policy agreement page filled in for this
+     * visitor. Available for any visitor status; {@code null} only if the bundled wording
+     * can't be read from the classpath.
+     */
+    public byte[] generatePolicyWordingPdf(UUID visitorId) {
+        Visitor visitor = visitorService.getEntityById(visitorId);
+        Policy policy = policyService.getEntityById(visitor.getPolicyId());
+        Insurer insurer = insurerService.getEntityById(policy.getInsurerId());
+        byte[] branded = loadBrandedPolicyDocument(
+                insurer.getId(), normalizeOrNull(insurer.getLogoUrl()), normalizeOrNull(insurer.getEsignature()));
+        if (branded == null) {
+            throw new IllegalStateException("Policy document is unavailable");
+        }
+        return fillPolicyAgreementDetails(branded, insurer, visitor);
+    }
+
+    /** The bundled Welcome Pack PDF; the same for every visitor. */
+    public byte[] getWelcomePackPdf() {
+        byte[] pdf = loadWelcomePackPdf();
+        if (pdf == null) {
+            throw new IllegalStateException("Welcome pack is unavailable");
+        }
+        return pdf;
+    }
+
     private byte[] renderCertificateAndReceipt(
             Visitor visitor, Insurer insurer, List<VisitorBenefitResponse> visitorBenefits) {
         List<String> insurerNames = List.of(insurer.getName());

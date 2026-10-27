@@ -1534,6 +1534,14 @@ and the email goes out without it.
   returns `application/pdf`: the policy certificate merged with the premium receipt — the same
   document attached to the activation email. Works for any visitor status; `404` unknown visitor;
   `409` if the benefit schedule is incomplete. Sends no email and changes no state.
+- **Policy wording download:** `GET /api/v1/visitors/{id}/policy-document`
+  (`PolicyDocumentController` → `generatePolicyWordingPdf`) returns `application/pdf`: the
+  `Inbound-Travel-Health-Policy-Document.pdf` wording, insurer-branded with the policy agreement
+  page filled in for the visitor — the "Policy Document.pdf" email attachment. Any visitor status;
+  `404` unknown visitor; `409` if the bundled wording can't be read. Never cached per visitor.
+- **Welcome Pack download:** `GET /api/v1/welcome-pack` (`WelcomePackController` →
+  `getWelcomePackPdf`) returns the bundled Minet Welcome Pack PDF, identical for every visitor.
+  `409` if the bundled file can't be read.
 - The listener composes data via `VisitorService`, `PolicyService`,
   `VisitorBenefitService`, and `InsurerService` (the same "fan-in at a
   boundary" shape already used for `VisitorDetailResponse`), builds a
