@@ -28,4 +28,17 @@ public class PolicyDocumentController {
                         ContentDisposition.inline().filename("Insurance Policy.pdf").build().toString())
                 .body(pdf);
     }
+
+    @GetMapping("/{id}/policy-document")
+    public ResponseEntity<byte[]> getPolicyWording(@PathVariable UUID id) {
+        return pdf(documentGenerator.generatePolicyWordingPdf(id), "Policy Document.pdf");
+    }
+
+    private static ResponseEntity<byte[]> pdf(byte[] body, String filename) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline().filename(filename).build().toString())
+                .body(body);
+    }
 }
