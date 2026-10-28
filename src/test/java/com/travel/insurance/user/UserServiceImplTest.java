@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
@@ -25,6 +26,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -107,12 +109,26 @@ class UserServiceImplTest {
     void listReturnsAllUsers() {
         Pageable pageable = PageRequest.of(0, 10);
         User existing = userMapper.toEntity(request);
-        when(userRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(existing)));
+        when(userRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(existing)));
 
-        Page<UserResponse> result = userService.list(pageable);
+        Page<UserResponse> result = userService.list(null, null, pageable);
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).role()).isEqualTo(Role.INSURER_USER);
+    }
+
+    @Test
+    void listWithEmailAndRoleFiltersAppliesSpecification() {
+        Pageable pageable = PageRequest.of(0, 10);
+        User existing = userMapper.toEntity(request);
+        when(userRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(existing)));
+
+        Page<UserResponse> result = userService.list("JANE", Role.INSURER_USER, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(userRepository).findAll(any(Specification.class), eq(pageable));
     }
 
     @Test

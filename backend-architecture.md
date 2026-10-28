@@ -1025,6 +1025,9 @@ entities:
   `GET /api/v1/users/{id}` call. These are set once at token issuance
   (login/refresh) and are not re-verified per request — clients needing
   guaranteed-fresh profile data should still call the users endpoint.
+- `GET /api/v1/users` is paged and accepts two optional filters: `email`
+  (case-insensitive partial match on the email, which is the username) and
+  `role` (exact `Role` match). Omitted filters are ignored; both combine with AND.
 - Every user, regardless of role, carries a plain `organizationId: UUID`
   pointing directly at an `organization.Organization` row (the directory
   entry described earlier) — the same id an `ADMIN` client would get back
