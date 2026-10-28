@@ -16,6 +16,7 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
@@ -36,7 +37,7 @@ public class Preauthorization extends BaseEntity {
     @Column(nullable = false)
     private UUID visitorId;
 
-    @Column(name = "icd11_code_id", nullable = false)
+    @Column(name = "icd11_code_id")
     private UUID icd11CodeId;
 
     @Column(nullable = false)
@@ -50,6 +51,10 @@ public class Preauthorization extends BaseEntity {
 
     @Column(precision = 15, scale = 2)
     private BigDecimal approvedAmount;
+
+    private LocalDate treatmentDate;
+
+    private LocalDate dischargeDate;
 
     @Convert(converter = EncryptedStringConverter.class)
     @Column(columnDefinition = "text")

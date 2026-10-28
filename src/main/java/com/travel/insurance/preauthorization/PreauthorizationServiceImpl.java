@@ -14,6 +14,7 @@ import com.travel.insurance.medicalservice.MedicalServiceService;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyStatus;
+import com.travel.insurance.preauthorization.dto.OfflineApproval;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationItemRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
@@ -46,6 +47,8 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
             PreauthorizationStatus.PARTIALLY_APPROVED,
             PreauthorizationStatus.REJECTED);
 
+    private static final String OFFLINE_APPROVAL_REASON = "Offline approval (bulk upload)";
+
     private final PreauthorizationRepository preauthorizationRepository;
     private final PreauthorizationEnhancementRepository preauthorizationEnhancementRepository;
     private final PreauthorizationItemRepository preauthorizationItemRepository;
@@ -76,6 +79,34 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
                 preauthorizationMapper.toEnhancement(saved.getId(), request));
         saveItems(enhancement.getId(), request.preauthorizationItems());
         return enrich(saved);
+    }
+
+    @Override
+    public UUID createOfflineApproval(OfflineApproval approval) {
+        Visitor visitor = visitorService.getEntityById(approval.visitorId());
+        Policy policy = validatePolicyActive(visitor.getPolicyId());
+        validateBenefitExists(approval.benefitId());
+        serviceProviderService.getById(approval.serviceProviderId());
+        if (preauthorizationRepository
+                .existsByVisitorIdAndServiceProviderIdAndBenefitIdAndTreatmentDateAndRequestedAmount(
+                        approval.visitorId(), approval.serviceProviderId(), approval.benefitId(),
+                        approval.treatmentDate(), approval.amount())) {
+            throw new IllegalStateException("A matching pre-authorization already exists");
+        }
+        Preauthorization preauthorization = new Preauthorization();
+        preauthorization.setPolicyId(policy.getId());
+        preauthorization.setInsurerId(policy.getInsurerId());
+        preauthorization.setVisitorId(approval.visitorId());
+        preauthorization.setBenefitId(approval.benefitId());
+        preauthorization.setServiceProviderId(approval.serviceProviderId());
+        preauthorization.setRequestedAmount(approval.amount());
+        preauthorization.setApprovedAmount(approval.amount());
+        preauthorization.setVisitType(approval.visitType());
+        preauthorization.setTreatmentDate(approval.treatmentDate());
+        preauthorization.setDischargeDate(approval.dischargeDate());
+        preauthorization.setStatus(PreauthorizationStatus.APPROVED);
+        preauthorization.setDecisionReason(OFFLINE_APPROVAL_REASON);
+        return preauthorizationRepository.save(preauthorization).getId();
     }
 
     @Override

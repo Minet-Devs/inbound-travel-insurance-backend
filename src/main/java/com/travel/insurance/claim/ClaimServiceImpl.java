@@ -154,7 +154,9 @@ public class ClaimServiceImpl implements ClaimService {
         claim.setClaimedAmount(preauth.approvedAmount() != null ? preauth.approvedAmount() : preauth.requestedAmount());
         claim.setDescription(preauth.serviceDescription());
         claim.setVisitType(preauth.visitType());
-        claim.getDiagnosisIds().add(preauth.icd11CodeId());
+        if (preauth.icd11CodeId() != null) {
+            claim.getDiagnosisIds().add(preauth.icd11CodeId());
+        }
         claim.setStatus(ClaimStatus.OPEN);
         applyBaseConversion(claim);
         claim = claimRepository.save(claim);

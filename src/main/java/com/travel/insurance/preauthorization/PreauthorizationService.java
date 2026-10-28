@@ -1,5 +1,6 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.preauthorization.dto.OfflineApproval;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
@@ -19,6 +20,13 @@ public interface PreauthorizationService {
     Page<PreauthorizationResponse> listByVisitor(UUID visitorId, Pageable pageable);
 
     PreauthorizationResponse decide(UUID id, PreauthorizationDecisionRequest request);
+
+    /**
+     * Creates an already-approved pre-authorization from an offline approval (approved amount equals the
+     * requested amount) in its own transaction. Rejects an inactive policy and a duplicate of an existing
+     * pre-authorization (same visitor, provider, benefit, treatment date and amount). Returns its id.
+     */
+    UUID createOfflineApproval(OfflineApproval approval);
 
     void delete(UUID id);
 

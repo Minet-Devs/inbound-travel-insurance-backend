@@ -1,5 +1,6 @@
 package com.travel.insurance.mobile;
 
+import com.travel.insurance.preauthorization.upload.PreauthorizationUploadService;
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.claim.ClaimController;
 import com.travel.insurance.claim.ClaimExcelWriter;
@@ -50,6 +51,9 @@ class VisitorSelfServiceControllerTest {
 
     @MockBean
     private ClaimExcelWriter claimExcelWriter;
+
+    @MockBean
+    private PreauthorizationUploadService preauthorizationUploadService;
 
     @MockBean
     private PreauthorizationService preauthorizationService;

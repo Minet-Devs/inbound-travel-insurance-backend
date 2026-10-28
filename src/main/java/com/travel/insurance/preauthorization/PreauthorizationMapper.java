@@ -81,7 +81,9 @@ public class PreauthorizationMapper {
                 decided ? preauthorization.getUpdatedDate() : null,
                 items.stream().map(this::toItemResponse).toList(),
                 preauthorization.getConvertedToClaim(),
-                preauthorization.getVisitType()
+                preauthorization.getVisitType(),
+                preauthorization.getTreatmentDate(),
+                preauthorization.getDischargeDate()
         );
     }
 

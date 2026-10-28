@@ -242,11 +242,19 @@ com.travel.insurance/
 │   ├── PreauthorizationStatus.java         # Enum: PENDING, APPROVED, PARTIALLY_APPROVED,
 │   │                                       #       REJECTED, EXPIRED
 │   ├── PreauthorizationMapper.java
+│   ├── 📁 upload/                          # Excel offline-approvals import
+│   │   ├── PreauthorizationExcelParser.java        # Apache POI; "preauth-upload" sheet by header
+│   │   ├── PreauthorizationUploadService.java
+│   │   └── PreauthorizationUploadServiceImpl.java  # not @Transactional: one tx per row
 │   └── 📁 dto/
 │       ├── PreauthorizationRequest.java    # embeds medicalServiceId + preauthorizationItems
 │       ├── PreauthorizationItemRequest.java
 │       ├── PreauthorizationItemResponse.java
 │       ├── PreauthorizationDecisionRequest.java   # Approve/reject with amount and reason
+│       ├── OfflineApproval.java            # One already-approved row from the Excel upload
+│       ├── PreauthorizationUploadResponse.java     # totals + per-row results
+│       ├── PreauthorizationUploadRowResult.java
+│       ├── PreauthorizationUploadRowStatus.java    # CREATED, FAILED
 │       └── PreauthorizationResponse.java
 │
 ├── 📁 claim/                               # Feature: Claims Processing
@@ -780,6 +788,25 @@ Policy
   only runs where `VisitorBenefit` rows are returned; the plain paginated
   `GET /api/v1/visitors` never embeds `visitorBenefits` at all (see above),
   so it is unaffected regardless of claim volume.
+- **Offline-approvals Excel upload**: `POST /api/v1/preauthorizations/upload` (`ADMIN`,
+  `CONTACT_CENTER`; multipart `file`, `.xlsx`) imports already-approved pre-authorizations.
+  `PreauthorizationExcelParser` reads the `preauth-upload` sheet (else the first sheet), matching
+  headers `PASSPORT NO.`, `NAME OF PROVIDER`, `BENEFIT`, `VISIT TYPE`, `DATE OF TREATMENT`,
+  `DATE OF DISCHARGE`, `AMOUNT` case-insensitively; rows with no passport/provider/benefit (totals)
+  are ignored. Per row, `PreauthorizationUploadServiceImpl` resolves the visitor by passport (its
+  policy gives `policyId`/`insurerId`), the provider and benefit by normalised name (exact, else a
+  single unambiguous containment match), the amount (must be positive), `visitType` (blank → null)
+  and the two dates (ISO, `d/M/yyyy`, then `M/d/yyyy`; blank/`TBA`/`TBD` → null), then calls
+  `PreauthorizationService.createOfflineApproval` in its own transaction. The result is an
+  `APPROVED` pre-authorization with `approvedAmount = requestedAmount`, `decisionReason`
+  "Offline approval (bulk upload)", no `icd11CodeId` (now nullable on the entity — the column
+  already was) and no enhancement/items; no `PREAUTHORIZATION_DECIDED` event is published. Failing
+  rows (unknown passport/provider/benefit, bad amount/date/visit type, inactive policy, or a duplicate
+  of an existing pre-auth with the same visitor + provider + benefit + `treatmentDate` + amount) are
+  skipped and reported in `PreauthorizationUploadResponse.rows` (`excelRowNumber`, `status`,
+  `preauthorizationId`, `errorMessage`); the valid rows are still created. `treatmentDate` /
+  `dischargeDate` are new nullable `Preauthorization` columns returned on `PreauthorizationResponse`
+  (not accepted on `PreauthorizationRequest`).
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
   service and is decided by an `INSURER_USER` (or a admin agent). A
   `CONTACT_CENTER` user may also both raise (`POST /api/v1/preauthorizations`)

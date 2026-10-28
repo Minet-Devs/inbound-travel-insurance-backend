@@ -1,5 +1,11 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadRowStatus;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadRowResult;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadResponse;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import org.springframework.mock.web.MockMultipartFile;
+import com.travel.insurance.preauthorization.upload.PreauthorizationUploadService;
 import com.travel.insurance.common.domain.VisitType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
@@ -43,6 +49,9 @@ class PreauthorizationControllerTest {
     private PreauthorizationService preauthorizationService;
 
     @MockBean
+    private PreauthorizationUploadService preauthorizationUploadService;
+
+    @MockBean
     private JwtTokenProvider jwtTokenProvider;
 
     private final UUID preauthorizationId = UUID.randomUUID();
@@ -58,7 +67,7 @@ class PreauthorizationControllerTest {
                 icd11CodeId, "1A00", "Cholera", benefitId, "Medical Expenses",
                 serviceProviderId, "Aga Khan Hospital", null, null,
                 new BigDecimal("500.00"), null, "X-ray", null, status,
-                Instant.now(), Instant.now(), null, null, List.of(), false, VisitType.OUTPATIENT);
+                Instant.now(), Instant.now(), null, null, List.of(), false, VisitType.OUTPATIENT, null, null);
     }
 
     @Test
@@ -79,6 +88,26 @@ class PreauthorizationControllerTest {
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.visitorId").value(visitorId.toString()))
                 .andExpect(jsonPath("$.icd11CodeId").value(icd11CodeId.toString()));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void uploadReturnsPerRowResults() throws Exception {
+        UUID createdId = UUID.randomUUID();
+        when(preauthorizationUploadService.upload(any())).thenReturn(new PreauthorizationUploadResponse(2, 1, 1, List.of(
+                new PreauthorizationUploadRowResult(2, "A1", PreauthorizationUploadRowStatus.CREATED, createdId, null),
+                new PreauthorizationUploadRowResult(3, "B2", PreauthorizationUploadRowStatus.FAILED, null,
+                        "No visitor found for passport B2"))));
+
+        mockMvc.perform(multipart("/api/v1/preauthorizations/upload")
+                        .file(new MockMultipartFile("file", "approvals.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{1}))
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdRows").value(1))
+                .andExpect(jsonPath("$.failedRows").value(1))
+                .andExpect(jsonPath("$.rows[0].preauthorizationId").value(createdId.toString()))
+                .andExpect(jsonPath("$.rows[1].status").value("FAILED"))
+                .andExpect(jsonPath("$.rows[1].errorMessage").value("No visitor found for passport B2"));
     }
 
     @Test
