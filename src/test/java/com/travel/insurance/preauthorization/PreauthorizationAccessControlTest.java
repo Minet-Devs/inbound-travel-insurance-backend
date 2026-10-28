@@ -1,5 +1,6 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.common.domain.VisitType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.config.SecurityConfig;
@@ -47,7 +48,7 @@ class PreauthorizationAccessControlTest {
     private String createBody() throws Exception {
         return objectMapper.writeValueAsString(new PreauthorizationRequest(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                null, new BigDecimal("500.00"), "X-ray", null));
+                null, new BigDecimal("500.00"), "X-ray", null, null));
     }
 
     private String decisionBody() throws Exception {

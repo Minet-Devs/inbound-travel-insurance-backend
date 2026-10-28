@@ -1,5 +1,6 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.common.domain.VisitType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
@@ -57,7 +58,7 @@ class PreauthorizationControllerTest {
                 icd11CodeId, "1A00", "Cholera", benefitId, "Medical Expenses",
                 serviceProviderId, "Aga Khan Hospital", null, null,
                 new BigDecimal("500.00"), null, "X-ray", null, status,
-                Instant.now(), Instant.now(), null, null, List.of(), false);
+                Instant.now(), Instant.now(), null, null, List.of(), false, VisitType.OUTPATIENT);
     }
 
     @Test
@@ -68,7 +69,7 @@ class PreauthorizationControllerTest {
 
         PreauthorizationRequest request = new PreauthorizationRequest(
                 policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, null,
-                new BigDecimal("500.00"), "X-ray", null);
+                new BigDecimal("500.00"), "X-ray", null, VisitType.OUTPATIENT);
 
         mockMvc.perform(post("/api/v1/preauthorizations")
                         .with(csrf())
@@ -85,7 +86,7 @@ class PreauthorizationControllerTest {
     void createRejectsMissingVisitorId() throws Exception {
         PreauthorizationRequest request = new PreauthorizationRequest(
                 policyId, null, icd11CodeId, benefitId, serviceProviderId, null,
-                new BigDecimal("500.00"), "X-ray", null);
+                new BigDecimal("500.00"), "X-ray", null, VisitType.OUTPATIENT);
 
         mockMvc.perform(post("/api/v1/preauthorizations")
                         .with(csrf())

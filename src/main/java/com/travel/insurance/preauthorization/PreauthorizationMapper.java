@@ -25,6 +25,7 @@ public class PreauthorizationMapper {
         preauthorization.setServiceProviderId(request.serviceProviderId());
         preauthorization.setRequestedAmount(request.requestedAmount());
         preauthorization.setServiceDescription(request.serviceDescription());
+        preauthorization.setVisitType(request.visitType());
         return preauthorization;
     }
 
@@ -79,7 +80,8 @@ public class PreauthorizationMapper {
                 decided ? preauthorization.getUpdatedBy() : null,
                 decided ? preauthorization.getUpdatedDate() : null,
                 items.stream().map(this::toItemResponse).toList(),
-                preauthorization.getConvertedToClaim()
+                preauthorization.getConvertedToClaim(),
+                preauthorization.getVisitType()
         );
     }
 

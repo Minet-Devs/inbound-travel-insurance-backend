@@ -1,5 +1,6 @@
 package com.travel.insurance.preauthorization.dto;
 
+import com.travel.insurance.common.domain.VisitType;
 import com.travel.insurance.preauthorization.PreauthorizationStatus;
 
 import java.math.BigDecimal;
@@ -33,7 +34,7 @@ public record PreauthorizationResponse(
         UUID decidedBy,
         Instant decidedAt,
         List<PreauthorizationItemResponse> preauthorizationItems,
-        Boolean convertedToClaim
-
+        Boolean convertedToClaim,
+        VisitType visitType
 ) {
 }

@@ -67,7 +67,8 @@ com.travel.insurance/
 │
 ├── 📁 common/                              # Shared, feature-agnostic code
 │   ├── 📁 domain/
-│   │   └── BaseEntity.java                 # @MappedSuperclass: ID, audit + soft-delete fields
+│   │   ├── BaseEntity.java                 # @MappedSuperclass: ID, audit + soft-delete fields
+│   │   └── VisitType.java                  # Enum OUTPATIENT/INPATIENT, shared by Claim & Preauthorization
 │   ├── 📁 exception/
 │   │   ├── GlobalExceptionHandler.java     # @RestControllerAdvice (ExchangeRateUnavailable → 503)
 │   │   ├── ResourceNotFoundException.java
@@ -226,7 +227,7 @@ com.travel.insurance/
 │   ├── Preauthorization.java               # policyId, insurerId (denormalized from Policy),
 │   │                                       # visitorId, icd11CodeId, benefitId,
 │   │                                       # serviceProviderId, requestedAmount,
-│   │                                       # approvedAmount — the raw ask, decided via
+│   │                                       # approvedAmount, visitType (optional) — the raw ask, decided via
 │   │                                       # PENDING/APPROVED/PARTIALLY_APPROVED/REJECTED
 │   ├── PreauthorizationEnhancement.java    # preauthorizationId (plain UUID column, no JPA
 │   │                                       # relation — same convention as VisitorBenefit),
@@ -261,6 +262,7 @@ com.travel.insurance/
 │   │                                       # currency/baseCurrency, claimedAmountBase
 │   │                                       # (USD), exchangeRate + fxRateDate (snapshot
 │   │                                       # at save), approvedAmount, prescription,
+│   │                                       # visitType (optional VisitType enum),
 │   │                                       # documentIds (UUID element collection); the
 │   │                                       # claim_diagnoses / claim_procedures /
 │   │                                       # claim_invoices tables persist IDs only
@@ -784,7 +786,8 @@ Policy
   and decide (`POST /api/v1/preauthorizations/{id}/decision`) on a caller's
   behalf; delete stays `ADMIN`-only. There is no check stopping the same
   contact-center user from deciding a pre-auth they raised. It also
-  carries a denormalized `insurerId` (non-nullable `UUID`, same rationale and
+  carries an optional `visitType` (`OUTPATIENT` / `INPATIENT`, nullable; on
+  `PreauthorizationRequest`/`Response`, copied to the claim on conversion) and a denormalized `insurerId` (non-nullable `UUID`, same rationale and
   pattern as `Visitor.insurerId`/`Claim.insurerId`), resolved from
   `policy.getInsurerId()` on the `Policy` already fetched by
   `validatePolicyActive` in `PreauthorizationServiceImpl.create` — not
@@ -851,6 +854,8 @@ Policy
   reimbursement (no pre-authorization). Decisions are made by the insurer;
   `PAID` is the terminal status. Since the augmentation, a claim may also
   carry a `visitorId` (must belong to the claim's policy), a `prescription`,
+  an optional `visitType` (`OUTPATIENT` / `INPATIENT`, nullable, accepted on
+  `ClaimRequest` and returned on `ClaimResponse`; copied from the pre-auth on conversion),
   and four UUID sets — `diagnosisIds` (ICD-11 codes, required unless
   auto-populated from a preauthorization), `procedureIds` (procedure catalog,
   always required), `invoiceIds` (validated through `InvoiceService`), and
@@ -874,7 +879,7 @@ Policy
   `invoiceNumber` required, `issueDate` optional). `ClaimServiceImpl.createFromPreauthorization`
   reads the pre-auth via `PreauthorizationService.getById` and, in one transaction:
   creates an `OPEN` claim copying `policyId`, `insurerId`, `visitorId`, `benefitId`,
-  `serviceProviderId`, `serviceDescription` → `description`, `icd11CodeId` → `diagnosisIds`,
+  `serviceProviderId`, `serviceDescription` → `description`, `visitType`, `icd11CodeId` → `diagnosisIds`,
   and `approvedAmount` (fallback `requestedAmount`) → `claimedAmount`, **without**
   requiring `procedureIds`; raises an `Invoice` (claim currency) whose items are the
   pre-auth's items 1:1 tagged with its `medicalServiceId` (total = sum of items, or the

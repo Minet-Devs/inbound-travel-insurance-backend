@@ -1,5 +1,6 @@
 package com.travel.insurance.claim;
 
+import com.travel.insurance.common.domain.VisitType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.claim.dto.ClaimDashboardSummary;
@@ -69,13 +70,13 @@ class ClaimControllerTest {
                 new BigDecimal("0.0077"), "USD", LocalDateTime.now(), null, "Hospital stay",
                 "Paracetamol 500mg twice daily",
                 List.of(), List.of(), List.of(),
-                Set.of(documentId), null, ClaimStatus.SUBMITTED, Instant.now(), Instant.now());
+                Set.of(documentId), null, ClaimStatus.SUBMITTED, Instant.now(), Instant.now(), VisitType.OUTPATIENT);
     }
 
     private ClaimRequest sampleRequest() {
         return new ClaimRequest(policyId, benefitId, null, null, visitorId,
                 new BigDecimal("50000.00"), "Hospital stay", "Paracetamol 500mg twice daily",
-                Set.of(UUID.randomUUID()), Set.of(UUID.randomUUID()), Set.of(invoiceId), Set.of(documentId));
+                Set.of(UUID.randomUUID()), Set.of(UUID.randomUUID()), Set.of(invoiceId), Set.of(documentId), VisitType.OUTPATIENT);
     }
 
     @Test
@@ -84,7 +85,7 @@ class ClaimControllerTest {
         when(claimService.create(any(ClaimRequest.class))).thenReturn(sampleClaim());
         ClaimRequest withoutPrescription = new ClaimRequest(policyId, benefitId, null, null, visitorId,
                 new BigDecimal("50000.00"), "Hospital stay", null,
-                null, null, null, null);
+                null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/claims")
                         .with(csrf())

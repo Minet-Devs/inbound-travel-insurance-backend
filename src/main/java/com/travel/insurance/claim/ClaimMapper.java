@@ -24,6 +24,7 @@ public class ClaimMapper {
         claim.setClaimedAmount(request.claimedAmount());
         claim.setDescription(request.description());
         claim.setPrescription(request.prescription());
+        claim.setVisitType(request.visitType());
         claim.setDiagnosisIds(orEmpty(request.diagnosisIds()));
         claim.setProcedureIds(orEmpty(request.procedureIds()));
         claim.setInvoiceIds(orEmpty(request.invoiceIds()));
