@@ -2,6 +2,7 @@ package com.travel.insurance.preauthorization;
 
 import com.travel.insurance.common.crypto.EncryptedStringConverter;
 import com.travel.insurance.common.domain.BaseEntity;
+import com.travel.insurance.common.domain.VisitType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -57,6 +58,10 @@ public class Preauthorization extends BaseEntity {
     @Convert(converter = EncryptedStringConverter.class)
     @Column(columnDefinition = "text")
     private String decisionReason;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private VisitType visitType;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

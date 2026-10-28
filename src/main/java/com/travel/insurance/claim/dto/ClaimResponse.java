@@ -1,6 +1,7 @@
 package com.travel.insurance.claim.dto;
 
 import com.travel.insurance.claim.ClaimStatus;
+import com.travel.insurance.common.domain.VisitType;
 import com.travel.insurance.icd11.dto.Icd11CodeResponse;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
@@ -40,6 +41,7 @@ public record ClaimResponse(
         String decisionReason,
         ClaimStatus status,
         Instant createdDate,
-        Instant updatedDate
+        Instant updatedDate,
+        VisitType visitType
 ) {
 }

@@ -153,6 +153,7 @@ public class ClaimServiceImpl implements ClaimService {
         claim.setPreauthorizationId(preauth.id());
         claim.setClaimedAmount(preauth.approvedAmount() != null ? preauth.approvedAmount() : preauth.requestedAmount());
         claim.setDescription(preauth.serviceDescription());
+        claim.setVisitType(preauth.visitType());
         claim.getDiagnosisIds().add(preauth.icd11CodeId());
         claim.setStatus(ClaimStatus.OPEN);
         applyBaseConversion(claim);
@@ -658,7 +659,8 @@ public class ClaimServiceImpl implements ClaimService {
                 claim.getDecisionReason(),
                 claim.getStatus(),
                 claim.getCreatedDate(),
-                claim.getUpdatedDate()
+                claim.getUpdatedDate(),
+                claim.getVisitType()
         );
     }
 

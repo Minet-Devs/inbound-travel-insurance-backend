@@ -1,5 +1,6 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.common.domain.VisitType;
 import com.travel.insurance.benefit.Benefit;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
@@ -175,7 +176,7 @@ class PreauthorizationServiceImplTest {
     private PreauthorizationRequest validRequest() {
         return new PreauthorizationRequest(
                 policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, null,
-                new BigDecimal("500.00"), "X-ray", null);
+                new BigDecimal("500.00"), "X-ray", null, VisitType.INPATIENT);
     }
 
     private Preauthorization pendingPreauthorization() {
@@ -245,7 +246,7 @@ class PreauthorizationServiceImplTest {
 
         PreauthorizationRequest request = new PreauthorizationRequest(
                 policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, medicalServiceId,
-                new BigDecimal("500.00"), "X-ray", null);
+                new BigDecimal("500.00"), "X-ray", null, null);
 
         assertThatThrownBy(() -> preauthorizationService.create(request))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -269,6 +270,7 @@ class PreauthorizationServiceImplTest {
         assertThat(response.benefitName()).isEqualTo("Medical Expenses");
         assertThat(response.serviceProviderName()).isEqualTo("Aga Khan Hospital");
         assertThat(response.requestedAmount()).isEqualByComparingTo("500.00");
+        assertThat(response.visitType()).isEqualTo(VisitType.INPATIENT);
         assertThat(response.decidedBy()).isNull();
         assertThat(response.decidedAt()).isNull();
         verify(preauthorizationRepository).save(any(Preauthorization.class));
@@ -286,7 +288,7 @@ class PreauthorizationServiceImplTest {
                 new BigDecimal("500.00"), LocalDate.of(2026, 8, 10));
         PreauthorizationRequest request = new PreauthorizationRequest(
                 policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, medicalServiceId,
-                new BigDecimal("500.00"), "X-ray", List.of(itemRequest));
+                new BigDecimal("500.00"), "X-ray", List.of(itemRequest), null);
 
         UUID savedEnhancementId = UUID.randomUUID();
         PreauthorizationEnhancement savedEnhancement = preauthorizationMapper.toEnhancement(UUID.randomUUID(), request);
