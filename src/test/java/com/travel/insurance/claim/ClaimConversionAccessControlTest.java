@@ -25,7 +25,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(SecurityConfig.class)
 class ClaimConversionAccessControlTest {
 
-    private static final String BODY = "{\"invoiceNumber\":\"INV-001\",\"issueDate\":\"2026-10-02\"}";
+    private static final String BODY = "{\"invoiceNumber\":\"INV-001\",\"issueDate\":\"2026-10-02\","
+            + "\"invoiceItems\":[{\"description\":\"Consultation\",\"quantity\":1,\"unitPrice\":500,\"amount\":500}]}";
 
     @Autowired
     private MockMvc mockMvc;
@@ -60,12 +61,32 @@ class ClaimConversionAccessControlTest {
 
     @Test
     @WithMockUser(roles = "PROVIDER_USER")
-    void providerUserCannotConvertPreauthorization() throws Exception {
+    void providerUserCanConvertPreauthorization() throws Exception {
+        mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @WithMockUser(roles = "INSURER_USER")
+    void insurerUserCannotConvertPreauthorization() throws Exception {
         mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(BODY))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void conversionRequiresInvoiceItems() throws Exception {
+        mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invoiceNumber\":\"INV-002\",\"invoiceItems\":[]}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

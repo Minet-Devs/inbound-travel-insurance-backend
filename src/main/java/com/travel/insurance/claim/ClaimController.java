@@ -35,9 +35,9 @@ public class ClaimController {
         return ResponseEntity.status(HttpStatus.CREATED).body(claimService.create(request));
     }
 
-    /** Claim + invoice built from an approved pre-authorization; the caller only supplies the invoice number. */
+    /** Claim + invoice built from an approved pre-authorization; the caller supplies the invoice number and lines. */
     @PostMapping("/from-preauthorization/{preauthorizationId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'CONTACT_CENTER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CONTACT_CENTER', 'PROVIDER_USER')")
     public ResponseEntity<ClaimResponse> createFromPreauthorization(
             @PathVariable UUID preauthorizationId, @Valid @RequestBody ConvertPreauthorizationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
