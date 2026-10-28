@@ -1,5 +1,7 @@
 package com.travel.insurance.preauthorization;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import java.util.List;
@@ -86,6 +88,27 @@ class PreauthorizationAccessControlTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(decisionBody()))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "KENYA_RE")
+    void kenyaReCanReadPreauthorizationDashboardOnly() throws Exception {
+        when(preauthorizationService.dashboardSummary(any(), any()))
+                .thenReturn(new PreauthorizationDashboardSummary(0, 0, 0, 0));
+        when(preauthorizationService.distributionByInsurer(any(), any())).thenReturn(List.of());
+        when(preauthorizationService.topServiceProviders(any(), any(), any())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/summary")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/by-insurer")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/top-service-providers"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/preauthorizations")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "VISITOR")
+    void visitorCannotReadPreauthorizationDashboard() throws Exception {
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/summary")).andExpect(status().isForbidden());
     }
 
     @Test

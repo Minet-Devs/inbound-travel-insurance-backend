@@ -1,5 +1,8 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.preauthorization.dto.ServiceProviderPreauthorizationDistribution;
+import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
+import com.travel.insurance.preauthorization.dto.InsurerPreauthorizationDistribution;
 import com.travel.insurance.preauthorization.dto.PreauthorizationUploadRowStatus;
 import com.travel.insurance.preauthorization.dto.PreauthorizationUploadRowResult;
 import com.travel.insurance.preauthorization.dto.PreauthorizationUploadResponse;
@@ -88,6 +91,35 @@ class PreauthorizationControllerTest {
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.visitorId").value(visitorId.toString()))
                 .andExpect(jsonPath("$.icd11CodeId").value(icd11CodeId.toString()));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void dashboardEndpointsReturnSummaryAndDistributions() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(preauthorizationService.dashboardSummary(any(), any()))
+                .thenReturn(new PreauthorizationDashboardSummary(10, 5, 2, 1));
+        when(preauthorizationService.distributionByInsurer(any(), any())).thenReturn(List.of(
+                new InsurerPreauthorizationDistribution(insurerId, "Jubilee", 4, new BigDecimal("2500.00"))));
+        when(preauthorizationService.topServiceProviders(any(), any(), any())).thenReturn(List.of(
+                new ServiceProviderPreauthorizationDistribution(serviceProviderId, "Aga Khan", 3,
+                        new BigDecimal("900.00"))));
+
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/summary").param("dateFrom", "2026-10-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPreauthorizations").value(10))
+                .andExpect(jsonPath("$.approved").value(5))
+                .andExpect(jsonPath("$.rejected").value(2))
+                .andExpect(jsonPath("$.partiallyApproved").value(1));
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/by-insurer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].insurerName").value("Jubilee"))
+                .andExpect(jsonPath("$[0].preauthorizationCount").value(4))
+                .andExpect(jsonPath("$[0].approvedAmount").value(2500.00));
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/top-service-providers").param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].serviceProviderName").value("Aga Khan"))
+                .andExpect(jsonPath("$[0].preauthorizationCount").value(3));
     }
 
     @Test

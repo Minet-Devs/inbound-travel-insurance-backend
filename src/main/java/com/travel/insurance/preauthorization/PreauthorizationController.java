@@ -1,5 +1,8 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.preauthorization.dto.InsurerPreauthorizationDistribution;
+import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
+import com.travel.insurance.preauthorization.dto.ServiceProviderPreauthorizationDistribution;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
@@ -9,6 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +28,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -45,6 +51,28 @@ public class PreauthorizationController {
     @PreAuthorize("hasAnyRole('ADMIN', 'CONTACT_CENTER')")
     public ResponseEntity<PreauthorizationUploadResponse> upload(@RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(preauthorizationUploadService.upload(file));
+    }
+
+    @GetMapping("/dashboard/summary")
+    public ResponseEntity<PreauthorizationDashboardSummary> dashboardSummary(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ResponseEntity.ok(preauthorizationService.dashboardSummary(dateFrom, dateTo));
+    }
+
+    @GetMapping("/dashboard/by-insurer")
+    public ResponseEntity<List<InsurerPreauthorizationDistribution>> distributionByInsurer(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ResponseEntity.ok(preauthorizationService.distributionByInsurer(dateFrom, dateTo));
+    }
+
+    @GetMapping("/dashboard/top-service-providers")
+    public ResponseEntity<List<ServiceProviderPreauthorizationDistribution>> topServiceProviders(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
+            @RequestParam(required = false) Integer limit) {
+        return ResponseEntity.ok(preauthorizationService.topServiceProviders(dateFrom, dateTo, limit));
     }
 
     @GetMapping("/{id}")
