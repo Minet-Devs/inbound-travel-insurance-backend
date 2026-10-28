@@ -22,6 +22,8 @@ public interface ServiceProviderService {
 
     Page<ServiceProviderResponse> list(Pageable pageable);
 
+    List<ServiceProviderResponse> listAll();
+
     ServiceProviderResponse update(UUID id, ServiceProviderRequest request);
 
     void delete(UUID id);

@@ -2,10 +2,13 @@ package com.travel.insurance.claim;
 
 import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
+import com.travel.insurance.claim.dto.ClaimDashboardSummary;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
 import com.travel.insurance.claim.dto.ClaimExportRow;
+import com.travel.insurance.claim.dto.InsurerClaimDistribution;
+import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -73,6 +76,30 @@ public class ClaimController {
                 .header(HttpHeaders.CONTENT_TYPE, XLSX_CONTENT_TYPE)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"claims.xlsx\"")
                 .body(claimExcelWriter.write(rows));
+    }
+
+    @GetMapping("/dashboard/summary")
+    public ResponseEntity<ClaimDashboardSummary> dashboardSummary(
+            @RequestParam(required = false) ClaimStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ResponseEntity.ok(claimService.dashboardSummary(status, dateFrom, dateTo));
+    }
+
+    @GetMapping("/dashboard/by-insurer")
+    public ResponseEntity<List<InsurerClaimDistribution>> distributionByInsurer(
+            @RequestParam(required = false) ClaimStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ResponseEntity.ok(claimService.distributionByInsurer(status, dateFrom, dateTo));
+    }
+
+    @GetMapping("/dashboard/by-service-provider")
+    public ResponseEntity<List<ServiceProviderClaimDistribution>> distributionByServiceProvider(
+            @RequestParam(required = false) ClaimStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ResponseEntity.ok(claimService.distributionByServiceProvider(status, dateFrom, dateTo));
     }
 
     @GetMapping("/{id}")

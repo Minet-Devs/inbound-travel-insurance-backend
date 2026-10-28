@@ -2,11 +2,14 @@ package com.travel.insurance.claim;
 
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.claim.dto.AttachInvoiceRequest;
+import com.travel.insurance.claim.dto.ClaimDashboardSummary;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimExportRow;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
+import com.travel.insurance.claim.dto.InsurerClaimDistribution;
+import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
 import com.travel.insurance.common.service.CurrencyConversionService;
@@ -31,6 +34,7 @@ import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
+import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -48,6 +52,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -78,6 +83,8 @@ public class ClaimServiceImpl implements ClaimService {
             ClaimStatus.OPEN,
             ClaimStatus.SUBMITTED,
             ClaimStatus.UNDER_REVIEW);
+
+    private static final String UNKNOWN_LABEL = "Unknown";
 
     private final ClaimRepository claimRepository;
     private final ClaimMapper claimMapper;
@@ -305,11 +312,99 @@ public class ClaimServiceImpl implements ClaimService {
         return claimRepository.sumClaimedAmountsByVisitorAndBenefit(visitorIds, benefitIds);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ClaimDashboardSummary dashboardSummary(ClaimStatus status, LocalDate dateFrom, LocalDate dateTo) {
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return new ClaimDashboardSummary(0, BigDecimal.ZERO);
+        }
+        ClaimDashboardTotal total = claimRepository.summarize(status, scope.insurerId(), scope.serviceProviderId(),
+                startOf(dateFrom), endOf(dateTo));
+        return new ClaimDashboardSummary(total.getClaimCount(), total.getApprovedAmountUsd());
+    }
+
+    /**
+     * Every insurer is listed, including those with no claims, plus an "Unknown" row for claims with no
+     * insurer so the rows add up to the summary. An insurer user only ever sees their own row.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<InsurerClaimDistribution> distributionByInsurer(
+            ClaimStatus status, LocalDate dateFrom, LocalDate dateTo) {
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return List.of();
+        }
+        Map<UUID, ClaimDashboardTotal> totals = new HashMap<>();
+        ClaimDashboardTotal unknown = null;
+        for (ClaimDashboardTotal row : claimRepository.summarizeByInsurer(status, scope.insurerId(),
+                scope.serviceProviderId(), startOf(dateFrom), endOf(dateTo))) {
+            if (row.getGroupId() == null) {
+                unknown = row;
+            } else {
+                totals.put(row.getGroupId(), row);
+            }
+        }
+        List<InsurerClaimDistribution> result = new ArrayList<>();
+        for (InsurerResponse insurer : insurerService.listAll()) {
+            if (scope.insurerId() != null && !scope.insurerId().equals(insurer.id())) {
+                continue;
+            }
+            ClaimDashboardTotal total = totals.get(insurer.id());
+            result.add(new InsurerClaimDistribution(insurer.id(), insurer.name(),
+                    total != null ? total.getClaimCount() : 0,
+                    total != null ? total.getApprovedAmountUsd() : BigDecimal.ZERO));
+        }
+        if (unknown != null) {
+            result.add(new InsurerClaimDistribution(null, UNKNOWN_LABEL, unknown.getClaimCount(),
+                    unknown.getApprovedAmountUsd()));
+        }
+        return result;
+    }
+
+    /** Same shape as {@link #distributionByInsurer}, grouped by service provider. */
+    @Override
+    @Transactional(readOnly = true)
+    public List<ServiceProviderClaimDistribution> distributionByServiceProvider(
+            ClaimStatus status, LocalDate dateFrom, LocalDate dateTo) {
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return List.of();
+        }
+        Map<UUID, ClaimDashboardTotal> totals = new HashMap<>();
+        ClaimDashboardTotal unknown = null;
+        for (ClaimDashboardTotal row : claimRepository.summarizeByServiceProvider(status, scope.insurerId(),
+                scope.serviceProviderId(), startOf(dateFrom), endOf(dateTo))) {
+            if (row.getGroupId() == null) {
+                unknown = row;
+            } else {
+                totals.put(row.getGroupId(), row);
+            }
+        }
+        List<ServiceProviderClaimDistribution> result = new ArrayList<>();
+        for (ServiceProviderResponse provider : serviceProviderService.listAll()) {
+            if (scope.serviceProviderId() != null && !scope.serviceProviderId().equals(provider.id())) {
+                continue;
+            }
+            ClaimDashboardTotal total = totals.get(provider.id());
+            result.add(new ServiceProviderClaimDistribution(provider.id(), provider.name(),
+                    total != null ? total.getClaimCount() : 0,
+                    total != null ? total.getApprovedAmountUsd() : BigDecimal.ZERO));
+        }
+        if (unknown != null) {
+            result.add(new ServiceProviderClaimDistribution(null, UNKNOWN_LABEL, unknown.getClaimCount(),
+                    unknown.getApprovedAmountUsd()));
+        }
+        return result;
+    }
+
     private void applyDecision(Claim claim, ClaimDecisionRequest request) {
         claim.setStatus(request.status());
         claim.setDecisionReason(request.reason());
         if (request.status() == ClaimStatus.REJECTED) {
             claim.setApprovedAmount(BigDecimal.ZERO);
+            claim.setApprovedAmountBase(toApprovedBase(claim));
             return;
         }
         if (request.status() == ClaimStatus.UNDER_REVIEW) {
@@ -322,6 +417,21 @@ public class ClaimServiceImpl implements ClaimService {
             throw new IllegalArgumentException("Approved amount cannot exceed claimed amount");
         }
         claim.setApprovedAmount(approved);
+        claim.setApprovedAmountBase(toApprovedBase(claim));
+    }
+
+    /**
+     * The approved amount scaled by the claim's base/claimed ratio, not by {@code exchangeRate}: with invoices
+     * attached the claimed base is the sum of the invoices' base totals, which can differ from the claim's rate.
+     */
+    private static BigDecimal toApprovedBase(Claim claim) {
+        BigDecimal approved = claim.getApprovedAmount();
+        BigDecimal claimed = claim.getClaimedAmount();
+        BigDecimal claimedBase = claim.getClaimedAmountBase();
+        if (approved == null || claimedBase == null || claimed == null || claimed.signum() == 0) {
+            return null;
+        }
+        return approved.multiply(claimedBase).divide(claimed, 2, RoundingMode.HALF_UP);
     }
 
     private UUID validateReferences(ClaimRequest request) {
@@ -373,6 +483,7 @@ public class ClaimServiceImpl implements ClaimService {
         } else {
             claim.setClaimedAmountBase(aggregateInvoiceBaseAmounts(claim));
         }
+        claim.setApprovedAmountBase(toApprovedBase(claim));
     }
 
     private BigDecimal aggregateInvoiceBaseAmounts(Claim claim) {
@@ -391,6 +502,35 @@ public class ClaimServiceImpl implements ClaimService {
             return null;
         }
         return amount.multiply(rate).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** Insurer and provider users are pinned to their own entity; an unresolvable entity means no data. */
+    private DashboardScope resolveDashboardScope() {
+        AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
+        if (user != null && "PROVIDER_USER".equals(user.role())) {
+            return serviceProviderService.findIdByOrganizationId(user.organizationId())
+                    .map(id -> new DashboardScope(null, id, false))
+                    .orElse(DashboardScope.NONE);
+        }
+        if (user != null && "INSURER_USER".equals(user.role())) {
+            return insurerService.findIdByOrganizationId(user.organizationId())
+                    .map(id -> new DashboardScope(id, null, false))
+                    .orElse(DashboardScope.NONE);
+        }
+        return DashboardScope.ALL;
+    }
+
+    private static Instant startOf(LocalDate date) {
+        return date != null ? date.atStartOfDay().toInstant(ZoneOffset.UTC) : null;
+    }
+
+    private static Instant endOf(LocalDate date) {
+        return date != null ? date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC) : null;
+    }
+
+    private record DashboardScope(UUID insurerId, UUID serviceProviderId, boolean empty) {
+        static final DashboardScope ALL = new DashboardScope(null, null, false);
+        static final DashboardScope NONE = new DashboardScope(null, null, true);
     }
 
     private Page<Claim> findScoped(Pageable pageable) {

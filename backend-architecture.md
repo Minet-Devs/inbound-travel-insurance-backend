@@ -907,7 +907,32 @@ Policy
   totals of those invoices; otherwise it is the raw KES `claimedAmount`
   multiplied by the spot KES→USD rate (2-dp, `HALF_UP`). Rates are never
   recomputed against the live endpoint for historical rows; a failure to reach
-  the API surfaces as `ExchangeRateUnavailableException` → 503.
+  the API surfaces as `ExchangeRateUnavailableException` → 503. The approved
+  amount gets a USD snapshot too (`approvedAmountBase`, migration
+  `V202610281154__claim_approved_amount_base.sql`): `approvedAmount ×
+  claimedAmountBase / claimedAmount` (2-dp, `HALF_UP`), set on every decision
+  (`0` when `REJECTED`) and recomputed whenever `applyBaseConversion` runs, so it
+  never drifts from the claimed base. The ratio is used instead of `exchangeRate`
+  because with invoices attached `claimedAmountBase` is the sum of invoice base
+  totals. `null` until the claim is decided; legacy rows are backfilled from their
+  (rate 1.0) claimed base, so they are approximate.
+- **Claims dashboard** (all `GET`, optional filters `status`, `dateFrom`, `dateTo` —
+  ISO dates, inclusive, matched on `createdDate`, UTC; invalid values → 400):
+  - `GET /api/v1/claims/dashboard/summary` → `{ totalClaims, totalApprovedAmountUsd }`
+  - `GET /api/v1/claims/dashboard/by-insurer` → `[ { insurerId, insurerName, claimCount, approvedAmountUsd } ]`
+  - `GET /api/v1/claims/dashboard/by-service-provider` →
+    `[ { serviceProviderId, serviceProviderName, claimCount, approvedAmountUsd } ]`
+
+  The USD total is `COALESCE(SUM(approvedAmountBase), 0)` over the filtered claims
+  (undecided claims count towards `totalClaims` but add `0`). Distributions list every
+  insurer / service provider (via `InsurerService.listAll` /
+  `ServiceProviderService.listAll`), including those with zero claims, plus a trailing
+  `Unknown` row (`null` id) for claims whose `insurerId` / `serviceProviderId` is null, so
+  the rows add up to the summary. Scoping mirrors the claim list: `INSURER_USER` is pinned
+  to their insurer and `PROVIDER_USER` to their service provider (so each sees only their
+  own row and totals); a user whose entity cannot be resolved gets an empty/zero result, never
+  unscoped data. `ADMIN`, `CONTACT_CENTER` and `KENYA_RE` see everything. `KENYA_RE`
+  is allowed these three paths only; the rest of `/api/v1/claims/**` stays closed to it.
 - An **Invoice** is a supporting document for a claim, referenced by ID only.
   It is created through its own feature (`POST /api/v1/invoices`) and a claim
   attaches already-existing invoices by UUID. Each line item (`InvoiceItem`) optionally references
@@ -1015,7 +1040,8 @@ entities:
   type `REINSURER` (no `Insurer`/`ServiceProvider` is provisioned; `insurerId`/
   `serviceProviderId` are `null`). It is **read-only reporting**: `SecurityConfig`
   allows it `GET /api/v1/reports/**`, the three `GET /api/v1/visitors/distribution-by-*`
-  dashboard endpoints and the paged `GET /api/v1/insurers` only; every other endpoint that is not
+  dashboard endpoints, the three `GET /api/v1/claims/dashboard/**` endpoints and the paged
+  `GET /api/v1/insurers` only; every other endpoint that is not
   already role-restricted is closed to it via the final `anyRequest()` rule.
 - Besides the standard `sub` claim (the user id — clients should read the
   user id from `sub`, not a duplicate claim), the JWT also carries
@@ -1225,6 +1251,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Visitor Benefit   | `/api/v1/visitor-benefits`    | `visitor_benefits`  |
 | Pre-authorization | `/api/v1/preauthorizations`   | `preauthorizations` |
 | Claim             | `/api/v1/claims`              | `claims`            |
+| Claims Dashboard  | `/api/v1/claims/dashboard`    | — (aggregates `claims`) |
 | Invoice           | `/api/v1/invoices`            | `invoices`          |
 | Document          | `/api/v1/claims/{id}/documents`, `/api/v1/preauthorizations/{id}/documents`, `/api/v1/documents` | `documents` |
 | ICD-11 Code       | `/api/v1/icd11-codes`         | `icd11_codes`       |
