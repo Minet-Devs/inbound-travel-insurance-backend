@@ -98,8 +98,9 @@ public class ClaimController {
     public ResponseEntity<List<ServiceProviderClaimDistribution>> distributionByServiceProvider(
             @RequestParam(required = false) ClaimStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
-        return ResponseEntity.ok(claimService.distributionByServiceProvider(status, dateFrom, dateTo));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
+            @RequestParam(required = false) Integer limit) {
+        return ResponseEntity.ok(claimService.distributionByServiceProvider(status, dateFrom, dateTo, limit));
     }
 
     @GetMapping("/{id}")

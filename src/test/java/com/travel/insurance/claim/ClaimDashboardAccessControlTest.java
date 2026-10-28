@@ -43,7 +43,7 @@ class ClaimDashboardAccessControlTest {
         when(claimService.dashboardSummary(any(), any(), any()))
                 .thenReturn(new ClaimDashboardSummary(0, BigDecimal.ZERO));
         when(claimService.distributionByInsurer(any(), any(), any())).thenReturn(List.of());
-        when(claimService.distributionByServiceProvider(any(), any(), any())).thenReturn(List.of());
+        when(claimService.distributionByServiceProvider(any(), any(), any(), any())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/claims/dashboard/summary")).andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/claims/dashboard/by-insurer")).andExpect(status().isOk());

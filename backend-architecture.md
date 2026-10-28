@@ -921,7 +921,10 @@ Policy
   - `GET /api/v1/claims/dashboard/summary` → `{ totalClaims, totalApprovedAmountUsd }`
   - `GET /api/v1/claims/dashboard/by-insurer` → `[ { insurerId, insurerName, claimCount, approvedAmountUsd } ]`
   - `GET /api/v1/claims/dashboard/by-service-provider` →
-    `[ { serviceProviderId, serviceProviderName, claimCount, approvedAmountUsd } ]`
+    `[ { serviceProviderId, serviceProviderName, claimCount, approvedAmountUsd } ]`;
+    optional `limit` (≥ 1, else 400) returns only the top providers by `claimCount`
+    (ties broken by `approvedAmountUsd`), e.g. `limit=10` for "Claims by Service Provider";
+    in that mode providers with no claims and the `Unknown` row are dropped
 
   The USD total is `COALESCE(SUM(approvedAmountBase), 0)` over the filtered claims
   (undecided claims count towards `totalClaims` but add `0`). Distributions list every

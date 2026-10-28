@@ -54,6 +54,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -363,11 +364,18 @@ public class ClaimServiceImpl implements ClaimService {
         return result;
     }
 
-    /** Same shape as {@link #distributionByInsurer}, grouped by service provider. */
+    /**
+     * Same shape as {@link #distributionByInsurer}, grouped by service provider. With a {@code limit} only
+     * the top providers by claim count (ties broken by approved USD) are returned: providers with no claims
+     * and the "Unknown" row are dropped.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<ServiceProviderClaimDistribution> distributionByServiceProvider(
-            ClaimStatus status, LocalDate dateFrom, LocalDate dateTo) {
+            ClaimStatus status, LocalDate dateFrom, LocalDate dateTo, Integer limit) {
+        if (limit != null && limit < 1) {
+            throw new IllegalArgumentException("limit must be at least 1");
+        }
         DashboardScope scope = resolveDashboardScope();
         if (scope.empty()) {
             return List.of();
@@ -391,6 +399,15 @@ public class ClaimServiceImpl implements ClaimService {
             result.add(new ServiceProviderClaimDistribution(provider.id(), provider.name(),
                     total != null ? total.getClaimCount() : 0,
                     total != null ? total.getApprovedAmountUsd() : BigDecimal.ZERO));
+        }
+        if (limit != null) {
+            return result.stream()
+                    .filter(row -> row.claimCount() > 0)
+                    .sorted(Comparator.comparingLong(ServiceProviderClaimDistribution::claimCount).reversed()
+                            .thenComparing(ServiceProviderClaimDistribution::approvedAmountUsd,
+                                    Comparator.reverseOrder()))
+                    .limit(limit)
+                    .toList();
         }
         if (unknown != null) {
             result.add(new ServiceProviderClaimDistribution(null, UNKNOWN_LABEL, unknown.getClaimCount(),
