@@ -807,6 +807,20 @@ Policy
   `preauthorizationId`, `errorMessage`); the valid rows are still created. `treatmentDate` /
   `dischargeDate` are new nullable `Preauthorization` columns returned on `PreauthorizationResponse`
   (not accepted on `PreauthorizationRequest`).
+- **Pre-authorizations dashboard** (`GET /api/v1/preauthorizations/dashboard/...`, all take optional
+  ISO `dateFrom`/`dateTo` on `createdDate`, inclusive, UTC; readable by `ADMIN`, `INSURER_USER`,
+  `PROVIDER_USER`, `CONTACT_CENTER` and the read-only `KENYA_RE`, matched ahead of the general
+  `/preauthorizations/**` rule in `SecurityConfig`). Insurer/provider users are pinned to their own
+  entity (an unresolvable one yields empty/zero), same as the claims dashboard:
+  - `/summary` → `PreauthorizationDashboardSummary` `{totalPreauthorizations, approved, rejected,
+    partiallyApproved}` (total counts every status incl. `PENDING`/`EXPIRED`).
+  - `/by-insurer` → `InsurerPreauthorizationDistribution` `{insurerId, insurerName, preauthorizationCount,
+    approvedAmount}` over `APPROVED` + `PARTIALLY_APPROVED`; every in-scope insurer is listed, including
+    those with none. `approvedAmount` sums `approvedAmount` in the stored (KES) currency — pre-authorizations
+    have no USD snapshot.
+  - `/top-service-providers` → `ServiceProviderPreauthorizationDistribution` (same fields, by provider),
+    top `limit` (default 10, must be ≥ 1) by count with ties broken by approved amount; providers with none
+    are dropped.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
   service and is decided by an `INSURER_USER` (or a admin agent). A
   `CONTACT_CENTER` user may also both raise (`POST /api/v1/preauthorizations`)

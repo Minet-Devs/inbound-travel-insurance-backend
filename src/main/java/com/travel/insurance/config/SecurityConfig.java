@@ -74,6 +74,8 @@ public class SecurityConfig {
                     // KENYA_RE may read the claims dashboard only; the rest of /claims stays closed to it.
                     auth.requestMatchers(HttpMethod.GET, "/api/v1/claims/dashboard/**")
                             .hasAnyRole("ADMIN", "INSURER_USER", "PROVIDER_USER", "CONTACT_CENTER", "KENYA_RE");
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/preauthorizations/dashboard/**")
+                            .hasAnyRole("ADMIN", "INSURER_USER", "PROVIDER_USER", "CONTACT_CENTER", "KENYA_RE");
                     auth.requestMatchers("/api/v1/claims/**", "/api/v1/preauthorizations/**")
                             .hasAnyRole("ADMIN", "INSURER_USER", "PROVIDER_USER", "CONTACT_CENTER");
                     // KENYA_RE (reinsurer) is read-only reporting: GET /reports/**, the visitor dashboard

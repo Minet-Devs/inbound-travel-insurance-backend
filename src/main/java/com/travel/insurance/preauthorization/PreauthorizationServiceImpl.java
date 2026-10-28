@@ -14,7 +14,11 @@ import com.travel.insurance.medicalservice.MedicalServiceService;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyStatus;
+import com.travel.insurance.insurer.dto.InsurerResponse;
+import com.travel.insurance.preauthorization.dto.InsurerPreauthorizationDistribution;
 import com.travel.insurance.preauthorization.dto.OfflineApproval;
+import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
+import com.travel.insurance.preauthorization.dto.ServiceProviderPreauthorizationDistribution;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationItemRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
@@ -30,7 +34,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -47,6 +58,9 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
             PreauthorizationStatus.PARTIALLY_APPROVED,
             PreauthorizationStatus.REJECTED);
 
+    private static final Set<PreauthorizationStatus> GRANTED_STATUSES =
+            EnumSet.of(PreauthorizationStatus.APPROVED, PreauthorizationStatus.PARTIALLY_APPROVED);
+    private static final int DEFAULT_TOP_SERVICE_PROVIDERS = 10;
     private static final String OFFLINE_APPROVAL_REASON = "Offline approval (bulk upload)";
 
     private final PreauthorizationRepository preauthorizationRepository;
@@ -145,6 +159,75 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public PreauthorizationDashboardSummary dashboardSummary(LocalDate dateFrom, LocalDate dateTo) {
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return new PreauthorizationDashboardSummary(0, 0, 0, 0);
+        }
+        Map<PreauthorizationStatus, Long> counts = new EnumMap<>(PreauthorizationStatus.class);
+        for (PreauthorizationStatusCount row : preauthorizationRepository.countByStatus(
+                scope.insurerId(), scope.serviceProviderId(), startOf(dateFrom), endOf(dateTo))) {
+            counts.put(row.getStatus(), row.getStatusCount());
+        }
+        return new PreauthorizationDashboardSummary(
+                counts.values().stream().mapToLong(Long::longValue).sum(),
+                counts.getOrDefault(PreauthorizationStatus.APPROVED, 0L),
+                counts.getOrDefault(PreauthorizationStatus.REJECTED, 0L),
+                counts.getOrDefault(PreauthorizationStatus.PARTIALLY_APPROVED, 0L));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InsurerPreauthorizationDistribution> distributionByInsurer(LocalDate dateFrom, LocalDate dateTo) {
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return List.of();
+        }
+        Map<UUID, PreauthorizationDashboardTotal> totals = new HashMap<>();
+        for (PreauthorizationDashboardTotal row : preauthorizationRepository.summarizeByInsurer(
+                GRANTED_STATUSES, scope.insurerId(), scope.serviceProviderId(), startOf(dateFrom), endOf(dateTo))) {
+            totals.put(row.getGroupId(), row);
+        }
+        List<InsurerPreauthorizationDistribution> result = new ArrayList<>();
+        for (InsurerResponse insurer : insurerService.listAll()) {
+            if (scope.insurerId() != null && !scope.insurerId().equals(insurer.id())) {
+                continue;
+            }
+            PreauthorizationDashboardTotal total = totals.get(insurer.id());
+            result.add(new InsurerPreauthorizationDistribution(insurer.id(), insurer.name(),
+                    total != null ? total.getPreauthorizationCount() : 0,
+                    total != null ? total.getApprovedAmount() : BigDecimal.ZERO));
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ServiceProviderPreauthorizationDistribution> topServiceProviders(
+            LocalDate dateFrom, LocalDate dateTo, Integer limit) {
+        int top = limit != null ? limit : DEFAULT_TOP_SERVICE_PROVIDERS;
+        if (top < 1) {
+            throw new IllegalArgumentException("limit must be at least 1");
+        }
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return List.of();
+        }
+        List<PreauthorizationDashboardTotal> totals = preauthorizationRepository.summarizeByServiceProvider(
+                GRANTED_STATUSES, scope.insurerId(), scope.serviceProviderId(), startOf(dateFrom), endOf(dateTo));
+        Map<UUID, String> names = serviceProviderService.namesByIds(
+                totals.stream().map(PreauthorizationDashboardTotal::getGroupId).toList());
+        return totals.stream()
+                .sorted(Comparator.comparingLong(PreauthorizationDashboardTotal::getPreauthorizationCount).reversed()
+                        .thenComparing(PreauthorizationDashboardTotal::getApprovedAmount, Comparator.reverseOrder()))
+                .limit(top)
+                .map(total -> new ServiceProviderPreauthorizationDistribution(total.getGroupId(),
+                        names.get(total.getGroupId()), total.getPreauthorizationCount(), total.getApprovedAmount()))
+                .toList();
+    }
+
+    @Override
     public void delete(UUID id) {
         preauthorizationRepository.delete(getEntityById(id));
     }
@@ -227,6 +310,35 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
 
     private void validateBenefitExists(UUID benefitId) {
         benefitService.getEntityById(benefitId);
+    }
+
+    /** Insurer and provider users are pinned to their own entity; an unresolvable entity means no data. */
+    private DashboardScope resolveDashboardScope() {
+        AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
+        if (user != null && "PROVIDER_USER".equals(user.role())) {
+            return serviceProviderService.findIdByOrganizationId(user.organizationId())
+                    .map(id -> new DashboardScope(null, id, false))
+                    .orElse(DashboardScope.NONE);
+        }
+        if (user != null && "INSURER_USER".equals(user.role())) {
+            return insurerService.findIdByOrganizationId(user.organizationId())
+                    .map(id -> new DashboardScope(id, null, false))
+                    .orElse(DashboardScope.NONE);
+        }
+        return DashboardScope.ALL;
+    }
+
+    private static Instant startOf(LocalDate date) {
+        return date != null ? date.atStartOfDay().toInstant(ZoneOffset.UTC) : null;
+    }
+
+    private static Instant endOf(LocalDate date) {
+        return date != null ? date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC) : null;
+    }
+
+    private record DashboardScope(UUID insurerId, UUID serviceProviderId, boolean empty) {
+        static final DashboardScope ALL = new DashboardScope(null, null, false);
+        static final DashboardScope NONE = new DashboardScope(null, null, true);
     }
 
     private void validateVisitorExists(UUID visitorId) {

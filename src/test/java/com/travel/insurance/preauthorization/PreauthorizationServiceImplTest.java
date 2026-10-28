@@ -1,5 +1,11 @@
 package com.travel.insurance.preauthorization;
 
+import java.util.Set;
+import java.time.ZoneOffset;
+import com.travel.insurance.preauthorization.dto.ServiceProviderPreauthorizationDistribution;
+import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
+import com.travel.insurance.preauthorization.dto.InsurerPreauthorizationDistribution;
+import com.travel.insurance.insurer.dto.InsurerResponse;
 import org.mockito.ArgumentCaptor;
 import com.travel.insurance.preauthorization.dto.OfflineApproval;
 import com.travel.insurance.common.domain.VisitType;
@@ -206,6 +212,138 @@ class PreauthorizationServiceImplTest {
         AuthenticatedUser user = new AuthenticatedUser(UUID.randomUUID(), organizationId, role);
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(user, null, List.of()));
+    }
+
+    private record StatusCountRow(PreauthorizationStatus status, long count) implements PreauthorizationStatusCount {
+        public PreauthorizationStatus getStatus() {
+            return status;
+        }
+
+        public long getStatusCount() {
+            return count;
+        }
+    }
+
+    private record DashboardTotalRow(UUID groupId, long count, BigDecimal amount)
+            implements PreauthorizationDashboardTotal {
+        public UUID getGroupId() {
+            return groupId;
+        }
+
+        public long getPreauthorizationCount() {
+            return count;
+        }
+
+        public BigDecimal getApprovedAmount() {
+            return amount;
+        }
+    }
+
+    private PreauthorizationStatusCount statusCount(PreauthorizationStatus status, long count) {
+        return new StatusCountRow(status, count);
+    }
+
+    private PreauthorizationDashboardTotal dashboardTotal(UUID groupId, long count, String amount) {
+        return new DashboardTotalRow(groupId, count, new BigDecimal(amount));
+    }
+
+    @Test
+    void dashboardSummaryCountsEachStatusAndTotal() {
+        LocalDate from = LocalDate.of(2026, 10, 1);
+        LocalDate to = LocalDate.of(2026, 10, 31);
+        when(preauthorizationRepository.countByStatus(null, null,
+                from.atStartOfDay().toInstant(ZoneOffset.UTC), to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)))
+                .thenReturn(List.of(
+                        statusCount(PreauthorizationStatus.APPROVED, 5),
+                        statusCount(PreauthorizationStatus.REJECTED, 2),
+                        statusCount(PreauthorizationStatus.PARTIALLY_APPROVED, 1),
+                        statusCount(PreauthorizationStatus.PENDING, 3)));
+
+        PreauthorizationDashboardSummary summary = preauthorizationService.dashboardSummary(from, to);
+
+        assertThat(summary.totalPreauthorizations()).isEqualTo(11);
+        assertThat(summary.approved()).isEqualTo(5);
+        assertThat(summary.rejected()).isEqualTo(2);
+        assertThat(summary.partiallyApproved()).isEqualTo(1);
+    }
+
+    @Test
+    void dashboardSummaryIsZeroWhenStatusesAreAbsent() {
+        when(preauthorizationRepository.countByStatus(null, null, null, null)).thenReturn(List.of());
+
+        PreauthorizationDashboardSummary summary = preauthorizationService.dashboardSummary(null, null);
+
+        assertThat(summary).isEqualTo(new PreauthorizationDashboardSummary(0, 0, 0, 0));
+    }
+
+    @Test
+    void dashboardScopesInsurerUserToOwnInsurerAndEmptyWhenUnresolvable() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId))
+                .thenReturn(Optional.of(insurerId)).thenReturn(Optional.empty());
+        when(preauthorizationRepository.countByStatus(insurerId, null, null, null))
+                .thenReturn(List.of(statusCount(PreauthorizationStatus.APPROVED, 4)));
+
+        assertThat(preauthorizationService.dashboardSummary(null, null).approved()).isEqualTo(4);
+        assertThat(preauthorizationService.dashboardSummary(null, null))
+                .isEqualTo(new PreauthorizationDashboardSummary(0, 0, 0, 0));
+        verify(preauthorizationRepository, never()).countByStatus(eq(null), eq(null), any(), any());
+    }
+
+    @Test
+    void distributionByInsurerListsEveryInsurerIncludingThoseWithNone() {
+        UUID otherInsurerId = UUID.randomUUID();
+        when(insurerService.listAll()).thenReturn(List.of(
+                insurerResponse(insurerId, "Jubilee Insurance"), insurerResponse(otherInsurerId, "Pioneer")));
+        when(preauthorizationRepository.summarizeByInsurer(
+                Set.of(PreauthorizationStatus.APPROVED, PreauthorizationStatus.PARTIALLY_APPROVED),
+                null, null, null, null))
+                .thenReturn(List.of(dashboardTotal(insurerId, 3, "1500.00")));
+
+        List<InsurerPreauthorizationDistribution> result = preauthorizationService.distributionByInsurer(null, null);
+
+        assertThat(result).containsExactly(
+                new InsurerPreauthorizationDistribution(insurerId, "Jubilee Insurance", 3, new BigDecimal("1500.00")),
+                new InsurerPreauthorizationDistribution(otherInsurerId, "Pioneer", 0, BigDecimal.ZERO));
+    }
+
+    @Test
+    void topServiceProvidersOrdersByCountThenAmountAndLimitsToTenByDefault() {
+        List<PreauthorizationDashboardTotal> totals = new java.util.ArrayList<>();
+        java.util.Map<UUID, String> names = new java.util.HashMap<>();
+        for (int i = 0; i < 12; i++) {
+            UUID id = UUID.randomUUID();
+            totals.add(dashboardTotal(id, 20 - i, "100.00"));
+            names.put(id, "Provider " + i);
+        }
+        UUID tieWinner = UUID.randomUUID();
+        totals.add(dashboardTotal(tieWinner, 20, "999.00"));
+        names.put(tieWinner, "Tie winner");
+        when(preauthorizationRepository.summarizeByServiceProvider(
+                Set.of(PreauthorizationStatus.APPROVED, PreauthorizationStatus.PARTIALLY_APPROVED),
+                null, null, null, null)).thenReturn(totals);
+        when(serviceProviderService.namesByIds(any())).thenReturn(names);
+
+        List<ServiceProviderPreauthorizationDistribution> result =
+                preauthorizationService.topServiceProviders(null, null, null);
+
+        assertThat(result).hasSize(10);
+        assertThat(result.get(0).serviceProviderName()).isEqualTo("Tie winner");
+        assertThat(result.get(1).serviceProviderName()).isEqualTo("Provider 0");
+        assertThat(result.get(9).preauthorizationCount()).isEqualTo(12);
+    }
+
+    @Test
+    void topServiceProvidersRejectsNonPositiveLimit() {
+        assertThatThrownBy(() -> preauthorizationService.topServiceProviders(null, null, 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("limit");
+    }
+
+    private InsurerResponse insurerResponse(UUID id, String name) {
+        return new InsurerResponse(id, policyId, name, null, null, null, null,
+                null, null, null, null, null, null, null, Instant.now(), Instant.now());
     }
 
     @Test
