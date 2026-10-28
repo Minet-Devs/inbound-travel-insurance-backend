@@ -66,6 +66,9 @@ public class Claim extends BaseEntity {
     @Column(precision = 15, scale = 2)
     private BigDecimal approvedAmount;
 
+    @Column(precision = 15, scale = 2)
+    private BigDecimal approvedAmountBase;
+
     @Convert(converter = EncryptedStringConverter.class)
     @Column(columnDefinition = "text")
     private String description;

@@ -1,11 +1,14 @@
 package com.travel.insurance.claim;
 
 import com.travel.insurance.claim.dto.AttachInvoiceRequest;
+import com.travel.insurance.claim.dto.ClaimDashboardSummary;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimExportRow;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
+import com.travel.insurance.claim.dto.InsurerClaimDistribution;
+import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -35,6 +38,13 @@ public interface ClaimService {
     Page<ClaimResponse> listByVisitor(UUID visitorId, Pageable pageable);
 
     List<ClaimExportRow> listForExport(ClaimStatus status, UUID insurerId, LocalDate dateFrom, LocalDate dateTo);
+
+    ClaimDashboardSummary dashboardSummary(ClaimStatus status, LocalDate dateFrom, LocalDate dateTo);
+
+    List<InsurerClaimDistribution> distributionByInsurer(ClaimStatus status, LocalDate dateFrom, LocalDate dateTo);
+
+    List<ServiceProviderClaimDistribution> distributionByServiceProvider(
+            ClaimStatus status, LocalDate dateFrom, LocalDate dateTo);
 
     ClaimResponse decide(UUID id, ClaimDecisionRequest request);
 

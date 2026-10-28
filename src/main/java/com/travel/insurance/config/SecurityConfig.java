@@ -71,6 +71,9 @@ public class SecurityConfig {
                     // Visitors (mobile app) see only their own claims/pre-auths via /mobile/me; the
                     // staff-wide claim and pre-auth endpoints (incl. their /documents) are closed to them.
                     auth.requestMatchers("/api/v1/mobile/me/**").hasRole("VISITOR");
+                    // KENYA_RE may read the claims dashboard only; the rest of /claims stays closed to it.
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/claims/dashboard/**")
+                            .hasAnyRole("ADMIN", "INSURER_USER", "PROVIDER_USER", "CONTACT_CENTER", "KENYA_RE");
                     auth.requestMatchers("/api/v1/claims/**", "/api/v1/preauthorizations/**")
                             .hasAnyRole("ADMIN", "INSURER_USER", "PROVIDER_USER", "CONTACT_CENTER");
                     // KENYA_RE (reinsurer) is read-only reporting: GET /reports/**, the visitor dashboard

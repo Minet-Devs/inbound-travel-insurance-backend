@@ -90,4 +90,44 @@ public interface ClaimRepository extends JpaRepository<Claim, UUID> {
                                  @Param("insurerId") UUID insurerId,
                                  @Param("dateFrom") Instant dateFrom,
                                  @Param("dateTo") Instant dateTo);
+
+    @Query("SELECT COUNT(c) AS claimCount, COALESCE(SUM(c.approvedAmountBase), 0) AS approvedAmountUsd "
+            + "FROM Claim c WHERE c.status = COALESCE(:status, c.status) "
+            + "AND (:insurerId IS NULL OR c.insurerId = :insurerId) "
+            + "AND (:serviceProviderId IS NULL OR c.serviceProviderId = :serviceProviderId) "
+            + "AND c.createdDate >= COALESCE(:dateFrom, c.createdDate) "
+            + "AND c.createdDate <= COALESCE(:dateTo, c.createdDate)")
+    ClaimDashboardTotal summarize(@Param("status") ClaimStatus status,
+                                  @Param("insurerId") UUID insurerId,
+                                  @Param("serviceProviderId") UUID serviceProviderId,
+                                  @Param("dateFrom") Instant dateFrom,
+                                  @Param("dateTo") Instant dateTo);
+
+    @Query("SELECT c.insurerId AS groupId, COUNT(c) AS claimCount, "
+            + "COALESCE(SUM(c.approvedAmountBase), 0) AS approvedAmountUsd "
+            + "FROM Claim c WHERE c.status = COALESCE(:status, c.status) "
+            + "AND (:insurerId IS NULL OR c.insurerId = :insurerId) "
+            + "AND (:serviceProviderId IS NULL OR c.serviceProviderId = :serviceProviderId) "
+            + "AND c.createdDate >= COALESCE(:dateFrom, c.createdDate) "
+            + "AND c.createdDate <= COALESCE(:dateTo, c.createdDate) "
+            + "GROUP BY c.insurerId")
+    List<ClaimDashboardTotal> summarizeByInsurer(@Param("status") ClaimStatus status,
+                                                 @Param("insurerId") UUID insurerId,
+                                                 @Param("serviceProviderId") UUID serviceProviderId,
+                                                 @Param("dateFrom") Instant dateFrom,
+                                                 @Param("dateTo") Instant dateTo);
+
+    @Query("SELECT c.serviceProviderId AS groupId, COUNT(c) AS claimCount, "
+            + "COALESCE(SUM(c.approvedAmountBase), 0) AS approvedAmountUsd "
+            + "FROM Claim c WHERE c.status = COALESCE(:status, c.status) "
+            + "AND (:insurerId IS NULL OR c.insurerId = :insurerId) "
+            + "AND (:serviceProviderId IS NULL OR c.serviceProviderId = :serviceProviderId) "
+            + "AND c.createdDate >= COALESCE(:dateFrom, c.createdDate) "
+            + "AND c.createdDate <= COALESCE(:dateTo, c.createdDate) "
+            + "GROUP BY c.serviceProviderId")
+    List<ClaimDashboardTotal> summarizeByServiceProvider(@Param("status") ClaimStatus status,
+                                                         @Param("insurerId") UUID insurerId,
+                                                         @Param("serviceProviderId") UUID serviceProviderId,
+                                                         @Param("dateFrom") Instant dateFrom,
+                                                         @Param("dateTo") Instant dateTo);
 }
