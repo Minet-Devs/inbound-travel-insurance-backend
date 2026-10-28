@@ -3,11 +3,14 @@ package com.travel.insurance.preauthorization;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadResponse;
+import com.travel.insurance.preauthorization.upload.PreauthorizationUploadService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.web.multipart.MultipartFile;
+
 import java.util.UUID;
 
 @RestController
@@ -27,12 +32,19 @@ import java.util.UUID;
 public class PreauthorizationController {
 
     private final PreauthorizationService preauthorizationService;
+    private final PreauthorizationUploadService preauthorizationUploadService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER_USER', 'CONTACT_CENTER')")
     public ResponseEntity<PreauthorizationResponse> create(
             @Valid @RequestBody PreauthorizationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(preauthorizationService.create(request));
+    }
+
+    @PostMapping(path = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN', 'CONTACT_CENTER')")
+    public ResponseEntity<PreauthorizationUploadResponse> upload(@RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(preauthorizationUploadService.upload(file));
     }
 
     @GetMapping("/{id}")

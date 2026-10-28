@@ -1,5 +1,7 @@
 package com.travel.insurance.preauthorization;
 
+import org.mockito.ArgumentCaptor;
+import com.travel.insurance.preauthorization.dto.OfflineApproval;
 import com.travel.insurance.common.domain.VisitType;
 import com.travel.insurance.benefit.Benefit;
 import com.travel.insurance.benefit.BenefitService;
@@ -275,6 +277,49 @@ class PreauthorizationServiceImplTest {
         assertThat(response.decidedAt()).isNull();
         verify(preauthorizationRepository).save(any(Preauthorization.class));
         verify(preauthorizationEnhancementRepository).save(any(PreauthorizationEnhancement.class));
+    }
+
+    @Test
+    void createOfflineApprovalSavesApprovedPreauthorizationWithDates() {
+        when(preauthorizationRepository.save(any(Preauthorization.class)))
+                .thenAnswer(invocation -> {
+                    Preauthorization saved = invocation.getArgument(0);
+                    saved.setId(UUID.randomUUID());
+                    return saved;
+                });
+
+        UUID id = preauthorizationService.createOfflineApproval(new OfflineApproval(
+                visitorId, benefitId, serviceProviderId, new BigDecimal("1234.50"), VisitType.OUTPATIENT,
+                LocalDate.of(2026, 10, 10), null));
+
+        ArgumentCaptor<Preauthorization> captor = ArgumentCaptor.forClass(Preauthorization.class);
+        verify(preauthorizationRepository).save(captor.capture());
+        Preauthorization saved = captor.getValue();
+        assertThat(id).isEqualTo(saved.getId());
+        assertThat(saved.getStatus()).isEqualTo(PreauthorizationStatus.APPROVED);
+        assertThat(saved.getPolicyId()).isEqualTo(policyId);
+        assertThat(saved.getInsurerId()).isEqualTo(insurerId);
+        assertThat(saved.getRequestedAmount()).isEqualByComparingTo("1234.50");
+        assertThat(saved.getApprovedAmount()).isEqualByComparingTo("1234.50");
+        assertThat(saved.getVisitType()).isEqualTo(VisitType.OUTPATIENT);
+        assertThat(saved.getTreatmentDate()).isEqualTo(LocalDate.of(2026, 10, 10));
+        assertThat(saved.getDischargeDate()).isNull();
+        assertThat(saved.getIcd11CodeId()).isNull();
+    }
+
+    @Test
+    void createOfflineApprovalRejectsDuplicate() {
+        when(preauthorizationRepository
+                .existsByVisitorIdAndServiceProviderIdAndBenefitIdAndTreatmentDateAndRequestedAmount(
+                        visitorId, serviceProviderId, benefitId, LocalDate.of(2026, 10, 10),
+                        new BigDecimal("1234.50"))).thenReturn(true);
+
+        assertThatThrownBy(() -> preauthorizationService.createOfflineApproval(new OfflineApproval(
+                visitorId, benefitId, serviceProviderId, new BigDecimal("1234.50"), null,
+                LocalDate.of(2026, 10, 10), null)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already exists");
+        verify(preauthorizationRepository, never()).save(any());
     }
 
     @Test

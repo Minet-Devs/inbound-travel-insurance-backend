@@ -1,5 +1,14 @@
 package com.travel.insurance.preauthorization;
 
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import java.util.List;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadRowStatus;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadRowResult;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadResponse;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import org.springframework.mock.web.MockMultipartFile;
+import com.travel.insurance.preauthorization.upload.PreauthorizationUploadService;
 import com.travel.insurance.common.domain.VisitType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
@@ -41,6 +50,9 @@ class PreauthorizationAccessControlTest {
     private PreauthorizationService preauthorizationService;
 
     @MockBean
+    private PreauthorizationUploadService preauthorizationUploadService;
+
+    @MockBean
     private JwtTokenProvider jwtTokenProvider;
 
     private final UUID preauthorizationId = UUID.randomUUID();
@@ -74,6 +86,27 @@ class PreauthorizationAccessControlTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(decisionBody()))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "CONTACT_CENTER")
+    void contactCenterCanUploadOfflineApprovals() throws Exception {
+        when(preauthorizationUploadService.upload(any()))
+                .thenReturn(new PreauthorizationUploadResponse(0, 0, 0, List.of()));
+
+        mockMvc.perform(multipart("/api/v1/preauthorizations/upload")
+                        .file(new MockMultipartFile("file", "approvals.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{1}))
+                        .with(csrf()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "PROVIDER_USER")
+    void providerUserCannotUploadOfflineApprovals() throws Exception {
+        mockMvc.perform(multipart("/api/v1/preauthorizations/upload")
+                        .file(new MockMultipartFile("file", "approvals.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{1}))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
     }
 
     @Test
