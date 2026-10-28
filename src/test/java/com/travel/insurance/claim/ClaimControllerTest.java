@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -225,7 +226,7 @@ class ClaimControllerTest {
     @WithMockUser(roles = "ADMIN")
     void dashboardByServiceProviderReturnsDistribution() throws Exception {
         UUID providerId = UUID.randomUUID();
-        when(claimService.distributionByServiceProvider(null, null, null)).thenReturn(List.of(
+        when(claimService.distributionByServiceProvider(null, null, null, null)).thenReturn(List.of(
                 new ServiceProviderClaimDistribution(providerId, "Aga Khan Hospital", 9, new BigDecimal("900.00"))));
 
         mockMvc.perform(get("/api/v1/claims/dashboard/by-service-provider"))
@@ -233,6 +234,16 @@ class ClaimControllerTest {
                 .andExpect(jsonPath("$[0].serviceProviderId").value(providerId.toString()))
                 .andExpect(jsonPath("$[0].serviceProviderName").value("Aga Khan Hospital"))
                 .andExpect(jsonPath("$[0].claimCount").value(9));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void dashboardByServiceProviderPassesLimit() throws Exception {
+        when(claimService.distributionByServiceProvider(null, null, null, 10)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/claims/dashboard/by-service-provider").param("limit", "10"))
+                .andExpect(status().isOk());
+        verify(claimService).distributionByServiceProvider(null, null, null, 10);
     }
 
     @Test

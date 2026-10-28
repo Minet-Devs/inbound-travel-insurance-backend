@@ -44,7 +44,7 @@ public interface ClaimService {
     List<InsurerClaimDistribution> distributionByInsurer(ClaimStatus status, LocalDate dateFrom, LocalDate dateTo);
 
     List<ServiceProviderClaimDistribution> distributionByServiceProvider(
-            ClaimStatus status, LocalDate dateFrom, LocalDate dateTo);
+            ClaimStatus status, LocalDate dateFrom, LocalDate dateTo, Integer limit);
 
     ClaimResponse decide(UUID id, ClaimDecisionRequest request);
 

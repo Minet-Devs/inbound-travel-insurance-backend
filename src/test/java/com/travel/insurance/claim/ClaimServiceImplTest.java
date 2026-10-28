@@ -1040,7 +1040,7 @@ class ClaimServiceImplTest {
 
         assertThat(claimService.dashboardSummary(null, null, null).totalClaims()).isZero();
         assertThat(claimService.distributionByInsurer(null, null, null)).isEmpty();
-        assertThat(claimService.distributionByServiceProvider(null, null, null)).isEmpty();
+        assertThat(claimService.distributionByServiceProvider(null, null, null, null)).isEmpty();
         verify(claimRepository, never()).summarize(any(), any(), any(), any(), any());
         verify(claimRepository, never()).summarizeByInsurer(any(), any(), any(), any(), any());
     }
@@ -1096,7 +1096,7 @@ class ClaimServiceImplTest {
                 dashboardTotal(busyId, 9, "900.00"), dashboardTotal(null, 2, "0.00")));
 
         List<ServiceProviderClaimDistribution> result =
-                claimService.distributionByServiceProvider(null, null, null);
+                claimService.distributionByServiceProvider(null, null, null, null);
 
         assertThat(result).extracting(ServiceProviderClaimDistribution::serviceProviderName)
                 .containsExactly("Aga Khan Hospital", "Quiet Clinic", "Unknown");
@@ -1117,7 +1117,53 @@ class ClaimServiceImplTest {
         when(claimRepository.summarizeByServiceProvider(null, null, providerId, null, null))
                 .thenReturn(List.of(dashboardTotal(providerId, 1, "10.00")));
 
-        assertThat(claimService.distributionByServiceProvider(null, null, null))
+        assertThat(claimService.distributionByServiceProvider(null, null, null, null))
                 .extracting(ServiceProviderClaimDistribution::serviceProviderName).containsExactly("Mine");
+    }
+
+    @Test
+    void distributionByServiceProviderWithLimitReturnsTopProvidersByClaimCount() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        UUID c = UUID.randomUUID();
+        UUID idle = UUID.randomUUID();
+        when(serviceProviderService.listAll()).thenReturn(List.of(
+                providerResponse(a, "A"), providerResponse(b, "B"), providerResponse(c, "C"),
+                providerResponse(idle, "Idle")));
+        when(claimRepository.summarizeByServiceProvider(null, null, null, null, null)).thenReturn(List.of(
+                dashboardTotal(a, 5, "10.00"), dashboardTotal(b, 9, "5.00"), dashboardTotal(c, 5, "50.00"),
+                dashboardTotal(null, 20, "1.00")));
+
+        List<ServiceProviderClaimDistribution> result =
+                claimService.distributionByServiceProvider(null, null, null, 2);
+
+        assertThat(result).extracting(ServiceProviderClaimDistribution::serviceProviderName)
+                .containsExactly("B", "C");
+    }
+
+    @Test
+    void distributionByServiceProviderWithLimitDropsZeroClaimProvidersAndUnknown() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        UUID a = UUID.randomUUID();
+        when(serviceProviderService.listAll()).thenReturn(List.of(
+                providerResponse(a, "A"), providerResponse(UUID.randomUUID(), "Idle")));
+        when(claimRepository.summarizeByServiceProvider(null, null, null, null, null)).thenReturn(List.of(
+                dashboardTotal(a, 1, "1.00"), dashboardTotal(null, 3, "1.00")));
+
+        assertThat(claimService.distributionByServiceProvider(null, null, null, 10))
+                .extracting(ServiceProviderClaimDistribution::serviceProviderName).containsExactly("A");
+    }
+
+    @Test
+    void distributionByServiceProviderRejectsNonPositiveLimit() {
+        assertThatThrownBy(() -> claimService.distributionByServiceProvider(null, null, null, 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("limit must be at least 1");
+    }
+
+    private ServiceProviderResponse providerResponse(UUID id, String name) {
+        return new ServiceProviderResponse(id, name, null, null, null, null, null, null, null,
+                Instant.now(), Instant.now());
     }
 }
