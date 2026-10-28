@@ -844,16 +844,20 @@ Policy
   `POST /api/v1/claims` — the preauthorization feature does not carry
   procedure references.
 - **Pre-auth → claim conversion**: `POST /api/v1/claims/from-preauthorization/{preauthorizationId}`
-  (`ADMIN`, `CONTACT_CENTER`; body `ConvertPreauthorizationRequest` —
-  `invoiceNumber` required, `issueDate` optional). `ClaimServiceImpl.createFromPreauthorization`
+  (`ADMIN`, `CONTACT_CENTER`, `PROVIDER_USER` — a provider only for its own facility's
+  pre-auths, 404 otherwise; body `ConvertPreauthorizationRequest` — `invoiceNumber` and
+  a non-empty `invoiceItems` list (`InvoiceItemRequest`) required, `issueDate` optional).
+  Hospital service lines are captured here, not at pre-auth creation (pre-auths are
+  raised with just a manually entered `requestedAmount`; `preauthorizationItems` stays
+  optional for older clients). `ClaimServiceImpl.createFromPreauthorization`
   reads the pre-auth via `PreauthorizationService.getById` and, in one transaction:
   creates an `OPEN` claim copying `policyId`, `insurerId`, `visitorId`, `benefitId`,
   `serviceProviderId`, `serviceDescription` → `description`, `icd11CodeId` → `diagnosisIds`,
-  and `approvedAmount` (fallback `requestedAmount`) → `claimedAmount`, **without**
-  requiring `procedureIds`; raises an `Invoice` (claim currency) whose items are the
-  pre-auth's items 1:1 tagged with its `medicalServiceId` (total = sum of items, or the
-  claimed amount when there are none); then sets the pre-auth's `convertedToClaim`.
-  409 unless the pre-auth is `APPROVED`/`PARTIALLY_APPROVED` and not already converted.
+  with `claimedAmount` = sum of the request's line amounts, **without**
+  requiring `procedureIds`; raises an `Invoice` (claim currency) with those lines (a line
+  without `medicalServiceId` is tagged with the pre-auth's); then sets the pre-auth's
+  `convertedToClaim`. 400 if the line total exceeds `approvedAmount` (fallback
+  `requestedAmount`); 409 unless the pre-auth is `APPROVED`/`PARTIALLY_APPROVED` and not already converted.
   `markPreAuthorizationConvertedToClaim` accepts both approved statuses.
   Existing invoices can only be attached to a claim whose
   status is `OPEN` via `PUT /api/v1/claims/{id}/invoice` (`AttachInvoiceRequest`); attaching

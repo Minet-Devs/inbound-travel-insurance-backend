@@ -115,18 +115,32 @@ public class ClaimServiceImpl implements ClaimService {
     }
 
     /**
-     * Everything is copied from the pre-authorization; its items become the invoice's, 1:1.
+     * Claim fields are copied from the pre-authorization; the invoice lines come from the request
+     * and their total is the claimed amount, capped at the approved amount.
      * Unlike {@link #create}, procedureIds are not required — the pre-auth never captured any.
      */
     @Override
     public ClaimResponse createFromPreauthorization(UUID preauthorizationId, ConvertPreauthorizationRequest request) {
         PreauthorizationResponse preauth = preauthorizationService.getById(preauthorizationId);
+        assertProviderOwns(preauth);
         if (!CONVERTIBLE_PREAUTH_STATUSES.contains(preauth.status())) {
             throw new IllegalStateException(
                     "Only approved pre-authorizations can be converted to a claim: " + preauth.status());
         }
         if (Boolean.TRUE.equals(preauth.convertedToClaim())) {
             throw new IllegalStateException("Pre-authorization has already been converted to a claim");
+        }
+
+        List<InvoiceItemRequest> items = request.invoiceItems().stream()
+                .map(item -> item.medicalServiceId() != null ? item
+                        : new InvoiceItemRequest(preauth.medicalServiceId(), item.description(),
+                                item.quantity(), item.unitPrice(), item.amount(), item.serviceDate()))
+                .toList();
+        BigDecimal invoiceTotal = items.stream().map(InvoiceItemRequest::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal authorizedAmount = preauth.approvedAmount() != null ? preauth.approvedAmount() : preauth.requestedAmount();
+        if (invoiceTotal.compareTo(authorizedAmount) > 0) {
+            throw new IllegalArgumentException("Invoice total " + invoiceTotal.toPlainString()
+                    + " exceeds the pre-authorized amount " + authorizedAmount.toPlainString());
         }
 
         Claim claim = new Claim();
@@ -136,20 +150,13 @@ public class ClaimServiceImpl implements ClaimService {
         claim.setBenefitId(preauth.benefitId());
         claim.setServiceProviderId(preauth.serviceProviderId());
         claim.setPreauthorizationId(preauth.id());
-        claim.setClaimedAmount(preauth.approvedAmount() != null ? preauth.approvedAmount() : preauth.requestedAmount());
+        claim.setClaimedAmount(invoiceTotal);
         claim.setDescription(preauth.serviceDescription());
         claim.getDiagnosisIds().add(preauth.icd11CodeId());
         claim.setStatus(ClaimStatus.OPEN);
         applyBaseConversion(claim);
         claim = claimRepository.save(claim);
 
-        List<InvoiceItemRequest> items = preauth.preauthorizationItems().stream()
-                .map(item -> new InvoiceItemRequest(preauth.medicalServiceId(), item.description(),
-                        item.quantity(), item.unitPrice(), item.amount(), item.serviceDate()))
-                .toList();
-        BigDecimal invoiceTotal = items.isEmpty()
-                ? claim.getClaimedAmount()
-                : items.stream().map(InvoiceItemRequest::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         invoiceService.create(new InvoiceRequest(claim.getId(), request.invoiceNumber().trim(),
                 request.issueDate(), claim.getCurrency(), invoiceTotal, items));
 
@@ -343,6 +350,18 @@ public class ClaimServiceImpl implements ClaimService {
             return null;
         }
         return amount.multiply(rate).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    /** A provider may only act on its own facility's pre-auths; 404 rather than 403 so ids don't leak. */
+    private void assertProviderOwns(PreauthorizationResponse preauth) {
+        AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
+        if (user == null || !"PROVIDER_USER".equals(user.role())) {
+            return;
+        }
+        UUID serviceProviderId = serviceProviderService.findIdByOrganizationId(user.organizationId()).orElse(null);
+        if (!Objects.equals(serviceProviderId, preauth.serviceProviderId())) {
+            throw new ResourceNotFoundException("Preauthorization not found: " + preauth.id());
+        }
     }
 
     private Page<Claim> findScoped(Pageable pageable) {

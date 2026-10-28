@@ -16,6 +16,7 @@ import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
 import com.travel.insurance.invoice.InvoiceService;
+import com.travel.insurance.invoice.dto.InvoiceItemRequest;
 import com.travel.insurance.invoice.dto.InvoiceRequest;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
@@ -653,25 +654,29 @@ class ClaimServiceImplTest {
                 items, converted);
     }
 
-    private PreauthorizationItemResponse preauthItem(String amount) {
-        return new PreauthorizationItemResponse(UUID.randomUUID(), "Ward bed", new BigDecimal("2"),
-                new BigDecimal(amount).divide(new BigDecimal("2")), new BigDecimal(amount), LocalDate.of(2026, 10, 1));
-    }
-
     private final UUID preauthId = UUID.randomUUID();
     private final UUID serviceProviderId = UUID.randomUUID();
     private final UUID medicalServiceId = UUID.randomUUID();
 
+    private InvoiceItemRequest invoiceLine(UUID serviceId, String amount) {
+        return new InvoiceItemRequest(serviceId, "Ward bed", new BigDecimal("2"),
+                new BigDecimal(amount).divide(new BigDecimal("2")), new BigDecimal(amount), LocalDate.of(2026, 10, 1));
+    }
+
+    private ConvertPreauthorizationRequest convertRequest(String invoiceNumber, InvoiceItemRequest... lines) {
+        return new ConvertPreauthorizationRequest(invoiceNumber, LocalDate.of(2026, 10, 2), List.of(lines));
+    }
+
     @Test
-    void createFromPreauthorizationCopiesPreauthAndInvoicesItsItems() {
-        when(preauthorizationService.getById(preauthId)).thenReturn(preauthResponse(
-                PreauthorizationStatus.PARTIALLY_APPROVED, false,
-                List.of(preauthItem("30000.00"), preauthItem("25000.00"))));
+    void createFromPreauthorizationCopiesPreauthAndInvoicesRequestedLines() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.PARTIALLY_APPROVED, false, List.of()));
         when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        UUID otherServiceId = UUID.randomUUID();
 
-        ClaimResponse response = claimService.createFromPreauthorization(
-                preauthId, new ConvertPreauthorizationRequest(" INV-77 ", LocalDate.of(2026, 10, 2)));
+        ClaimResponse response = claimService.createFromPreauthorization(preauthId, convertRequest(" INV-77 ",
+                invoiceLine(null, "30000.00"), invoiceLine(otherServiceId, "15000.00")));
 
         ArgumentCaptor<Claim> claimCaptor = ArgumentCaptor.forClass(Claim.class);
         verify(claimRepository).save(claimCaptor.capture());
@@ -682,7 +687,7 @@ class ClaimServiceImplTest {
         assertThat(saved.getBenefitId()).isEqualTo(benefitId);
         assertThat(saved.getServiceProviderId()).isEqualTo(serviceProviderId);
         assertThat(saved.getPreauthorizationId()).isEqualTo(preauthId);
-        assertThat(saved.getClaimedAmount()).isEqualByComparingTo("50000.00");
+        assertThat(saved.getClaimedAmount()).isEqualByComparingTo("45000.00");
         assertThat(saved.getDescription()).isEqualTo("Admission for malaria");
         assertThat(saved.getDiagnosisIds()).containsExactly(diagnosisId1);
         assertThat(saved.getProcedureIds()).isEmpty();
@@ -695,26 +700,67 @@ class ClaimServiceImplTest {
         assertThat(invoice.invoiceNumber()).isEqualTo("INV-77");
         assertThat(invoice.issueDate()).isEqualTo(LocalDate.of(2026, 10, 2));
         assertThat(invoice.currency()).isEqualTo("KES");
-        assertThat(invoice.totalAmount()).isEqualByComparingTo("55000.00");
-        assertThat(invoice.invoiceItems()).hasSize(2)
-                .allSatisfy(item -> assertThat(item.medicalServiceId()).isEqualTo(medicalServiceId));
+        assertThat(invoice.totalAmount()).isEqualByComparingTo("45000.00");
+        assertThat(invoice.invoiceItems()).extracting(InvoiceItemRequest::medicalServiceId)
+                .containsExactly(medicalServiceId, otherServiceId);
 
         verify(preauthorizationService).markPreAuthorizationConvertedToClaim(preauthId);
     }
 
     @Test
-    void createFromPreauthorizationWithoutItemsInvoicesTheClaimedAmount() {
+    void createFromPreauthorizationAllowsInvoiceTotalEqualToApprovedAmount() {
         when(preauthorizationService.getById(preauthId)).thenReturn(
                 preauthResponse(PreauthorizationStatus.APPROVED, null, List.of()));
         when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        claimService.createFromPreauthorization(preauthId, new ConvertPreauthorizationRequest("INV-78", null));
+        claimService.createFromPreauthorization(preauthId, convertRequest("INV-78", invoiceLine(null, "50000.00")));
 
         ArgumentCaptor<InvoiceRequest> invoiceCaptor = ArgumentCaptor.forClass(InvoiceRequest.class);
         verify(invoiceService).create(invoiceCaptor.capture());
         assertThat(invoiceCaptor.getValue().totalAmount()).isEqualByComparingTo("50000.00");
-        assertThat(invoiceCaptor.getValue().invoiceItems()).isEmpty();
+    }
+
+    @Test
+    void createFromPreauthorizationRejectsInvoiceTotalAboveApprovedAmount() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.APPROVED, false, List.of()));
+
+        assertThatThrownBy(() -> claimService.createFromPreauthorization(preauthId,
+                convertRequest("INV-81", invoiceLine(null, "40000.00"), invoiceLine(null, "10000.02"))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("exceeds the pre-authorized amount");
+        verify(claimRepository, never()).save(any());
+        verify(invoiceService, never()).create(any());
+    }
+
+    @Test
+    void createFromPreauthorizationLetsProviderConvertOwnPreauth() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(serviceProviderId));
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.APPROVED, false, List.of()));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        claimService.createFromPreauthorization(preauthId, convertRequest("INV-82", invoiceLine(null, "100.00")));
+
+        verify(invoiceService).create(any());
+    }
+
+    @Test
+    void createFromPreauthorizationHidesOtherProvidersPreauth() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(UUID.randomUUID()));
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.APPROVED, false, List.of()));
+
+        assertThatThrownBy(() -> claimService.createFromPreauthorization(
+                preauthId, convertRequest("INV-83", invoiceLine(null, "100.00"))))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(claimRepository, never()).save(any());
     }
 
     @Test
@@ -723,7 +769,7 @@ class ClaimServiceImplTest {
                 preauthResponse(PreauthorizationStatus.PENDING, false, List.of()));
 
         assertThatThrownBy(() -> claimService.createFromPreauthorization(
-                preauthId, new ConvertPreauthorizationRequest("INV-79", null)))
+                preauthId, convertRequest("INV-79", invoiceLine(null, "100.00"))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Only approved");
         verify(claimRepository, never()).save(any());
@@ -736,7 +782,7 @@ class ClaimServiceImplTest {
                 preauthResponse(PreauthorizationStatus.APPROVED, true, List.of()));
 
         assertThatThrownBy(() -> claimService.createFromPreauthorization(
-                preauthId, new ConvertPreauthorizationRequest("INV-80", null)))
+                preauthId, convertRequest("INV-80", invoiceLine(null, "100.00"))))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("already been converted");
         verify(claimRepository, never()).save(any());
