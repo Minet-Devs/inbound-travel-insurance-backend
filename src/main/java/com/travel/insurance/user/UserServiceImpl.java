@@ -6,13 +6,16 @@ import com.travel.insurance.organization.OrganizationService;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.user.dto.UserRequest;
 import com.travel.insurance.user.dto.UserResponse;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,8 +55,8 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<UserResponse> list(Pageable pageable) {
-        Page<User> page = userRepository.findAll(pageable);
+    public Page<UserResponse> list(String email, Role role, Pageable pageable) {
+        Page<User> page = userRepository.findAll(filter(email, role), pageable);
         Set<UUID> organizationIds = page.getContent().stream()
                 .map(User::getOrganizationId)
                 .filter(Objects::nonNull)
@@ -116,6 +119,21 @@ public class UserServiceImpl implements UserService {
             return null;
         }
         return insurerService.findIdByOrganizationId(user.getOrganizationId()).orElse(null);
+    }
+
+    private Specification<User> filter(String email, Role role) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (email != null && !email.isBlank()) {
+                String escaped = email.trim().toLowerCase()
+                        .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+                predicates.add(cb.like(cb.lower(root.get("email")), "%" + escaped + "%", '\\'));
+            }
+            if (role != null) {
+                predicates.add(cb.equal(root.get("role"), role));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     private UserResponse toResponse(User user) {

@@ -14,7 +14,7 @@ public interface UserService {
 
     UserResponse getById(UUID id);
 
-    Page<UserResponse> list(Pageable pageable);
+    Page<UserResponse> list(String email, Role role, Pageable pageable);
 
     UserResponse update(UUID id, UserRequest request);
 
