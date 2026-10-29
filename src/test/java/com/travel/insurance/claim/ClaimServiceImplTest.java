@@ -885,7 +885,7 @@ class ClaimServiceImplTest {
                 diagnosisId1, "B54", "Malaria", benefitId, "Inpatient", serviceProviderId, "City Hospital",
                 medicalServiceId, "Ward admission", new BigDecimal("60000.00"), new BigDecimal("50000.00"),
                 "Admission for malaria", null, status, Instant.now(), Instant.now(), null, null,
-                items, converted, VisitType.INPATIENT, null, null, null);
+                items, converted, VisitType.INPATIENT, null, null, null, null);
     }
 
     private PreauthorizationItemResponse preauthItem(String amount) {

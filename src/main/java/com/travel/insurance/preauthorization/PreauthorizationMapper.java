@@ -84,7 +84,8 @@ public class PreauthorizationMapper {
                 preauthorization.getVisitType(),
                 preauthorization.getTreatmentDate(),
                 preauthorization.getDischargeDate(),
-                preauthorization.getExchangeRate()
+                preauthorization.getExchangeRate(),
+                preauthorization.getApprovedAmountInDollars()
         );
     }
 
