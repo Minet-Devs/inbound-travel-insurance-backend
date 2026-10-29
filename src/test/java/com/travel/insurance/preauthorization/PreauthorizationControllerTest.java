@@ -70,7 +70,8 @@ class PreauthorizationControllerTest {
                 icd11CodeId, "1A00", "Cholera", benefitId, "Medical Expenses",
                 serviceProviderId, "Aga Khan Hospital", null, null,
                 new BigDecimal("500.00"), null, "X-ray", null, status,
-                Instant.now(), Instant.now(), null, null, List.of(), false, VisitType.OUTPATIENT, null, null);
+                Instant.now(), Instant.now(), null, null, List.of(), false, VisitType.OUTPATIENT, null, null,
+                new BigDecimal("0.007752"));
     }
 
     @Test
@@ -90,7 +91,8 @@ class PreauthorizationControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.visitorId").value(visitorId.toString()))
-                .andExpect(jsonPath("$.icd11CodeId").value(icd11CodeId.toString()));
+                .andExpect(jsonPath("$.icd11CodeId").value(icd11CodeId.toString()))
+                .andExpect(jsonPath("$.exchangeRate").value(0.007752));
     }
 
     @Test

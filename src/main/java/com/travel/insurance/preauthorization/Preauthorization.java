@@ -56,6 +56,10 @@ public class Preauthorization extends BaseEntity {
 
     private LocalDate dischargeDate;
 
+    /** KES to USD rate snapshotted at creation; null when the rate service was unavailable. */
+    @Column(precision = 12, scale = 6)
+    private BigDecimal exchangeRate;
+
     @Convert(converter = EncryptedStringConverter.class)
     @Column(columnDefinition = "text")
     private String serviceDescription;

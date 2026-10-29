@@ -2,8 +2,10 @@ package com.travel.insurance.preauthorization;
 
 import com.travel.insurance.benefit.Benefit;
 import com.travel.insurance.benefit.BenefitService;
+import com.travel.insurance.common.exception.ExchangeRateUnavailableException;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
+import com.travel.insurance.common.service.CurrencyConversionService;
 import com.travel.insurance.common.util.AuthenticatedUser;
 import com.travel.insurance.common.util.SecurityUtils;
 import com.travel.insurance.config.RabbitConfig;
@@ -27,6 +29,7 @@ import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -48,6 +51,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -75,6 +79,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     private final InsurerService insurerService;
     private final MedicalServiceService medicalServiceService;
     private final EventPublisher eventPublisher;
+    private final CurrencyConversionService currencyConversionService;
 
     @Override
     public PreauthorizationResponse create(PreauthorizationRequest request) {
@@ -88,6 +93,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         }
         Preauthorization preauthorization = preauthorizationMapper.toEntity(request);
         preauthorization.setInsurerId(policy.getInsurerId());
+        preauthorization.setExchangeRate(lookupKesToUsdRate());
         Preauthorization saved = preauthorizationRepository.save(preauthorization);
         PreauthorizationEnhancement enhancement = preauthorizationEnhancementRepository.save(
                 preauthorizationMapper.toEnhancement(saved.getId(), request));
@@ -118,6 +124,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         preauthorization.setVisitType(approval.visitType());
         preauthorization.setTreatmentDate(approval.treatmentDate());
         preauthorization.setDischargeDate(approval.dischargeDate());
+        preauthorization.setExchangeRate(lookupKesToUsdRate());
         preauthorization.setStatus(PreauthorizationStatus.APPROVED);
         preauthorization.setDecisionReason(OFFLINE_APPROVAL_REASON);
         return preauthorizationRepository.save(preauthorization).getId();
@@ -237,6 +244,16 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     public Preauthorization getEntityById(UUID id) {
         return preauthorizationRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Preauthorization", id));
+    }
+
+    /** The rate is optional: an unavailable rate service must not block raising a pre-authorization. */
+    private BigDecimal lookupKesToUsdRate() {
+        try {
+            return currencyConversionService.getExchangeRate("KES", "USD");
+        } catch (ExchangeRateUnavailableException ex) {
+            log.warn("KES->USD exchange rate unavailable; saving pre-authorization without it");
+            return null;
+        }
     }
 
     private void saveItems(UUID enhancementId, List<PreauthorizationItemRequest> itemRequests) {
