@@ -24,6 +24,9 @@ public interface PreauthorizationService {
 
     Page<PreauthorizationResponse> listByVisitor(UUID visitorId, Pageable pageable);
 
+    /** Replaces the details of a still-PENDING pre-authorization, including its enhancement and line items. */
+    PreauthorizationResponse update(UUID id, PreauthorizationRequest request);
+
     PreauthorizationResponse decide(UUID id, PreauthorizationDecisionRequest request);
 
     /**

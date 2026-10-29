@@ -808,6 +808,14 @@ Policy
   `preauthorizationId`, `errorMessage`); the valid rows are still created. `treatmentDate` /
   `dischargeDate` are new nullable `Preauthorization` columns returned on `PreauthorizationResponse`
   (not accepted on `PreauthorizationRequest`).
+- **Update a pre-authorization**: `PUT /api/v1/preauthorizations/{id}` (`ADMIN`, `PROVIDER_USER`,
+  `CONTACT_CENTER`) takes the same `PreauthorizationRequest` as create and fully replaces the details,
+  re-running create's validations (active policy, visitor, ICD-11 code, benefit, provider, medical service);
+  `insurerId` is re-derived from the policy. The enhancement is updated in place (created if a legacy row has
+  none) and its line items are soft-deleted and re-saved. Only a `PENDING` pre-authorization can be updated
+  (otherwise `IllegalStateException` → 409); `PROVIDER_USER` is limited to its own provider's pre-auths
+  (same visibility check as `GET /{id}`, 403). `status`, decision fields and `exchangeRate` are untouched
+  and no event is published.
 - **Pre-authorization `exchangeRate`**: nullable `preauthorizations.exchange_rate` (`numeric(12,6)`,
   migration `V202610291343`), returned on `PreauthorizationResponse` (not accepted on the request).
   Snapshotted once at creation — in both `create` and `createOfflineApproval` — from

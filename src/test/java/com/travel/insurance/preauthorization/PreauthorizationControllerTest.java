@@ -36,6 +36,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -169,6 +170,39 @@ class PreauthorizationControllerTest {
         mockMvc.perform(get("/api/v1/preauthorizations/{id}", preauthorizationId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(preauthorizationId.toString()));
+    }
+
+    @Test
+    @WithMockUser(roles = "PROVIDER_USER")
+    void updateReturnsUpdatedPreauthorization() throws Exception {
+        when(preauthorizationService.update(eq(preauthorizationId), any(PreauthorizationRequest.class)))
+                .thenReturn(sampleResponse(PreauthorizationStatus.PENDING));
+
+        PreauthorizationRequest request = new PreauthorizationRequest(
+                policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, null,
+                new BigDecimal("500.00"), "X-ray", null, VisitType.OUTPATIENT);
+
+        mockMvc.perform(put("/api/v1/preauthorizations/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(preauthorizationId.toString()))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    @WithMockUser(roles = "PROVIDER_USER")
+    void updateRejectsMissingVisitorId() throws Exception {
+        PreauthorizationRequest request = new PreauthorizationRequest(
+                policyId, null, icd11CodeId, benefitId, serviceProviderId, null,
+                new BigDecimal("500.00"), "X-ray", null, null);
+
+        mockMvc.perform(put("/api/v1/preauthorizations/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
