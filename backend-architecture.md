@@ -812,6 +812,7 @@ Policy
   Snapshotted once at creation — in both `create` and `createOfflineApproval` — from
   `CurrencyConversionService.getExchangeRate("KES", "USD")`. If the rate service is unavailable
   (`ExchangeRateUnavailableException`) the pre-authorization is still saved with `exchangeRate = null`.
+  Rows that existed before the column was added were backfilled with `0.007702` (including soft-deleted rows).
 - **Pre-authorizations dashboard** (`GET /api/v1/preauthorizations/dashboard/...`, all take optional
   ISO `dateFrom`/`dateTo` on `createdDate`, inclusive, UTC; readable by `ADMIN`, `INSURER_USER`,
   `PROVIDER_USER`, `CONTACT_CENTER` and the read-only `KENYA_RE`, matched ahead of the general
