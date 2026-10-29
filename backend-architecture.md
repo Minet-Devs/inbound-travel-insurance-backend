@@ -76,6 +76,7 @@ com.travel.insurance/
 │   ├── 📁 service/
 │   │   └── CurrencyConversionService.java  # KES→USD rate via ExchangeRate-API (RestClient,
 │   │                                       # @Cacheable("fxRates"), 24h TTL)
+│   │                                       # exposed at GET /api/v1/exchange-rate
 │   ├── 📁 messaging/
 │   │   └── EventPublisher.java             # Thin wrapper over RabbitTemplate
 │   ├── 📁 email/
@@ -1227,6 +1228,20 @@ entities:
   (service → service); `config/SecurityConfig` wires the JWT filter and
   role-based route rules.
 
+## Exchange Rate
+
+`GET /api/v1/exchange-rate?from=USD&to=KES` returns the current rate from
+`CurrencyConversionService` (ExchangeRate-API, cached 24h per pair in the `fxRates` cache):
+
+```json
+{ "from": "USD", "to": "KES", "rate": 129.25 }
+```
+
+`from` defaults to `USD` and `to` to `KES`; both must be 3-letter codes (case-insensitive,
+echoed upper-cased), otherwise 400. If the upstream API is unconfigured or failing the
+endpoint returns 503 (`ExchangeRateUnavailableException`). **Access**: any authenticated user
+except `KENYA_RE` (default rule).
+
 ## Layering Rules
 
 - **Controller → Service → Repository**. Never skip a layer or call backwards.
@@ -1319,6 +1334,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | OTP               | `/api/v1/otps`                | `otps`               |
 | Reports           | `/api/v1/reports`             | (reads from existing tables) |
 | Member Statement  | `/api/v1/member-statements`   | — (computed, see [Member Statement Report](#member-statement-report)) |
+| Exchange Rate     | `/api/v1/exchange-rate`       | — (live rate via `CurrencyConversionService`) |
 
 ## Policy Tokenization (Quota Management)
 
