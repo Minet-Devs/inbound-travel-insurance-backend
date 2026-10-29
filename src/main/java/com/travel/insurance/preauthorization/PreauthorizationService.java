@@ -6,6 +6,7 @@ import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummar
 import com.travel.insurance.preauthorization.dto.ServiceProviderPreauthorizationDistribution;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUpdateRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,7 +26,7 @@ public interface PreauthorizationService {
     Page<PreauthorizationResponse> listByVisitor(UUID visitorId, Pageable pageable);
 
     /** Replaces the details of a still-PENDING pre-authorization, including its enhancement and line items. */
-    PreauthorizationResponse update(UUID id, PreauthorizationRequest request);
+    PreauthorizationResponse update(UUID id, PreauthorizationUpdateRequest request);
 
     PreauthorizationResponse decide(UUID id, PreauthorizationDecisionRequest request);
 

@@ -809,13 +809,22 @@ Policy
   `dischargeDate` are new nullable `Preauthorization` columns returned on `PreauthorizationResponse`
   (not accepted on `PreauthorizationRequest`).
 - **Update a pre-authorization**: `PUT /api/v1/preauthorizations/{id}` (`ADMIN`, `PROVIDER_USER`,
-  `CONTACT_CENTER`) takes the same `PreauthorizationRequest` as create and fully replaces the details,
-  re-running create's validations (active policy, visitor, ICD-11 code, benefit, provider, medical service);
-  `insurerId` is re-derived from the policy. The enhancement is updated in place (created if a legacy row has
-  none) and its line items are soft-deleted and re-saved. Only a `PENDING` pre-authorization can be updated
-  (otherwise `IllegalStateException` → 409); `PROVIDER_USER` is limited to its own provider's pre-auths
-  (same visibility check as `GET /{id}`, 403). `status`, decision fields and `exchangeRate` are untouched
-  and no event is published.
+  `CONTACT_CENTER`) takes a `PreauthorizationUpdateRequest`: the create fields (`policyId`, `visitorId`,
+  `benefitId`, `serviceProviderId`, `requestedAmount` required; `icd11CodeId` (nullable, only validated when present), `medicalServiceId`,
+  `serviceDescription`, `preauthorizationItems`, `visitType` optional) which fully replace the details,
+  re-running create's validations (active policy, visitor, ICD-11 code if given, benefit, provider, medical service);
+  `insurerId` is re-derived from the policy. It also accepts the optional fields `approvedAmount`
+  (≤ `requestedAmount`, else `IllegalArgumentException` → 400), `exchangeRate`, `approvedAmountInDollars`,
+  `status`, `decisionReason`, `decidedBy`, `decidedAt`, `convertedToClaim`, `treatmentDate`, `dischargeDate`;
+  an omitted (null) optional field leaves the stored value untouched. If `approvedAmountInDollars` is omitted
+  but `approvedAmount` or `exchangeRate` is sent, it is recomputed (`approvedAmount * exchangeRate`).
+  `status` is set directly (no transition checks, no event published) and updates are allowed in any status.
+  `decidedBy`/`decidedAt` are stored in nullable `preauthorizations.decided_by` / `decided_at` (migration
+  `V202610291726`); when null the response still falls back to `updatedBy`/`updatedDate` for decided rows.
+  Read-only/derived response fields (`id`, names, codes, `insurerId`, `createdDate`, `updatedDate`) are not
+  accepted. The enhancement is updated in place (created if a legacy row has none) and its line items are
+  soft-deleted and re-saved. `PROVIDER_USER` is limited to its own provider's pre-auths (same visibility
+  check as `GET /{id}`, 403).
 - **Pre-authorization `exchangeRate`**: nullable `preauthorizations.exchange_rate` (`numeric(12,6)`,
   migration `V202610291343`), returned on `PreauthorizationResponse` (not accepted on the request).
   Snapshotted once at creation — in both `create` and `createOfflineApproval` — from

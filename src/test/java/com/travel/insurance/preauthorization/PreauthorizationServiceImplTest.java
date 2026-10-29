@@ -28,6 +28,7 @@ import com.travel.insurance.policy.PolicyStatus;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationItemRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUpdateRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
@@ -192,6 +193,31 @@ class PreauthorizationServiceImplTest {
         return new PreauthorizationRequest(
                 policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, null,
                 new BigDecimal("500.00"), "X-ray", null, VisitType.INPATIENT);
+    }
+
+    private PreauthorizationUpdateRequest validUpdateRequest() {
+        return updateRequest(null, new BigDecimal("500.00"), "X-ray", null, VisitType.INPATIENT,
+                null, null, null, null, null);
+    }
+
+    private PreauthorizationUpdateRequest updateRequest(
+            UUID medicalServiceId, BigDecimal requestedAmount, String description,
+            List<PreauthorizationItemRequest> items, VisitType visitType, BigDecimal approvedAmount,
+            BigDecimal exchangeRate, PreauthorizationStatus status, String decisionReason, UUID decidedBy) {
+        return new PreauthorizationUpdateRequest(
+                policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, medicalServiceId,
+                requestedAmount, description, items, visitType, approvedAmount, exchangeRate, null,
+                status, decisionReason, decidedBy, null, null, null, null);
+    }
+
+    private PreauthorizationUpdateRequest withDatesAndFlags(
+            PreauthorizationUpdateRequest r, Instant decidedAt, Boolean convertedToClaim,
+            LocalDate treatmentDate, LocalDate dischargeDate) {
+        return new PreauthorizationUpdateRequest(
+                r.policyId(), r.visitorId(), r.icd11CodeId(), r.benefitId(), r.serviceProviderId(),
+                r.medicalServiceId(), r.requestedAmount(), r.serviceDescription(), r.preauthorizationItems(),
+                r.visitType(), r.approvedAmount(), r.exchangeRate(), r.approvedAmountInDollars(), r.status(),
+                r.decisionReason(), r.decidedBy(), decidedAt, convertedToClaim, treatmentDate, dischargeDate);
     }
 
     private Preauthorization pendingPreauthorization() {
@@ -469,9 +495,9 @@ class PreauthorizationServiceImplTest {
         PreauthorizationItemRequest itemRequest = new PreauthorizationItemRequest(
                 "CT scan", new BigDecimal("1"), new BigDecimal("900.00"),
                 new BigDecimal("900.00"), LocalDate.of(2026, 8, 10));
-        PreauthorizationRequest request = new PreauthorizationRequest(
-                policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, medicalServiceId,
-                new BigDecimal("900.00"), "CT scan", List.of(itemRequest), VisitType.OUTPATIENT);
+        PreauthorizationUpdateRequest request = updateRequest(
+                medicalServiceId, new BigDecimal("900.00"), "CT scan", List.of(itemRequest), VisitType.OUTPATIENT,
+                null, null, null, null, null);
 
         PreauthorizationResponse response = preauthorizationService.update(existing.getId(), request);
 
@@ -486,15 +512,85 @@ class PreauthorizationServiceImplTest {
     }
 
     @Test
-    void updateRejectsDecidedPreauthorization() {
+    void updateAcceptsAllEditableFieldsOnDecidedPreauthorization() {
         Preauthorization existing = pendingPreauthorization();
         existing.setStatus(PreauthorizationStatus.APPROVED);
         when(preauthorizationRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+        when(preauthorizationRepository.save(any(Preauthorization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        UUID decidedBy = UUID.randomUUID();
+        Instant decidedAt = Instant.parse("2026-10-29T14:21:59Z");
 
-        assertThatThrownBy(() -> preauthorizationService.update(existing.getId(), validRequest()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("pending");
+        PreauthorizationUpdateRequest request = updateRequest(
+                null, new BigDecimal("500.00"), "X-ray", null, VisitType.INPATIENT,
+                new BigDecimal("400.00"), new BigDecimal("0.0077"), PreauthorizationStatus.REJECTED,
+                "not covered", decidedBy);
+        request = withDatesAndFlags(request, decidedAt, true,
+                LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 5));
+
+        preauthorizationService.update(existing.getId(), request);
+
+        assertThat(existing.getStatus()).isEqualTo(PreauthorizationStatus.REJECTED);
+        assertThat(existing.getApprovedAmount()).isEqualByComparingTo("400.00");
+        assertThat(existing.getExchangeRate()).isEqualByComparingTo("0.0077");
+        assertThat(existing.getApprovedAmountInDollars()).isEqualByComparingTo("3.08");
+        assertThat(existing.getDecisionReason()).isEqualTo("not covered");
+        assertThat(existing.getDecidedBy()).isEqualTo(decidedBy);
+        assertThat(existing.getDecidedAt()).isEqualTo(decidedAt);
+        assertThat(existing.getConvertedToClaim()).isTrue();
+        assertThat(existing.getTreatmentDate()).isEqualTo(LocalDate.of(2026, 10, 1));
+        assertThat(existing.getDischargeDate()).isEqualTo(LocalDate.of(2026, 10, 5));
+    }
+
+    @Test
+    void updateLeavesOptionalFieldsUntouchedWhenOmitted() {
+        Preauthorization existing = pendingPreauthorization();
+        existing.setStatus(PreauthorizationStatus.APPROVED);
+        existing.setApprovedAmount(new BigDecimal("300.00"));
+        existing.setExchangeRate(new BigDecimal("0.01"));
+        existing.setApprovedAmountInDollars(new BigDecimal("3.00"));
+        when(preauthorizationRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+        when(preauthorizationRepository.save(any(Preauthorization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        preauthorizationService.update(existing.getId(), updateRequest(
+                null, new BigDecimal("500.00"), "X-ray", null, null, null, null, null, null, null));
+
+        assertThat(existing.getStatus()).isEqualTo(PreauthorizationStatus.APPROVED);
+        assertThat(existing.getApprovedAmount()).isEqualByComparingTo("300.00");
+        assertThat(existing.getExchangeRate()).isEqualByComparingTo("0.01");
+        assertThat(existing.getApprovedAmountInDollars()).isEqualByComparingTo("3.00");
+    }
+
+    @Test
+    void updateRejectsApprovedAmountAboveRequested() {
+        Preauthorization existing = pendingPreauthorization();
+        when(preauthorizationRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> preauthorizationService.update(existing.getId(), updateRequest(
+                null, new BigDecimal("500.00"), "X-ray", null, null,
+                new BigDecimal("600.00"), null, null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Approved amount");
         verify(preauthorizationRepository, never()).save(any());
+    }
+
+    @Test
+    void updateAcceptsNullIcd11Code() {
+        Preauthorization existing = pendingPreauthorization();
+        when(preauthorizationRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+        when(preauthorizationRepository.save(any(Preauthorization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        PreauthorizationUpdateRequest base = validUpdateRequest();
+        PreauthorizationUpdateRequest request = new PreauthorizationUpdateRequest(
+                base.policyId(), base.visitorId(), null, base.benefitId(), base.serviceProviderId(), null,
+                base.requestedAmount(), base.serviceDescription(), null, base.visitType(),
+                null, null, null, null, null, null, null, null, null, null);
+
+        preauthorizationService.update(existing.getId(), request);
+
+        assertThat(existing.getIcd11CodeId()).isNull();
+        verify(icd11CodeService, never()).getEntityById(any());
     }
 
     @Test
@@ -502,7 +598,7 @@ class PreauthorizationServiceImplTest {
         UUID missing = UUID.randomUUID();
         when(preauthorizationRepository.findById(missing)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> preauthorizationService.update(missing, validRequest()))
+        assertThatThrownBy(() -> preauthorizationService.update(missing, validUpdateRequest()))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -515,7 +611,7 @@ class PreauthorizationServiceImplTest {
         draftPolicy.setStatus(PolicyStatus.DRAFT);
         when(policyService.getEntityById(policyId)).thenReturn(draftPolicy);
 
-        assertThatThrownBy(() -> preauthorizationService.update(existing.getId(), validRequest()))
+        assertThatThrownBy(() -> preauthorizationService.update(existing.getId(), validUpdateRequest()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(policyId.toString());
         verify(preauthorizationRepository, never()).save(any());

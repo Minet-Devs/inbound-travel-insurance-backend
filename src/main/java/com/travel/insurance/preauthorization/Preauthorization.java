@@ -16,6 +16,7 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -79,6 +80,11 @@ public class Preauthorization extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PreauthorizationStatus status = PreauthorizationStatus.PENDING;
+
+    /** Explicit decision audit; null falls back to updatedBy/updatedDate once decided. */
+    private UUID decidedBy;
+
+    private Instant decidedAt;
 
     @Column()
     private Boolean convertedToClaim = false;

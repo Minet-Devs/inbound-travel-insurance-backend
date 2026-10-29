@@ -24,6 +24,7 @@ import com.travel.insurance.preauthorization.dto.ServiceProviderPreauthorization
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationItemRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUpdateRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
 import com.travel.insurance.visitor.Visitor;
@@ -103,16 +104,15 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     }
 
     @Override
-    public PreauthorizationResponse update(UUID id, PreauthorizationRequest request) {
+    public PreauthorizationResponse update(UUID id, PreauthorizationUpdateRequest request) {
         Preauthorization preauthorization = getEntityById(id);
         assertVisibleToCurrentUser(preauthorization);
-        if (preauthorization.getStatus() != PreauthorizationStatus.PENDING) {
-            throw new IllegalStateException("Only a pending pre-authorization can be updated");
-        }
         Policy policy = validatePolicyActive(request.policyId());
         validateVisitorExists(request.visitorId());
         validateBenefitExists(request.benefitId());
-        icd11CodeService.getEntityById(request.icd11CodeId());
+        if (request.icd11CodeId() != null) {
+            icd11CodeService.getEntityById(request.icd11CodeId());
+        }
         serviceProviderService.getById(request.serviceProviderId());
         if (request.medicalServiceId() != null) {
             medicalServiceService.getById(request.medicalServiceId());
@@ -126,11 +126,16 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         preauthorization.setRequestedAmount(request.requestedAmount());
         preauthorization.setServiceDescription(request.serviceDescription());
         preauthorization.setVisitType(request.visitType());
+        applyOptionalUpdates(preauthorization, request);
         Preauthorization saved = preauthorizationRepository.save(preauthorization);
 
         PreauthorizationEnhancement enhancement = preauthorizationEnhancementRepository
                 .findByPreauthorizationId(id)
-                .orElseGet(() -> preauthorizationMapper.toEnhancement(id, request));
+                .orElseGet(() -> {
+                    PreauthorizationEnhancement created = new PreauthorizationEnhancement();
+                    created.setPreauthorizationId(id);
+                    return created;
+                });
         enhancement.setMedicalServiceId(request.medicalServiceId());
         enhancement.setRequestedAmount(request.requestedAmount());
         PreauthorizationEnhancement savedEnhancement = preauthorizationEnhancementRepository.save(enhancement);
@@ -138,6 +143,45 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
                 preauthorizationItemRepository.findAllByEnhancementId(savedEnhancement.getId()));
         saveItems(savedEnhancement.getId(), request.preauthorizationItems());
         return enrich(saved);
+    }
+
+    /** Optional fields of an update: omitted (null) leaves the stored value untouched. */
+    private void applyOptionalUpdates(Preauthorization preauthorization, PreauthorizationUpdateRequest request) {
+        if (request.approvedAmount() != null) {
+            if (request.approvedAmount().compareTo(preauthorization.getRequestedAmount()) > 0) {
+                throw new IllegalArgumentException("Approved amount cannot exceed requested amount");
+            }
+            preauthorization.setApprovedAmount(request.approvedAmount());
+        }
+        if (request.exchangeRate() != null) {
+            preauthorization.setExchangeRate(request.exchangeRate());
+        }
+        if (request.approvedAmountInDollars() != null) {
+            preauthorization.setApprovedAmountInDollars(request.approvedAmountInDollars());
+        } else if (request.approvedAmount() != null || request.exchangeRate() != null) {
+            preauthorization.setApprovedAmountInDollars(toDollars(preauthorization));
+        }
+        if (request.status() != null) {
+            preauthorization.setStatus(request.status());
+        }
+        if (request.decisionReason() != null) {
+            preauthorization.setDecisionReason(request.decisionReason());
+        }
+        if (request.decidedBy() != null) {
+            preauthorization.setDecidedBy(request.decidedBy());
+        }
+        if (request.decidedAt() != null) {
+            preauthorization.setDecidedAt(request.decidedAt());
+        }
+        if (request.convertedToClaim() != null) {
+            preauthorization.setConvertedToClaim(request.convertedToClaim());
+        }
+        if (request.treatmentDate() != null) {
+            preauthorization.setTreatmentDate(request.treatmentDate());
+        }
+        if (request.dischargeDate() != null) {
+            preauthorization.setDischargeDate(request.dischargeDate());
+        }
     }
 
     @Override
