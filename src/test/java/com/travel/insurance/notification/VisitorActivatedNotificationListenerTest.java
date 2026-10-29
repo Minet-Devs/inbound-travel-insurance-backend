@@ -303,7 +303,7 @@ class VisitorActivatedNotificationListenerTest {
             assertThat(image.contentType()).isEqualTo("image/png");
             assertThat(image.content()).isNotEmpty();
         });
-        assertThat(ccCaptor.getValue()).containsExactly("contact@acme.example");
+        assertThat(ccCaptor.getValue()).isEmpty();
         assertThat(bccCaptor.getValue()).isEmpty();
         assertThat(subjectCaptor.getValue()).isEqualTo("Welcome to Kenya – Your Medical Cover Is Now Active");
         assertThat(bodyCaptor.getValue()).contains("Dear Jane,").contains("+254 719 044 777");
@@ -679,10 +679,10 @@ class VisitorActivatedNotificationListenerTest {
     }
 
     @Test
-    void skipsInsurerCcWhenContactEmailIsBlank() {
+    void doesNotCcInsurerContactEmail() {
         stubFullSend();
         Insurer insurer = sampleInsurer();
-        insurer.setContactEmail("  ");
+        insurer.setContactEmail("contact@acme.example");
         when(insurerService.getEntityById(insurerId)).thenReturn(insurer);
 
         listener.onVisitorBenefitAssigned(new VisitorBenefitAssignedEvent(visitorId));
