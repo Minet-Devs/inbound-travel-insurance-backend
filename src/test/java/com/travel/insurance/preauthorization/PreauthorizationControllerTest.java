@@ -71,7 +71,7 @@ class PreauthorizationControllerTest {
                 serviceProviderId, "Aga Khan Hospital", null, null,
                 new BigDecimal("500.00"), null, "X-ray", null, status,
                 Instant.now(), Instant.now(), null, null, List.of(), false, VisitType.OUTPATIENT, null, null,
-                new BigDecimal("0.007752"));
+                new BigDecimal("0.007752"), new BigDecimal("3.88"));
     }
 
     @Test
@@ -92,7 +92,8 @@ class PreauthorizationControllerTest {
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.visitorId").value(visitorId.toString()))
                 .andExpect(jsonPath("$.icd11CodeId").value(icd11CodeId.toString()))
-                .andExpect(jsonPath("$.exchangeRate").value(0.007752));
+                .andExpect(jsonPath("$.exchangeRate").value(0.007752))
+                .andExpect(jsonPath("$.approvedAmountInDollars").value(3.88));
     }
 
     @Test

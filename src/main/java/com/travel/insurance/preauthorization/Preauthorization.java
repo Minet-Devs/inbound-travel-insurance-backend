@@ -60,6 +60,10 @@ public class Preauthorization extends BaseEntity {
     @Column(precision = 12, scale = 6)
     private BigDecimal exchangeRate;
 
+    /** approvedAmount * exchangeRate; null until approved or when no exchange rate was captured. */
+    @Column(precision = 15, scale = 2)
+    private BigDecimal approvedAmountInDollars;
+
     @Convert(converter = EncryptedStringConverter.class)
     @Column(columnDefinition = "text")
     private String serviceDescription;

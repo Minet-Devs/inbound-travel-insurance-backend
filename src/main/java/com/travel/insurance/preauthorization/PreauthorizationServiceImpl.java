@@ -37,6 +37,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -125,6 +126,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         preauthorization.setTreatmentDate(approval.treatmentDate());
         preauthorization.setDischargeDate(approval.dischargeDate());
         preauthorization.setExchangeRate(lookupKesToUsdRate());
+        preauthorization.setApprovedAmountInDollars(toDollars(preauthorization));
         preauthorization.setStatus(PreauthorizationStatus.APPROVED);
         preauthorization.setDecisionReason(OFFLINE_APPROVAL_REASON);
         return preauthorizationRepository.save(preauthorization).getId();
@@ -306,6 +308,7 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         preauthorization.setDecisionReason(request.reason());
         if (request.status() == PreauthorizationStatus.REJECTED) {
             preauthorization.setApprovedAmount(BigDecimal.ZERO);
+            preauthorization.setApprovedAmountInDollars(toDollars(preauthorization));
             return;
         }
         BigDecimal approved = request.approvedAmount() != null
@@ -315,6 +318,17 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
             throw new IllegalArgumentException("Approved amount cannot exceed requested amount");
         }
         preauthorization.setApprovedAmount(approved);
+        preauthorization.setApprovedAmountInDollars(toDollars(preauthorization));
+    }
+
+    /** approvedAmount * exchangeRate, or null when either is missing. */
+    private BigDecimal toDollars(Preauthorization preauthorization) {
+        if (preauthorization.getApprovedAmount() == null || preauthorization.getExchangeRate() == null) {
+            return null;
+        }
+        return preauthorization.getApprovedAmount()
+                .multiply(preauthorization.getExchangeRate())
+                .setScale(2, RoundingMode.HALF_UP);
     }
 
     private Policy validatePolicyActive(UUID policyId) {

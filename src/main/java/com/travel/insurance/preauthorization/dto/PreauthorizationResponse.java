@@ -39,6 +39,7 @@ public record PreauthorizationResponse(
         VisitType visitType,
         LocalDate treatmentDate,
         LocalDate dischargeDate,
-        BigDecimal exchangeRate
+        BigDecimal exchangeRate,
+        BigDecimal approvedAmountInDollars
 ) {
 }

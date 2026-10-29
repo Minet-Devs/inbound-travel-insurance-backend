@@ -814,6 +814,11 @@ Policy
   `CurrencyConversionService.getExchangeRate("KES", "USD")`. If the rate service is unavailable
   (`ExchangeRateUnavailableException`) the pre-authorization is still saved with `exchangeRate = null`.
   Rows that existed before the column was added were backfilled with `0.007702` (including soft-deleted rows).
+- **Pre-authorization `approvedAmountInDollars`**: nullable `preauthorizations.approved_amount_in_dollars`
+  (`numeric(15,2)`, migration `V202610291444`), returned on `PreauthorizationResponse`. Derived as
+  `approvedAmount * exchangeRate` (HALF_UP, 2dp) whenever `approvedAmount` is set — on `decide` (approve or
+  reject → 0) and on `createOfflineApproval`. Null while pending or when no `exchangeRate` was captured.
+  The migration backfills existing rows that have both values (including soft-deleted rows).
 - **Pre-authorizations dashboard** (`GET /api/v1/preauthorizations/dashboard/...`, all take optional
   ISO `dateFrom`/`dateTo` on `createdDate`, inclusive, UTC; readable by `ADMIN`, `INSURER_USER`,
   `PROVIDER_USER`, `CONTACT_CENTER` and the read-only `KENYA_RE`, matched ahead of the general

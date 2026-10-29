@@ -488,6 +488,7 @@ class PreauthorizationServiceImplTest {
         ArgumentCaptor<Preauthorization> captor = ArgumentCaptor.forClass(Preauthorization.class);
         verify(preauthorizationRepository).save(captor.capture());
         assertThat(captor.getValue().getExchangeRate()).isEqualByComparingTo("0.007752");
+        assertThat(captor.getValue().getApprovedAmountInDollars()).isEqualByComparingTo("0.78");
     }
 
     @Test
@@ -609,6 +610,34 @@ class PreauthorizationServiceImplTest {
 
         assertThat(response.approvedAmount()).isEqualByComparingTo("500.00");
         verify(eventPublisher).publish(eq(RabbitConfig.PREAUTHORIZATION_DECIDED_KEY), any());
+    }
+
+    @Test
+    void decideComputesApprovedAmountInDollarsFromExchangeRate() {
+        Preauthorization pending = pendingPreauthorization();
+        pending.setExchangeRate(new BigDecimal("0.007702"));
+        when(preauthorizationRepository.findById(pending.getId())).thenReturn(Optional.of(pending));
+        when(preauthorizationRepository.save(any(Preauthorization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PreauthorizationResponse response = preauthorizationService.decide(pending.getId(),
+                new PreauthorizationDecisionRequest(PreauthorizationStatus.APPROVED, new BigDecimal("400.00"), "ok"));
+
+        assertThat(response.approvedAmountInDollars()).isEqualByComparingTo("3.08");
+    }
+
+    @Test
+    void decideLeavesApprovedAmountInDollarsNullWithoutExchangeRate() {
+        Preauthorization pending = pendingPreauthorization();
+        pending.setExchangeRate(null);
+        when(preauthorizationRepository.findById(pending.getId())).thenReturn(Optional.of(pending));
+        when(preauthorizationRepository.save(any(Preauthorization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PreauthorizationResponse response = preauthorizationService.decide(pending.getId(),
+                new PreauthorizationDecisionRequest(PreauthorizationStatus.APPROVED, null, "ok"));
+
+        assertThat(response.approvedAmountInDollars()).isNull();
     }
 
     @Test
