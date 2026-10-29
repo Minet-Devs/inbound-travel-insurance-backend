@@ -1558,8 +1558,8 @@ Store link is omitted until the app is approved):
 
 The activation email is not BCC'd to anyone. `EmailService` has a `send(...)` overload
 taking a BCC list; an empty list adds no BCC header.
-The insurer's `contactEmail` is also visibly CC'd on the activation email (skipped, with
-the email still sent, if blank); `send(...)` takes a CC list alongside the BCC list.
+The activation email is not CC'd to the insurer either (the insurer's `contactEmail` is no
+longer copied); `send(...)` still takes a CC list alongside the BCC list, and an empty list adds no CC header.
 
 The email closes with the bundled signature banner
 (`templates/Inbound-Travel-Health-Esignature.png`) after the text sign-off. It is
