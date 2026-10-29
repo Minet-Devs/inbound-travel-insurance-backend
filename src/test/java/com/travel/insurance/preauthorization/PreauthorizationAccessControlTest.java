@@ -32,6 +32,7 @@ import java.util.UUID;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -78,6 +79,26 @@ class PreauthorizationAccessControlTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createBody()))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    @WithMockUser(roles = "CONTACT_CENTER")
+    void contactCenterCanUpdatePreauthorization() throws Exception {
+        mockMvc.perform(put("/api/v1/preauthorizations/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "INSURER_USER")
+    void insurerUserCannotUpdatePreauthorization() throws Exception {
+        mockMvc.perform(put("/api/v1/preauthorizations/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody()))
+                .andExpect(status().isForbidden());
     }
 
     @Test

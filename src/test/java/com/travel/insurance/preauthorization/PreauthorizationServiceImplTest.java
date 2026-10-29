@@ -59,6 +59,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -445,6 +446,79 @@ class PreauthorizationServiceImplTest {
 
         assertThat(response.exchangeRate()).isNull();
         assertThat(response.status()).isEqualTo(PreauthorizationStatus.PENDING);
+    }
+
+    @Test
+    void updateReplacesDetailsEnhancementAndItems() {
+        Preauthorization existing = pendingPreauthorization();
+        when(preauthorizationRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+        when(preauthorizationRepository.save(any(Preauthorization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(medicalServiceService.getById(medicalServiceId)).thenReturn(medicalServiceResponse());
+        UUID enhancementId = UUID.randomUUID();
+        PreauthorizationEnhancement enhancement = new PreauthorizationEnhancement();
+        enhancement.setId(enhancementId);
+        enhancement.setPreauthorizationId(existing.getId());
+        enhancement.setRequestedAmount(new BigDecimal("100.00"));
+        when(preauthorizationEnhancementRepository.findByPreauthorizationId(existing.getId()))
+                .thenReturn(Optional.of(enhancement));
+        doReturn(enhancement).when(preauthorizationEnhancementRepository).save(enhancement);
+        PreauthorizationItem oldItem = new PreauthorizationItem();
+        when(preauthorizationItemRepository.findAllByEnhancementId(enhancementId)).thenReturn(List.of(oldItem));
+
+        PreauthorizationItemRequest itemRequest = new PreauthorizationItemRequest(
+                "CT scan", new BigDecimal("1"), new BigDecimal("900.00"),
+                new BigDecimal("900.00"), LocalDate.of(2026, 8, 10));
+        PreauthorizationRequest request = new PreauthorizationRequest(
+                policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, medicalServiceId,
+                new BigDecimal("900.00"), "CT scan", List.of(itemRequest), VisitType.OUTPATIENT);
+
+        PreauthorizationResponse response = preauthorizationService.update(existing.getId(), request);
+
+        assertThat(response.requestedAmount()).isEqualByComparingTo("900.00");
+        assertThat(response.serviceDescription()).isEqualTo("CT scan");
+        assertThat(response.visitType()).isEqualTo(VisitType.OUTPATIENT);
+        assertThat(response.status()).isEqualTo(PreauthorizationStatus.PENDING);
+        assertThat(enhancement.getMedicalServiceId()).isEqualTo(medicalServiceId);
+        assertThat(enhancement.getRequestedAmount()).isEqualByComparingTo("900.00");
+        verify(preauthorizationItemRepository).deleteAll(List.of(oldItem));
+        verify(preauthorizationItemRepository).saveAll(any());
+    }
+
+    @Test
+    void updateRejectsDecidedPreauthorization() {
+        Preauthorization existing = pendingPreauthorization();
+        existing.setStatus(PreauthorizationStatus.APPROVED);
+        when(preauthorizationRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> preauthorizationService.update(existing.getId(), validRequest()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("pending");
+        verify(preauthorizationRepository, never()).save(any());
+    }
+
+    @Test
+    void updateThrowsWhenPreauthorizationMissing() {
+        UUID missing = UUID.randomUUID();
+        when(preauthorizationRepository.findById(missing)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> preauthorizationService.update(missing, validRequest()))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void updateRejectsWhenPolicyIsNotActive() {
+        Preauthorization existing = pendingPreauthorization();
+        when(preauthorizationRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+        Policy draftPolicy = new Policy();
+        draftPolicy.setId(policyId);
+        draftPolicy.setStatus(PolicyStatus.DRAFT);
+        when(policyService.getEntityById(policyId)).thenReturn(draftPolicy);
+
+        assertThatThrownBy(() -> preauthorizationService.update(existing.getId(), validRequest()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(policyId.toString());
+        verify(preauthorizationRepository, never()).save(any());
     }
 
     @Test

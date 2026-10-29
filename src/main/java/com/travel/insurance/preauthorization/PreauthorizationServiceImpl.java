@@ -103,6 +103,44 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
     }
 
     @Override
+    public PreauthorizationResponse update(UUID id, PreauthorizationRequest request) {
+        Preauthorization preauthorization = getEntityById(id);
+        assertVisibleToCurrentUser(preauthorization);
+        if (preauthorization.getStatus() != PreauthorizationStatus.PENDING) {
+            throw new IllegalStateException("Only a pending pre-authorization can be updated");
+        }
+        Policy policy = validatePolicyActive(request.policyId());
+        validateVisitorExists(request.visitorId());
+        validateBenefitExists(request.benefitId());
+        icd11CodeService.getEntityById(request.icd11CodeId());
+        serviceProviderService.getById(request.serviceProviderId());
+        if (request.medicalServiceId() != null) {
+            medicalServiceService.getById(request.medicalServiceId());
+        }
+        preauthorization.setPolicyId(request.policyId());
+        preauthorization.setInsurerId(policy.getInsurerId());
+        preauthorization.setVisitorId(request.visitorId());
+        preauthorization.setIcd11CodeId(request.icd11CodeId());
+        preauthorization.setBenefitId(request.benefitId());
+        preauthorization.setServiceProviderId(request.serviceProviderId());
+        preauthorization.setRequestedAmount(request.requestedAmount());
+        preauthorization.setServiceDescription(request.serviceDescription());
+        preauthorization.setVisitType(request.visitType());
+        Preauthorization saved = preauthorizationRepository.save(preauthorization);
+
+        PreauthorizationEnhancement enhancement = preauthorizationEnhancementRepository
+                .findByPreauthorizationId(id)
+                .orElseGet(() -> preauthorizationMapper.toEnhancement(id, request));
+        enhancement.setMedicalServiceId(request.medicalServiceId());
+        enhancement.setRequestedAmount(request.requestedAmount());
+        PreauthorizationEnhancement savedEnhancement = preauthorizationEnhancementRepository.save(enhancement);
+        preauthorizationItemRepository.deleteAll(
+                preauthorizationItemRepository.findAllByEnhancementId(savedEnhancement.getId()));
+        saveItems(savedEnhancement.getId(), request.preauthorizationItems());
+        return enrich(saved);
+    }
+
+    @Override
     public UUID createOfflineApproval(OfflineApproval approval) {
         Visitor visitor = visitorService.getEntityById(approval.visitorId());
         Policy policy = validatePolicyActive(visitor.getPolicyId());

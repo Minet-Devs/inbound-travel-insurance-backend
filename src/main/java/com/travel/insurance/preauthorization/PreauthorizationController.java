@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -84,6 +85,13 @@ public class PreauthorizationController {
     public ResponseEntity<Page<PreauthorizationResponse>> list(
             @RequestParam(required = false) UUID insurerId, Pageable pageable) {
         return ResponseEntity.ok(preauthorizationService.list(insurerId, pageable));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER_USER', 'CONTACT_CENTER')")
+    public ResponseEntity<PreauthorizationResponse> update(
+            @PathVariable UUID id, @Valid @RequestBody PreauthorizationRequest request) {
+        return ResponseEntity.ok(preauthorizationService.update(id, request));
     }
 
     @PostMapping("/{id}/decision")
