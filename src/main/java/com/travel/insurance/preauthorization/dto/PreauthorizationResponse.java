@@ -38,6 +38,7 @@ public record PreauthorizationResponse(
         Boolean convertedToClaim,
         VisitType visitType,
         LocalDate treatmentDate,
-        LocalDate dischargeDate
+        LocalDate dischargeDate,
+        BigDecimal exchangeRate
 ) {
 }

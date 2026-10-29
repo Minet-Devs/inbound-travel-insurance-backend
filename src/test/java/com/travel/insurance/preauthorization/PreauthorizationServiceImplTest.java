@@ -12,7 +12,9 @@ import com.travel.insurance.common.domain.VisitType;
 import com.travel.insurance.benefit.Benefit;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.common.exception.ExchangeRateUnavailableException;
 import com.travel.insurance.common.messaging.EventPublisher;
+import com.travel.insurance.common.service.CurrencyConversionService;
 import com.travel.insurance.common.util.AuthenticatedUser;
 import com.travel.insurance.config.RabbitConfig;
 import com.travel.insurance.icd11.Icd11Code;
@@ -97,6 +99,9 @@ class PreauthorizationServiceImplTest {
     @Mock
     private EventPublisher eventPublisher;
 
+    @Mock
+    private CurrencyConversionService currencyConversionService;
+
     private final PreauthorizationMapper preauthorizationMapper = new PreauthorizationMapper();
 
     private PreauthorizationServiceImpl preauthorizationService;
@@ -114,7 +119,8 @@ class PreauthorizationServiceImplTest {
         preauthorizationService = new PreauthorizationServiceImpl(
                 preauthorizationRepository, preauthorizationEnhancementRepository, preauthorizationItemRepository,
                 preauthorizationMapper, policyService, benefitService, visitorService, icd11CodeService,
-                serviceProviderService, insurerService, medicalServiceService, eventPublisher);
+                serviceProviderService, insurerService, medicalServiceService, eventPublisher,
+                currencyConversionService);
 
         lenient().when(policyService.getEntityById(policyId)).thenReturn(activePolicy());
         lenient().when(visitorService.getEntityById(visitorId)).thenReturn(visitor());
@@ -418,6 +424,30 @@ class PreauthorizationServiceImplTest {
     }
 
     @Test
+    void createStoresKesToUsdExchangeRate() {
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(new BigDecimal("0.007752"));
+        when(preauthorizationRepository.save(any(Preauthorization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PreauthorizationResponse response = preauthorizationService.create(validRequest());
+
+        assertThat(response.exchangeRate()).isEqualByComparingTo("0.007752");
+    }
+
+    @Test
+    void createLeavesExchangeRateNullWhenRateServiceUnavailable() {
+        when(currencyConversionService.getExchangeRate("KES", "USD"))
+                .thenThrow(new ExchangeRateUnavailableException("down"));
+        when(preauthorizationRepository.save(any(Preauthorization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        PreauthorizationResponse response = preauthorizationService.create(validRequest());
+
+        assertThat(response.exchangeRate()).isNull();
+        assertThat(response.status()).isEqualTo(PreauthorizationStatus.PENDING);
+    }
+
+    @Test
     void createOfflineApprovalSavesApprovedPreauthorizationWithDates() {
         when(preauthorizationRepository.save(any(Preauthorization.class)))
                 .thenAnswer(invocation -> {
@@ -443,6 +473,21 @@ class PreauthorizationServiceImplTest {
         assertThat(saved.getTreatmentDate()).isEqualTo(LocalDate.of(2026, 10, 10));
         assertThat(saved.getDischargeDate()).isNull();
         assertThat(saved.getIcd11CodeId()).isNull();
+    }
+
+    @Test
+    void createOfflineApprovalStoresExchangeRate() {
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(new BigDecimal("0.007752"));
+        when(preauthorizationRepository.save(any(Preauthorization.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        preauthorizationService.createOfflineApproval(new OfflineApproval(
+                visitorId, benefitId, serviceProviderId, new BigDecimal("100.00"), VisitType.OUTPATIENT,
+                LocalDate.of(2026, 10, 10), null));
+
+        ArgumentCaptor<Preauthorization> captor = ArgumentCaptor.forClass(Preauthorization.class);
+        verify(preauthorizationRepository).save(captor.capture());
+        assertThat(captor.getValue().getExchangeRate()).isEqualByComparingTo("0.007752");
     }
 
     @Test
