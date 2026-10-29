@@ -76,7 +76,7 @@ public class VisitorActivatedNotificationListener {
     private static final String WELCOME_PACK_RESOURCE = "templates/Minet-Inbound-Travel-Health-Insurance-Welcome-Pack.pdf";
     private static final String WELCOME_PACK_ATTACHMENT_NAME = "Inbound-Travel-Health-Welcome-Pack.pdf";
 
-    private static final String FAQS_RESOURCE = "templates/Inbound-Travel-Health-Insurance-FAQs.pdf";
+    private static final String FAQS_RESOURCE = "templates/Minet-Inbound-Travel-Health-Insurance-FAQs.pdf";
     private static final String FAQS_ATTACHMENT_NAME = "Inbound-Travel-Health-FAQs.pdf";
 
     private static final String SIGNATURE_RESOURCE = "templates/Inbound-Travel-Health-Esignature.png";

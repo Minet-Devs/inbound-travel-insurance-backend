@@ -1665,7 +1665,7 @@ and the email goes out without it.
   `Insurance Policy.pdf` (the certificate), the policy wording sent as
   `Policy Document.pdf` (rendered from `templates/Inbound-Travel-Health-Policy-Document.pdf`),
   the bundled `templates/Minet-Inbound-Travel-Health-Insurance-Welcome-Pack.pdf`, and the bundled
-  `templates/Inbound-Travel-Health-Insurance-FAQs.pdf` (sent as `Inbound-Travel-Health-FAQs.pdf`).
+  `templates/Minet-Inbound-Travel-Health-Insurance-FAQs.pdf` (sent as `Inbound-Travel-Health-FAQs.pdf`).
   The base wording, Welcome Pack and FAQs PDFs are each loaded once from the classpath and cached
   (`rawPolicyDocumentCache`, `welcomePackPdfCache`, `faqsPdfCache`); if any bundled
   document can't be read, that load is logged and skipped so the rest of the
