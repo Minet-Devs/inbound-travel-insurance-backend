@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUpdateRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -175,12 +176,13 @@ class PreauthorizationControllerTest {
     @Test
     @WithMockUser(roles = "PROVIDER_USER")
     void updateReturnsUpdatedPreauthorization() throws Exception {
-        when(preauthorizationService.update(eq(preauthorizationId), any(PreauthorizationRequest.class)))
+        when(preauthorizationService.update(eq(preauthorizationId), any(PreauthorizationUpdateRequest.class)))
                 .thenReturn(sampleResponse(PreauthorizationStatus.PENDING));
 
-        PreauthorizationRequest request = new PreauthorizationRequest(
+        PreauthorizationUpdateRequest request = new PreauthorizationUpdateRequest(
                 policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, null,
-                new BigDecimal("500.00"), "X-ray", null, VisitType.OUTPATIENT);
+                new BigDecimal("500.00"), "X-ray", null, VisitType.OUTPATIENT,
+                null, null, null, null, null, null, null, null, null, null);
 
         mockMvc.perform(put("/api/v1/preauthorizations/{id}", preauthorizationId)
                         .with(csrf())
@@ -194,9 +196,10 @@ class PreauthorizationControllerTest {
     @Test
     @WithMockUser(roles = "PROVIDER_USER")
     void updateRejectsMissingVisitorId() throws Exception {
-        PreauthorizationRequest request = new PreauthorizationRequest(
+        PreauthorizationUpdateRequest request = new PreauthorizationUpdateRequest(
                 policyId, null, icd11CodeId, benefitId, serviceProviderId, null,
-                new BigDecimal("500.00"), "X-ray", null, null);
+                new BigDecimal("500.00"), "X-ray", null, null,
+                null, null, null, null, null, null, null, null, null, null);
 
         mockMvc.perform(put("/api/v1/preauthorizations/{id}", preauthorizationId)
                         .with(csrf())

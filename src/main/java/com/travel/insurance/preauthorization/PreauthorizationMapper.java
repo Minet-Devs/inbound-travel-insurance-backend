@@ -77,8 +77,10 @@ public class PreauthorizationMapper {
                 preauthorization.getStatus(),
                 preauthorization.getCreatedDate(),
                 preauthorization.getUpdatedDate(),
-                decided ? preauthorization.getUpdatedBy() : null,
-                decided ? preauthorization.getUpdatedDate() : null,
+                preauthorization.getDecidedBy() != null ? preauthorization.getDecidedBy()
+                        : decided ? preauthorization.getUpdatedBy() : null,
+                preauthorization.getDecidedAt() != null ? preauthorization.getDecidedAt()
+                        : decided ? preauthorization.getUpdatedDate() : null,
                 items.stream().map(this::toItemResponse).toList(),
                 preauthorization.getConvertedToClaim(),
                 preauthorization.getVisitType(),

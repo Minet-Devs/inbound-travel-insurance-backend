@@ -5,6 +5,7 @@ import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummar
 import com.travel.insurance.preauthorization.dto.ServiceProviderPreauthorizationDistribution;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUpdateRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import com.travel.insurance.preauthorization.dto.PreauthorizationUploadResponse;
 import com.travel.insurance.preauthorization.upload.PreauthorizationUploadService;
@@ -90,7 +91,7 @@ public class PreauthorizationController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER_USER', 'CONTACT_CENTER')")
     public ResponseEntity<PreauthorizationResponse> update(
-            @PathVariable UUID id, @Valid @RequestBody PreauthorizationRequest request) {
+            @PathVariable UUID id, @Valid @RequestBody PreauthorizationUpdateRequest request) {
         return ResponseEntity.ok(preauthorizationService.update(id, request));
     }
 
