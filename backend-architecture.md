@@ -778,8 +778,10 @@ Policy
   benefit has since been deleted), plus two **transient, computed-on-read**
   fields — `utilizedAmount` and `balance` — so clients can display
   assignments and remaining cover without extra lookups. `utilizedAmount` is
-  the sum of `Claim.claimedAmount` across every claim for that
-  `(visitorId, benefitId)` pair, regardless of claim status; `balance` is
+  the sum of `Claim.claimedAmountBase` (USD, the same currency as
+  `limitAmount`) across every claim for that `(visitorId, benefitId)` pair,
+  regardless of claim status; claims with a null `claimedAmountBase` add
+  nothing. `balance` is
   `limitAmount − utilizedAmount` (it can go negative if claims exceed the
   limit). Neither value is persisted — `VisitorBenefitServiceImpl` computes
   them per request via `ClaimService.sumClaimedAmountsByVisitorAndBenefit`
@@ -2137,8 +2139,10 @@ Composed entirely from existing feature services (`VisitorService`,
   `LocalDate` via UTC), `amount` = `claim.claimedAmount`; `benefitName`/
   `serviceProviderName` are resolved from the claim's `benefitId`/
   `serviceProviderId`. This means the transaction total always agrees with
-  the benefit summary's `utilizedAmount` — both are sums of
-  `claim.claimedAmount` over the same claims (see
+  the benefit summary's `utilizedAmount` — both range over the same claims,
+  but the transaction `amount` is in the claim's own currency
+  (`claim.claimedAmount`) while `utilizedAmount` is in USD
+  (`claim.claimedAmountBase`) (see
   [VisitorBenefit](#core-insurance-flow)). Invoices were deliberately left
   out: `Invoice.claimId` and `Claim.invoiceIds` are kept in sync by
   `attachInvoice()` (which updates both the FK and the join table), and
