@@ -24,7 +24,7 @@ public interface ClaimRepository extends JpaRepository<Claim, UUID> {
 
     Page<Claim> findAllByVisitorId(UUID visitorId, Pageable pageable);
 
-    @Query("SELECT new com.travel.insurance.claim.ClaimUtilizationTotal(c.visitorId, c.benefitId, SUM(c.claimedAmount)) "
+    @Query("SELECT new com.travel.insurance.claim.ClaimUtilizationTotal(c.visitorId, c.benefitId, SUM(c.claimedAmountBase)) "
             + "FROM Claim c "
             + "WHERE c.visitorId IN :visitorIds AND c.benefitId IN :benefitIds "
             + "GROUP BY c.visitorId, c.benefitId")
