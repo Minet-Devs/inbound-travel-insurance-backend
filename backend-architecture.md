@@ -24,6 +24,7 @@ summary and the full requirement-vs-codebase gap analysis.
   - [REST Resources](#rest-resources)
   - [Messaging (RabbitMQ)](#messaging-rabbitmq)
   - [Notifications (Policy Document Email)](#notifications-policy-document-email)
+  - [Minet Visitor Sync](#minet-visitor-sync)
   - [OTP (Point-of-Service Verification)](#otp-point-of-service-verification)
   - [Mobile Visitor Login (Email OTP)](#mobile-visitor-login-email-otp)
   - [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)
@@ -86,6 +87,14 @@ com.travel.insurance/
 │   │                                       # (certificate + Welcome Pack copy/attachment)
 │   ├── PolicyDocumentRenderer.java         # Thymeleaf → HTML → PDF (openhtmltopdf)
 │   └── PolicyDocumentData.java             # Internal template data holder (not a DTO)
+│
+├── 📁 minet/                               # Feature: Outbound sync to the Minet system
+│   ├── MinetVisitorSyncListener.java       # @TransactionalEventListener(AFTER_COMMIT) on
+│   │                                       # VisitorCreatedEvent; maps Visitor → request, never throws
+│   ├── MinetClient.java                    # RestClient: password-grant token, then POST visitor
+│   ├── MinetVisitorRequest.java            # Outbound payload (dates as yyyy-MM-dd)
+│   ├── MinetTokenResponse.java
+│   └── MinetClientException.java
 │
 ├── 📁 auth/                                # Feature: Authentication
 │   ├── AuthController.java                 # /login, /refresh
@@ -1417,6 +1426,35 @@ URLs are configured yet):
   every reference insurer hardcodes it too).
 - No "document sent" tracking column exists — a resend on re-activation is
   desired behavior, not a defect.
+
+## Minet Visitor Sync
+
+Every newly created visitor is pushed to the Minet system.
+
+- **Trigger:** `MinetVisitorSyncListener` handles `VisitorCreatedEvent` with
+  `@TransactionalEventListener(AFTER_COMMIT)`, so Minet only ever sees committed
+  visitors. Any failure (token, HTTP error, mapping) is logged and swallowed —
+  a Minet outage never blocks or rolls back visitor creation, and there is no retry.
+- **Auth:** `MinetClient` first calls `app.minet.token-url` with a Basic
+  `Authorization` header and a form body (`grant_type=password`, `client_id`,
+  `username`, `password`), then sends `Authorization: Bearer <access_token>`.
+  A fresh token is fetched per sync (no caching).
+- **Request:** `POST app.minet.visitors-url` (`/ecitizen/visitors`), JSON:
+
+| Minet field | Source |
+|---|---|
+| `memberNumber` | `Visitor.certificateSerialNumber` |
+| `firstName` / `otherNames` / `lastName` | `fullName` split on whitespace: first token / middle tokens (null if none) / last token |
+| `gender` | `Visitor.gender` name (`MALE`, `FEMALE`, `OTHER`) |
+| `dateOfBirth`, `dateJoined` | `dateOfBirth`; `dateIn` (today if null), format `yyyy-MM-dd` |
+| `emailAddress`, `primaryPhoneNumber` | `email`, `phoneNumber` |
+| `residenceCountry` | `Visitor.nationality`, sent as stored |
+
+- **Skipped:** visitors without a `certificateSerialNumber` (only set when the
+  visitor is created `ACTIVE`) are not sent; a visitor activated later is not
+  synced either.
+- **Config:** `app.minet.*` in `application.yml` (`MinetProperties`), each value
+  overridable via `MINET_*` env vars. The production URLs and credentials are the defaults in the file.
 
 ## OTP (Point-of-Service Verification)
 
