@@ -12,16 +12,21 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class OtpNotificationListenerTest {
 
     private static final UUID OTP_SENDER_ORGANIZATION_ID = UUID.fromString("db705c1e-05e8-48c6-b0ea-62237256e7b3");
@@ -74,9 +79,10 @@ class OtpNotificationListenerTest {
         listener.onOtpGenerated(new OtpGeneratedEvent(otpId));
 
         ArgumentCaptor<SmtpCredentials> credentialsCaptor = ArgumentCaptor.forClass(SmtpCredentials.class);
-        org.mockito.Mockito.verify(emailService).send(credentialsCaptor.capture(), eq("no_reply@acme.example"),
+        org.mockito.Mockito.verify(emailService).send(credentialsCaptor.capture(), eq("Minet Inbound Travel Insurance <no_reply@acme.example>"),
                 eq("traveler@example.com"), eq(List.of("inbound.travel@minet.co.ke")), eq(List.of()),
-                eq("Your verification code"), org.mockito.ArgumentMatchers.anyString(), eq(List.of()));
+                eq("Your verification code"), org.mockito.ArgumentMatchers.contains("123456"),
+                org.mockito.ArgumentMatchers.contains("123456"), eq(List.of()));
 
         assertThat(credentialsCaptor.getValue().host()).isEqualTo("smtp.acme.example");
         assertThat(credentialsCaptor.getValue().port()).isEqualTo(587);
@@ -92,9 +98,10 @@ class OtpNotificationListenerTest {
         listener.onOtpGenerated(new OtpGeneratedEvent(otpId));
 
         org.mockito.Mockito.verify(emailService).send(eq((SmtpCredentials) null),
-                eq("no-reply@travelinsurance.example"), eq("traveler@example.com"),
+                eq("Minet Inbound Travel Insurance <no-reply@travelinsurance.example>"), eq("traveler@example.com"),
                 eq(List.of("inbound.travel@minet.co.ke")), eq(List.of()),
-                eq("Your verification code"), org.mockito.ArgumentMatchers.anyString(), eq(List.of()));
+                eq("Your verification code"), org.mockito.ArgumentMatchers.contains("123456"),
+                org.mockito.ArgumentMatchers.contains("123456"), eq(List.of()));
     }
 
     @Test
@@ -106,8 +113,34 @@ class OtpNotificationListenerTest {
         listener.onOtpGenerated(new OtpGeneratedEvent(otpId));
 
         org.mockito.Mockito.verify(emailService).send(eq((SmtpCredentials) null),
-                eq("no-reply@travelinsurance.example"), eq("traveler@example.com"),
+                eq("Minet Inbound Travel Insurance <no-reply@travelinsurance.example>"), eq("traveler@example.com"),
                 eq(List.of("inbound.travel@minet.co.ke")), eq(List.of()),
-                eq("Your verification code"), org.mockito.ArgumentMatchers.anyString(), eq(List.of()));
+                eq("Your verification code"), org.mockito.ArgumentMatchers.contains("123456"),
+                org.mockito.ArgumentMatchers.contains("123456"), eq(List.of()));
+    }
+
+    @Test
+    void logsWarningInsteadOfSuccessWhenSendReportsFailure(CapturedOutput output) {
+        when(otpRepository.findById(otpId)).thenReturn(java.util.Optional.of(sampleOtp()));
+        when(organizationService.getEntityById(OTP_SENDER_ORGANIZATION_ID)).thenReturn(new Organization());
+        when(emailService.send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(),
+                anyString(), anyList())).thenReturn(false);
+
+        listener.onOtpGenerated(new OtpGeneratedEvent(otpId));
+
+        assertThat(output.getOut()).contains("was not delivered to the SMTP server")
+                .doesNotContain("Sent OTP email");
+    }
+
+    @Test
+    void logsSuccessWhenSendReportsSuccess(CapturedOutput output) {
+        when(otpRepository.findById(otpId)).thenReturn(java.util.Optional.of(sampleOtp()));
+        when(organizationService.getEntityById(OTP_SENDER_ORGANIZATION_ID)).thenReturn(new Organization());
+        when(emailService.send(any(), anyString(), anyString(), anyList(), anyList(), anyString(), anyString(),
+                anyString(), anyList())).thenReturn(true);
+
+        listener.onOtpGenerated(new OtpGeneratedEvent(otpId));
+
+        assertThat(output.getOut()).contains("Sent OTP email to traveler@example.com");
     }
 }

@@ -1652,7 +1652,15 @@ Design notes:
   `Otp` row and publishes `OtpGeneratedEvent`; `OtpNotificationListener`
   (`@TransactionalEventListener(phase = AFTER_COMMIT)`) sends the email via
   `EmailService` afterward, so a slow/unreachable mail server can never roll
-  back the OTP row. Failures are caught and logged, never propagated.
+  back the OTP row. Failures are caught and logged, never propagated. The
+  listener uses the `boolean` returned by `EmailService.send(...)`: it logs
+  `Sent OTP email` only when the SMTP server accepted the message, otherwise a
+  `WARN` (the real error is logged by `EmailService`).
+- The email is sent as `multipart/alternative` (HTML + plain-text part, via the
+  `EmailService.send` overload taking `plainTextBody`) with a display name on
+  `From` (`Minet Inbound Travel Insurance <mailbox>`) — HTML-only mail from a
+  bare `no_reply@` address is a common spam-filter signal. The SMTP login still
+  uses the bare mailbox address.
 - Every OTP email is **CC'd** (visible) to `app.mail.otp-cc` (env `OTP_CC`,
   default `inbound.travel@minet.co.ke`). This applies only to this
   service-provider OTP (preauth/claims), not the mobile visitor login OTP.
