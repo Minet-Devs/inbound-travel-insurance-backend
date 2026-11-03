@@ -27,6 +27,7 @@ import java.util.UUID;
 @Slf4j
 public class OtpNotificationListener {
 
+    private static final String SENDER_DISPLAY_NAME = "Minet Inbound Travel Insurance";
     private static final UUID OTP_SENDER_ORGANIZATION_ID = UUID.fromString("db705c1e-05e8-48c6-b0ea-62237256e7b3");
 
     private final OtpRepository otpRepository;
@@ -48,17 +49,23 @@ public class OtpNotificationListener {
                 .orElseThrow(() -> new IllegalStateException("Otp not found: " + otpId));
 
         MailSettings mailSettings = resolveMailSettings();
-        emailService.send(
+        boolean sent = emailService.send(
                 mailSettings.credentials(),
-                mailSettings.from(),
+                SENDER_DISPLAY_NAME + " <" + mailSettings.from() + ">",
                 otp.getEmail(),
                 mailProperties.getOtpCc(),
                 List.of(),
                 "Your verification code",
                 "<p>Your verification code is <strong>" + otp.getOtp() + "</strong>.</p>"
                         + "<p>This code expires in 10 minutes.</p>",
+                "Your verification code is " + otp.getOtp() + ".\n\nThis code expires in 10 minutes.",
                 List.of());
-        log.info("Sent OTP email to {} for service provider {}", otp.getEmail(), otp.getServiceProviderId());
+        if (sent) {
+            log.info("Sent OTP email to {} for service provider {}", otp.getEmail(), otp.getServiceProviderId());
+        } else {
+            log.warn("OTP email to {} for service provider {} was not delivered to the SMTP server",
+                    otp.getEmail(), otp.getServiceProviderId());
+        }
     }
 
     private MailSettings resolveMailSettings() {
