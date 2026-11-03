@@ -48,7 +48,7 @@ public class MinetVisitorSyncListener {
                 : null;
         LocalDate dateJoined = visitor.getDateIn() != null ? visitor.getDateIn() : LocalDate.now();
         return new MinetVisitorRequest(
-                visitor.getCertificateSerialNumber(),
+                visitor.getPassportNumber(),
                 firstName,
                 lastName,
                 otherNames,

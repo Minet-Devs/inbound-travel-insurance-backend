@@ -1859,7 +1859,7 @@ Every newly created visitor is pushed to the Minet system.
 
 | Minet field | Source |
 |---|---|
-| `memberNumber` | `Visitor.certificateSerialNumber` |
+| `memberNumber` | `Visitor.passportNumber` (decrypted) |
 | `firstName` / `otherNames` / `lastName` | `fullName` split on whitespace: first token / middle tokens (null if none) / last token |
 | `gender` | `Visitor.gender` name (`MALE`, `FEMALE`, `OTHER`) |
 | `dateOfBirth`, `dateJoined` | `dateOfBirth`; `dateIn` (today if null), format `yyyy-MM-dd` |
