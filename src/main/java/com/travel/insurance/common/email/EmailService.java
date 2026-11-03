@@ -86,16 +86,33 @@ public class EmailService {
         sendVia(credentials, from, to, List.of(), List.of(), subject, htmlBody, List.of(), List.of());
     }
 
+    /**
+     * As above, sending a {@code multipart/alternative} body: {@code plainTextBody} is the fallback part
+     * beside {@code htmlBody}. HTML-only mail is a common spam-filter signal, so transactional mail
+     * (e.g. OTPs) should use this overload.
+     */
+    public boolean send(SmtpCredentials credentials, String from, String to, List<String> cc,
+                         List<String> bcc, String subject, String htmlBody, String plainTextBody,
+                         List<EmailAttachment> attachments) {
+        return sendVia(credentials, from, to, cc, bcc, subject, htmlBody, plainTextBody, attachments, List.of());
+    }
+
     private boolean sendVia(SmtpCredentials credentials, String from, String to, List<String> cc,
                              List<String> bcc, String subject, String htmlBody, List<EmailAttachment> attachments,
                              List<InlineImage> inlineImages) {
+        return sendVia(credentials, from, to, cc, bcc, subject, htmlBody, null, attachments, inlineImages);
+    }
+
+    private boolean sendVia(SmtpCredentials credentials, String from, String to, List<String> cc,
+                             List<String> bcc, String subject, String htmlBody, String plainTextBody,
+                             List<EmailAttachment> attachments, List<InlineImage> inlineImages) {
         for (int attempt = 1; ; attempt++) {
             try {
                 // The lock covers only the SMTP exchange, never the backoff sleep, so a
                 // retrying send doesn't stall every other sender for the whole backoff.
                 sendLock.lock();
                 try {
-                    doSend(credentials, from, to, cc, bcc, subject, htmlBody, attachments, inlineImages);
+                    doSend(credentials, from, to, cc, bcc, subject, htmlBody, plainTextBody, attachments, inlineImages);
                 } finally {
                     sendLock.unlock();
                 }
@@ -117,8 +134,8 @@ public class EmailService {
     }
 
     private void doSend(SmtpCredentials credentials, String from, String to, List<String> cc,
-                         List<String> bcc, String subject, String htmlBody, List<EmailAttachment> attachments,
-                         List<InlineImage> inlineImages) throws Exception {
+                         List<String> bcc, String subject, String htmlBody, String plainTextBody,
+                         List<EmailAttachment> attachments, List<InlineImage> inlineImages) throws Exception {
         if (credentials != null) {
             log.info("Sending email via SMTP host [{}:{}] as user [{}]",
                     credentials.host(), credentials.port(), credentials.username());
@@ -135,7 +152,11 @@ public class EmailService {
             helper.setBcc(bcc.toArray(String[]::new));
         }
         helper.setSubject(subject);
-        helper.setText(htmlBody, true);
+        if (plainTextBody != null) {
+            helper.setText(plainTextBody, htmlBody);
+        } else {
+            helper.setText(htmlBody, true);
+        }
         if (inlineImages != null) {
             for (InlineImage image : inlineImages) {
                 if (image != null && image.content() != null) {

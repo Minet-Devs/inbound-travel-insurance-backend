@@ -13,6 +13,8 @@ import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 
 import java.util.Collections;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -164,6 +166,25 @@ class EmailServiceTest {
         emailService.send("from@example.com", "to@example.com", "Subject", "<p>Plain text body</p>");
 
         verify(mailSender).send(message);
+    }
+
+    @Test
+    void sendsMultipartAlternativeWhenPlainTextBodyProvided() throws Exception {
+        emailService = new EmailService(mailSender, smtpSenderFactory);
+        MimeMessage message = newMimeMessage();
+        when(mailSender.createMimeMessage()).thenReturn(message);
+
+        boolean sent = emailService.send(null, "Minet <from@example.com>", "to@example.com", List.of(), List.of(),
+                "Subject", "<p>Code <strong>123456</strong></p>", "Code 123456", List.of());
+        message.saveChanges();
+
+        assertThat(sent).isTrue();
+        assertThat(message.getFrom()[0].toString()).isEqualTo("Minet <from@example.com>");
+        ByteArrayOutputStream raw = new ByteArrayOutputStream();
+        message.writeTo(raw);
+        String mime = raw.toString(StandardCharsets.UTF_8);
+        assertThat(mime).contains("text/plain").contains("Code 123456")
+                .contains("text/html").contains("<strong>123456</strong>");
     }
 
     @Test
