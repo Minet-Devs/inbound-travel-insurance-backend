@@ -41,6 +41,7 @@ class MinetVisitorSyncListenerTest {
         Visitor visitor = new Visitor();
         visitor.setFullName(fullName);
         visitor.setCertificateSerialNumber(serial);
+        visitor.setPassportNumber("A1234567");
         visitor.setGender(Gender.FEMALE);
         visitor.setDateOfBirth(LocalDate.of(1994, 7, 1));
         visitor.setDateIn(LocalDate.of(2026, 11, 6));
@@ -59,7 +60,7 @@ class MinetVisitorSyncListenerTest {
         ArgumentCaptor<MinetVisitorRequest> captor = ArgumentCaptor.forClass(MinetVisitorRequest.class);
         verify(minetClient).sendVisitor(captor.capture());
         assertThat(captor.getValue()).isEqualTo(new MinetVisitorRequest(
-                "SP003369", "GARIMA", "THAPLIYAL", null, "FEMALE",
+                "A1234567", "GARIMA", "THAPLIYAL", null, "FEMALE",
                 LocalDate.of(1994, 7, 1), LocalDate.of(2026, 11, 6),
                 "mbashiavictor@gmail.com", "+254791531926", "IND"));
     }
