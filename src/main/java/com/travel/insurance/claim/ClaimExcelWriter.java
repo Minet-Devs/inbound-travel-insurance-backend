@@ -9,13 +9,16 @@ import org.springframework.stereotype.Component;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Component
 public class ClaimExcelWriter {
 
-    private static final String[] HEADERS =
-            {"Visitor Name", "Passport Number", "Service Provider", "Benefit", "Insurer", "Amount", "Claim Date"};
+    private static final String[] HEADERS = {"Provider", "Provider ID", "Benefit", "Passport No", "ClaimDate",
+            "Visit Type", "Diagnosis code", "Diagnosis description", "Visit Date", "AmountClaimed",
+            "Invoice Number", "Invoice Date", "Invoice Amount", "Service", "department", "claim amount USD",
+            "Exchange Rate"};
 
     public byte[] write(List<ClaimExportRow> rows) {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -27,20 +30,34 @@ public class ClaimExcelWriter {
             int rowIndex = 1;
             for (ClaimExportRow data : rows) {
                 Row row = sheet.createRow(rowIndex++);
-                cell(row, 0, data.visitorName());
-                cell(row, 1, data.passportNumber());
-                cell(row, 2, data.serviceProviderName());
-                cell(row, 3, data.benefitName());
-                cell(row, 4, data.insurerName());
-                if (data.amount() != null) {
-                    row.createCell(5).setCellValue(data.amount().doubleValue());
-                }
-                cell(row, 6, data.claimDate() == null ? null : data.claimDate().toString());
+                cell(row, 0, data.serviceProviderName());
+                cell(row, 1, data.serviceProviderId() == null ? null : data.serviceProviderId().toString());
+                cell(row, 2, data.benefitName());
+                cell(row, 3, data.passportNumber());
+                cell(row, 4, data.claimDate() == null ? null : data.claimDate().toString());
+                cell(row, 5, data.visitType() == null ? null : data.visitType().name());
+                cell(row, 6, data.diagnosisCodes());
+                cell(row, 7, data.diagnosisDescriptions());
+                cell(row, 8, data.visitDate() == null ? null : data.visitDate().toString());
+                number(row, 9, data.claimedAmount());
+                cell(row, 10, data.invoiceNumber());
+                cell(row, 11, data.invoiceDate() == null ? null : data.invoiceDate().toString());
+                number(row, 12, data.invoiceAmount());
+                cell(row, 13, data.serviceName());
+                cell(row, 14, data.departmentName());
+                number(row, 15, data.claimedAmountBase());
+                number(row, 16, data.exchangeRate());
             }
             workbook.write(out);
             return out.toByteArray();
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to generate the claims workbook", e);
+        }
+    }
+
+    private void number(Row row, int column, BigDecimal value) {
+        if (value != null) {
+            row.createCell(column).setCellValue(value.doubleValue());
         }
     }
 
