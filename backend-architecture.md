@@ -951,10 +951,18 @@ Policy
 - **Excel export**: `GET /api/v1/claims/export/excel` (`ADMIN` only, enforced by
   `@PreAuthorize`; optional filters `status`, `insurerId`, `dateFrom`, `dateTo` —
   ISO dates, inclusive, matched on `createdDate`, UTC). `ClaimServiceImpl.listForExport`
-  resolves names via `VisitorService`/`ServiceProviderService`/`BenefitService`/`InsurerService`
-  (each id looked up once per export) and `ClaimExcelWriter` returns
-  `claims.xlsx` with columns Visitor Name, Passport Number, Service Provider, Benefit,
-  Insurer, Amount (`claimedAmount`, claim currency), Claim Date (`createdDate`, ISO instant).
+  emits **one row per invoice item** (a claim with no invoices yields one row with the
+  invoice/service columns blank; an invoice with no items yields one row with the invoice
+  columns filled). Claim-level columns repeat on every row of the claim. References are
+  resolved via `VisitorService`/`ServiceProviderService`/`BenefitService`/`Icd11CodeService`/
+  `InvoiceService`/`MedicalServiceService` (each id looked up once per export) and
+  `ClaimExcelWriter` returns `claims.xlsx` with columns: Provider, Provider ID
+  (`serviceProviderId` UUID), Benefit, Passport No, ClaimDate (`createdDate`, ISO instant),
+  Visit Type, Diagnosis code / Diagnosis description (all diagnoses joined with `; `),
+  Visit Date (invoice item `serviceDate`), AmountClaimed (`claimedAmount`, claim currency),
+  Invoice Number, Invoice Date (`issueDate`), Invoice Amount (invoice `totalAmount`),
+  Service (invoice item medical service name), department (that service's department),
+  claim amount USD (`claimedAmountBase`), Exchange Rate (claim `exchangeRate`).
 - **Pre-auth → claim conversion**: `POST /api/v1/claims/from-preauthorization/{preauthorizationId}`
   (`ADMIN`, `CONTACT_CENTER`; body `ConvertPreauthorizationRequest` —
   `invoiceNumber` required, `issueDate` optional). `ClaimServiceImpl.createFromPreauthorization`

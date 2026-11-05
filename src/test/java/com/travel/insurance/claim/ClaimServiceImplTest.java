@@ -22,7 +22,10 @@ import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
 import com.travel.insurance.invoice.InvoiceService;
+import com.travel.insurance.invoice.dto.InvoiceItemResponse;
 import com.travel.insurance.invoice.dto.InvoiceRequest;
+import com.travel.insurance.medicalservice.MedicalServiceService;
+import com.travel.insurance.medicalservice.dto.MedicalServiceResponse;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
@@ -96,6 +99,9 @@ class ClaimServiceImplTest {
     private InvoiceService invoiceService;
 
     @Mock
+    private MedicalServiceService medicalServiceService;
+
+    @Mock
     private Icd11CodeService icd11CodeService;
 
     @Mock
@@ -131,7 +137,7 @@ class ClaimServiceImplTest {
         claimService = new ClaimServiceImpl(
                 claimRepository, claimMapper, policyService, benefitService,
                 visitorService, insurerService, serviceProviderService, invoiceService,
-                icd11CodeService, procedureService,
+                medicalServiceService, icd11CodeService, procedureService,
                 currencyConversionService, eventPublisher, preauthorizationService);
         policyId = UUID.randomUUID();
         benefitId = UUID.randomUUID();
@@ -473,63 +479,92 @@ class ClaimServiceImplTest {
     }
 
     @Test
-    void listForExportResolvesNamesAndLooksEachReferenceUpOnce() {
+    void listForExportEmitsOneRowPerInvoiceItemAndLooksEachReferenceUpOnce() {
         UUID providerId = UUID.randomUUID();
-        Claim first = claimMapper.toEntity(baseRequest());
-        first.setVisitorId(visitorId);
-        first.setBenefitId(benefitId);
-        first.setServiceProviderId(providerId);
-        first.setInsurerId(insurerId);
-        first.setClaimedAmount(new BigDecimal("1000.00"));
-        Claim second = claimMapper.toEntity(baseRequest());
-        second.setVisitorId(visitorId);
-        second.setBenefitId(benefitId);
-        second.setServiceProviderId(providerId);
-        second.setInsurerId(insurerId);
-        second.setClaimedAmount(new BigDecimal("250.50"));
+        UUID serviceId = UUID.randomUUID();
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(claimId);
+        claim.setVisitorId(visitorId);
+        claim.setBenefitId(benefitId);
+        claim.setServiceProviderId(providerId);
+        claim.setClaimedAmount(new BigDecimal("1000.00"));
+        claim.setClaimedAmountBase(new BigDecimal("7.70"));
+        claim.setExchangeRate(new BigDecimal("0.007700"));
+        claim.setVisitType(VisitType.OUTPATIENT);
+        claim.setDiagnosisIds(Set.of(diagnosisId1));
         Instant from = LocalDate.of(2026, 10, 1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC);
         Instant to = LocalDate.of(2026, 11, 1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC);
         when(claimRepository.findAllForExport(ClaimStatus.APPROVED, insurerId, from, to))
-                .thenReturn(List.of(first, second));
+                .thenReturn(List.of(claim));
         when(visitorService.getById(visitorId)).thenReturn(visitorResponse());
         when(serviceProviderService.getById(providerId)).thenReturn(new ServiceProviderResponse(providerId,
                 "Aga Khan Hospital", null, null, null, null, null, null, null, Instant.now(), Instant.now()));
         when(benefitService.getById(benefitId)).thenReturn(
                 new BenefitResponse(benefitId, "Outpatient", new BigDecimal("5000"), Instant.now(), Instant.now()));
-        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+        when(icd11CodeService.getById(diagnosisId1)).thenReturn(
+                new Icd11CodeResponse(diagnosisId1, "1A00", "Cholera", Instant.now(), Instant.now()));
+        when(medicalServiceService.getById(serviceId)).thenReturn(new MedicalServiceResponse(
+                serviceId, "Consultation", UUID.randomUUID(), "General Medicine", Instant.now(), Instant.now()));
+        InvoiceItemResponse item1 = new InvoiceItemResponse(UUID.randomUUID(), serviceId, "Consultation",
+                "Consult", BigDecimal.ONE, new BigDecimal("500"), new BigDecimal("500"),
+                new BigDecimal("3.85"), new BigDecimal("3.85"), LocalDate.of(2026, 10, 3));
+        InvoiceItemResponse item2 = new InvoiceItemResponse(UUID.randomUUID(), serviceId, "Consultation",
+                "Follow-up", BigDecimal.ONE, new BigDecimal("500"), new BigDecimal("500"),
+                new BigDecimal("3.85"), new BigDecimal("3.85"), LocalDate.of(2026, 10, 4));
+        when(invoiceService.listByClaimId(claimId)).thenReturn(List.of(new InvoiceResponse(invoiceId, claimId,
+                "INV-1", LocalDate.of(2026, 10, 5), "KES", new BigDecimal("1000.00"), new BigDecimal("0.0077"),
+                "USD", new BigDecimal("7.70"), LocalDateTime.now(), List.of(item1, item2),
+                Instant.now(), Instant.now())));
 
         List<ClaimExportRow> rows = claimService.listForExport(
                 ClaimStatus.APPROVED, insurerId, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31));
 
         assertThat(rows).hasSize(2);
-        assertThat(rows.get(0).visitorName()).isEqualTo("Jane Traveler");
-        assertThat(rows.get(0).passportNumber()).isEqualTo("P1234567");
-        assertThat(rows.get(0).serviceProviderName()).isEqualTo("Aga Khan Hospital");
-        assertThat(rows.get(0).benefitName()).isEqualTo("Outpatient");
-        assertThat(rows.get(0).insurerName()).isEqualTo("Jubilee Insurance");
-        assertThat(rows.get(0).amount()).isEqualByComparingTo("1000.00");
-        assertThat(rows.get(1).amount()).isEqualByComparingTo("250.50");
+        ClaimExportRow row = rows.get(0);
+        assertThat(row.serviceProviderName()).isEqualTo("Aga Khan Hospital");
+        assertThat(row.serviceProviderId()).isEqualTo(providerId);
+        assertThat(row.benefitName()).isEqualTo("Outpatient");
+        assertThat(row.passportNumber()).isEqualTo("P1234567");
+        assertThat(row.visitType()).isEqualTo(VisitType.OUTPATIENT);
+        assertThat(row.diagnosisCodes()).isEqualTo("1A00");
+        assertThat(row.diagnosisDescriptions()).isEqualTo("Cholera");
+        assertThat(row.visitDate()).isEqualTo(LocalDate.of(2026, 10, 3));
+        assertThat(rows.get(1).visitDate()).isEqualTo(LocalDate.of(2026, 10, 4));
+        assertThat(row.claimedAmount()).isEqualByComparingTo("1000.00");
+        assertThat(row.invoiceNumber()).isEqualTo("INV-1");
+        assertThat(row.invoiceDate()).isEqualTo(LocalDate.of(2026, 10, 5));
+        assertThat(row.invoiceAmount()).isEqualByComparingTo("1000.00");
+        assertThat(row.serviceName()).isEqualTo("Consultation");
+        assertThat(row.departmentName()).isEqualTo("General Medicine");
+        assertThat(row.claimedAmountBase()).isEqualByComparingTo("7.70");
+        assertThat(row.exchangeRate()).isEqualByComparingTo("0.007700");
         verify(visitorService, org.mockito.Mockito.times(1)).getById(visitorId);
-        verify(serviceProviderService, org.mockito.Mockito.times(1)).getById(providerId);
+        verify(medicalServiceService, org.mockito.Mockito.times(1)).getById(serviceId);
     }
 
     @Test
-    void listForExportLeavesNamesBlankWhenClaimHasNoVisitorOrProvider() {
+    void listForExportEmitsOneRowWithBlankInvoiceColumnsWhenClaimHasNoInvoice() {
         Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(UUID.randomUUID());
         claim.setVisitorId(null);
         claim.setBenefitId(benefitId);
         claim.setServiceProviderId(null);
-        claim.setInsurerId(null);
+        claim.setDiagnosisIds(Set.of());
         when(claimRepository.findAllForExport(null, null, null, null)).thenReturn(List.of(claim));
         when(benefitService.getById(benefitId)).thenReturn(
                 new BenefitResponse(benefitId, "Outpatient", new BigDecimal("5000"), Instant.now(), Instant.now()));
+        when(invoiceService.listByClaimId(claim.getId())).thenReturn(List.of());
 
         List<ClaimExportRow> rows = claimService.listForExport(null, null, null, null);
 
         assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).visitorName()).isNull();
         assertThat(rows.get(0).serviceProviderName()).isNull();
-        assertThat(rows.get(0).insurerName()).isNull();
+        assertThat(rows.get(0).serviceProviderId()).isNull();
+        assertThat(rows.get(0).passportNumber()).isNull();
+        assertThat(rows.get(0).invoiceNumber()).isNull();
+        assertThat(rows.get(0).serviceName()).isNull();
+        assertThat(rows.get(0).visitDate()).isNull();
         assertThat(rows.get(0).benefitName()).isEqualTo("Outpatient");
     }
 

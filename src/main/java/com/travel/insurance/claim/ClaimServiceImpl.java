@@ -23,8 +23,10 @@ import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
 import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceItemRequest;
+import com.travel.insurance.invoice.dto.InvoiceItemResponse;
 import com.travel.insurance.invoice.dto.InvoiceRequest;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
+import com.travel.insurance.medicalservice.MedicalServiceService;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.preauthorization.Preauthorization;
@@ -63,6 +65,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -95,6 +98,7 @@ public class ClaimServiceImpl implements ClaimService {
     private final InsurerService insurerService;
     private final ServiceProviderService serviceProviderService;
     private final InvoiceService invoiceService;
+    private final MedicalServiceService medicalServiceService;
     private final Icd11CodeService icd11CodeService;
     private final ProcedureService procedureService;
     private final CurrencyConversionService currencyConversionService;
@@ -252,21 +256,70 @@ public class ClaimServiceImpl implements ClaimService {
         Map<UUID, VisitorResponse> visitors = new HashMap<>();
         Map<UUID, String> providers = new HashMap<>();
         Map<UUID, String> benefits = new HashMap<>();
-        Map<UUID, String> insurers = new HashMap<>();
+        Map<UUID, Icd11CodeResponse> diagnoses = new HashMap<>();
+        Map<UUID, String> departments = new HashMap<>();
         return claimRepository.findAllForExport(status, insurerId, from, to).stream()
-                .map(claim -> {
+                .flatMap(claim -> {
                     VisitorResponse visitor = cached(visitors, claim.getVisitorId(), visitorService::getById);
-                    return new ClaimExportRow(
-                            visitor != null ? visitor.fullName() : null,
+                    String providerName = cached(providers, claim.getServiceProviderId(),
+                            id -> serviceProviderService.getById(id).name());
+                    String benefitName = cached(benefits, claim.getBenefitId(),
+                            id -> benefitService.getById(id).benefitName());
+                    List<Icd11CodeResponse> claimDiagnoses = claim.getDiagnosisIds().stream()
+                            .map(id -> diagnoses.computeIfAbsent(id, this::resolveDiagnosis))
+                            .filter(Objects::nonNull)
+                            .toList();
+                    String codes = claimDiagnoses.stream().map(Icd11CodeResponse::code)
+                            .collect(Collectors.joining("; "));
+                    String descriptions = claimDiagnoses.stream().map(Icd11CodeResponse::title)
+                            .collect(Collectors.joining("; "));
+                    Function<ExportInvoiceLine, ClaimExportRow> toRow = line -> new ClaimExportRow(
+                            providerName,
+                            claim.getServiceProviderId(),
+                            benefitName,
                             visitor != null ? visitor.passportNumber() : null,
-                            cached(providers, claim.getServiceProviderId(),
-                                    id -> serviceProviderService.getById(id).name()),
-                            cached(benefits, claim.getBenefitId(), id -> benefitService.getById(id).benefitName()),
-                            cached(insurers, claim.getInsurerId(), id -> insurerService.getById(id).name()),
+                            claim.getCreatedDate(),
+                            claim.getVisitType(),
+                            codes,
+                            descriptions,
+                            line.item() != null ? line.item().serviceDate() : null,
                             claim.getClaimedAmount(),
-                            claim.getCreatedDate());
+                            line.invoice() != null ? line.invoice().invoiceNumber() : null,
+                            line.invoice() != null ? line.invoice().issueDate() : null,
+                            line.invoice() != null ? line.invoice().totalAmount() : null,
+                            line.item() != null ? line.item().medicalServiceName() : null,
+                            line.item() != null ? department(departments, line.item().medicalServiceId()) : null,
+                            claim.getClaimedAmountBase(),
+                            claim.getExchangeRate());
+                    List<ExportInvoiceLine> lines = invoiceService.listByClaimId(claim.getId()).stream()
+                            .flatMap(invoice -> invoice.invoiceItems().isEmpty()
+                                    ? java.util.stream.Stream.of(new ExportInvoiceLine(invoice, null))
+                                    : invoice.invoiceItems().stream()
+                                            .map(item -> new ExportInvoiceLine(invoice, item)))
+                            .toList();
+                    if (lines.isEmpty()) {
+                        lines = List.of(new ExportInvoiceLine(null, null));
+                    }
+                    return lines.stream().map(toRow);
                 })
                 .toList();
+    }
+
+    private record ExportInvoiceLine(InvoiceResponse invoice, InvoiceItemResponse item) {
+    }
+
+    private String department(Map<UUID, String> cache, UUID medicalServiceId) {
+        if (medicalServiceId == null) {
+            return null;
+        }
+        return cache.computeIfAbsent(medicalServiceId, id -> {
+            try {
+                return medicalServiceService.getById(id).departmentName();
+            } catch (ResourceNotFoundException e) {
+                log.warn("Medical service {} not found for claims export, leaving department blank", id);
+                return null;
+            }
+        });
     }
 
     private <T> T cached(Map<UUID, T> cache, UUID id, Function<UUID, T> loader) {
