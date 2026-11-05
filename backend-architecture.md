@@ -1867,13 +1867,16 @@ Every newly created visitor is pushed to the Minet system.
 
 | Minet field | Source |
 |---|---|
-| `memberNumber` | `Visitor.certificateSerialNumber` |
+| `memberNumber` | `Visitor.passportNumber` (decrypted) |
 | `firstName` / `otherNames` / `lastName` | `fullName` split on whitespace: first token / middle tokens (null if none) / last token |
 | `gender` | `Visitor.gender` name (`MALE`, `FEMALE`, `OTHER`) |
 | `dateOfBirth`, `dateJoined` | `dateOfBirth`; `dateIn` (today if null), format `yyyy-MM-dd` |
 | `emailAddress`, `primaryPhoneNumber` | `email`, `phoneNumber` |
 | `residenceCountry` | `Visitor.nationality`, sent as stored |
 
+- **Tracking flag:** `Visitor.sentToMinet` (`visitors.sent_to_minet`, boolean, not null,
+  default `false`) is reserved for recording a completed sync. The column exists but
+  nothing sets it yet.
 - **Skipped:** visitors without a `certificateSerialNumber` (only set when the
   visitor is created `ACTIVE`) are not sent; a visitor activated later is not
   synced either.
