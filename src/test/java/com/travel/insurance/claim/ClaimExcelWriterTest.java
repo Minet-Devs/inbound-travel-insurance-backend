@@ -26,7 +26,7 @@ class ClaimExcelWriterTest {
         UUID providerId = UUID.randomUUID();
         byte[] bytes = writer.write(List.of(new ClaimExportRow("Aga Khan Hospital", providerId, "Outpatient",
                 "P1234567", claimDate, VisitType.OUTPATIENT, "1A00", "Cholera", LocalDate.of(2026, 10, 3),
-                new BigDecimal("1000.50"), "INV-1", LocalDate.of(2026, 10, 5), new BigDecimal("1000.50"),
+                new BigDecimal("1000.50"), "INV-1", new BigDecimal("1000.50"),
                 "Consultation", "General Medicine", new BigDecimal("7.70"), new BigDecimal("0.007700"))));
 
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
@@ -42,15 +42,15 @@ class ClaimExcelWriterTest {
             assertThat(row.getCell(1).getStringCellValue()).isEqualTo(providerId.toString());
             assertThat(row.getCell(2).getStringCellValue()).isEqualTo("Outpatient");
             assertThat(row.getCell(3).getStringCellValue()).isEqualTo("P1234567");
-            assertThat(row.getCell(4).getStringCellValue()).isEqualTo(claimDate.toString());
+            assertThat(row.getCell(4).getStringCellValue()).isEqualTo("05-10-2026");
             assertThat(row.getCell(5).getStringCellValue()).isEqualTo("OUTPATIENT");
             assertThat(row.getCell(6).getStringCellValue()).isEqualTo("1A00");
             assertThat(row.getCell(7).getStringCellValue()).isEqualTo("Cholera");
-            assertThat(row.getCell(8).getStringCellValue()).isEqualTo("2026-10-03");
+            assertThat(row.getCell(8).getStringCellValue()).isEqualTo("03-10-2026");
             assertThat(row.getCell(9).getCellType()).isEqualTo(CellType.NUMERIC);
             assertThat(row.getCell(9).getNumericCellValue()).isEqualTo(1000.50);
             assertThat(row.getCell(10).getStringCellValue()).isEqualTo("INV-1");
-            assertThat(row.getCell(11).getStringCellValue()).isEqualTo("2026-10-05");
+            assertThat(row.getCell(11).getStringCellValue()).isEqualTo("05-10-2026");
             assertThat(row.getCell(12).getNumericCellValue()).isEqualTo(1000.50);
             assertThat(row.getCell(13).getStringCellValue()).isEqualTo("Consultation");
             assertThat(row.getCell(14).getStringCellValue()).isEqualTo("General Medicine");
@@ -62,7 +62,7 @@ class ClaimExcelWriterTest {
     @Test
     void leavesCellsBlankForMissingValues() throws Exception {
         byte[] bytes = writer.write(List.of(new ClaimExportRow(null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null)));
+                null, null, null, null, null, null, null, null)));
 
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             var row = workbook.getSheetAt(0).getRow(1);

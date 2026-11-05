@@ -951,18 +951,19 @@ Policy
 - **Excel export**: `GET /api/v1/claims/export/excel` (`ADMIN` only, enforced by
   `@PreAuthorize`; optional filters `status`, `insurerId`, `dateFrom`, `dateTo` —
   ISO dates, inclusive, matched on `createdDate`, UTC). `ClaimServiceImpl.listForExport`
-  emits **one row per invoice item** (a claim with no invoices yields one row with the
-  invoice/service columns blank; an invoice with no items yields one row with the invoice
-  columns filled). Claim-level columns repeat on every row of the claim. References are
+  emits **exactly one row per claim** (a claim is never repeated). A claim's invoices are
+  collapsed: Invoice Amount is the **sum of the claim's invoice `totalAmount`s** (blank when
+  it has no invoices); Invoice Number, Service and department are the distinct values joined
+  with `; `; Visit Date is the earliest invoice-item `serviceDate`. References are
   resolved via `VisitorService`/`ServiceProviderService`/`BenefitService`/`Icd11CodeService`/
   `InvoiceService`/`MedicalServiceService` (each id looked up once per export) and
   `ClaimExcelWriter` returns `claims.xlsx` with columns: Provider, Provider ID
-  (`serviceProviderId` UUID), Benefit, Passport No, ClaimDate (`createdDate`, ISO instant),
-  Visit Type, Diagnosis code / Diagnosis description (all diagnoses joined with `; `),
-  Visit Date (invoice item `serviceDate`), AmountClaimed (`claimedAmount`, claim currency),
-  Invoice Number, Invoice Date (`issueDate`), Invoice Amount (invoice `totalAmount`),
-  Service (invoice item medical service name), department (that service's department),
-  claim amount USD (`claimedAmountBase`), Exchange Rate (claim `exchangeRate`).
+  (`serviceProviderId` UUID), Benefit, Passport No, ClaimDate (`createdDate`), Visit Type,
+  Diagnosis code / Diagnosis description (all diagnoses joined with `; `), Visit Date,
+  AmountClaimed (`claimedAmount`, claim currency), Invoice Number, Invoice Date (**the claim
+  date**, not the invoice `issueDate`), Invoice Amount, Service, department, claim amount USD
+  (`claimedAmountBase`), Exchange Rate (claim `exchangeRate`). All date columns are formatted
+  `dd-MM-yyyy` (claim instants rendered in UTC, matching the date filters).
 - **Pre-auth → claim conversion**: `POST /api/v1/claims/from-preauthorization/{preauthorizationId}`
   (`ADMIN`, `CONTACT_CENTER`; body `ConvertPreauthorizationRequest` —
   `invoiceNumber` required, `issueDate` optional). `ClaimServiceImpl.createFromPreauthorization`

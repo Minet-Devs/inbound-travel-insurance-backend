@@ -10,10 +10,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Component
 public class ClaimExcelWriter {
+
+    /** dd-MM-yyyy; claim instants are rendered in UTC, consistent with the export's date filters. */
+    private static final DateTimeFormatter DATE_FORMAT =
+            DateTimeFormatter.ofPattern("dd-MM-yyyy").withZone(ZoneOffset.UTC);
 
     private static final String[] HEADERS = {"Provider", "Provider ID", "Benefit", "Passport No", "ClaimDate",
             "Visit Type", "Diagnosis code", "Diagnosis description", "Visit Date", "AmountClaimed",
@@ -34,14 +40,15 @@ public class ClaimExcelWriter {
                 cell(row, 1, data.serviceProviderId() == null ? null : data.serviceProviderId().toString());
                 cell(row, 2, data.benefitName());
                 cell(row, 3, data.passportNumber());
-                cell(row, 4, data.claimDate() == null ? null : data.claimDate().toString());
+                String claimDate = data.claimDate() == null ? null : DATE_FORMAT.format(data.claimDate());
+                cell(row, 4, claimDate);
                 cell(row, 5, data.visitType() == null ? null : data.visitType().name());
                 cell(row, 6, data.diagnosisCodes());
                 cell(row, 7, data.diagnosisDescriptions());
-                cell(row, 8, data.visitDate() == null ? null : data.visitDate().toString());
+                cell(row, 8, data.visitDate() == null ? null : DATE_FORMAT.format(data.visitDate()));
                 number(row, 9, data.claimedAmount());
                 cell(row, 10, data.invoiceNumber());
-                cell(row, 11, data.invoiceDate() == null ? null : data.invoiceDate().toString());
+                cell(row, 11, claimDate);
                 number(row, 12, data.invoiceAmount());
                 cell(row, 13, data.serviceName());
                 cell(row, 14, data.departmentName());

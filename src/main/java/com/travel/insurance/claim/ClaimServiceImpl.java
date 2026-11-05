@@ -259,7 +259,7 @@ public class ClaimServiceImpl implements ClaimService {
         Map<UUID, Icd11CodeResponse> diagnoses = new HashMap<>();
         Map<UUID, String> departments = new HashMap<>();
         return claimRepository.findAllForExport(status, insurerId, from, to).stream()
-                .flatMap(claim -> {
+                .map(claim -> {
                     VisitorResponse visitor = cached(visitors, claim.getVisitorId(), visitorService::getById);
                     String providerName = cached(providers, claim.getServiceProviderId(),
                             id -> serviceProviderService.getById(id).name());
@@ -273,7 +273,16 @@ public class ClaimServiceImpl implements ClaimService {
                             .collect(Collectors.joining("; "));
                     String descriptions = claimDiagnoses.stream().map(Icd11CodeResponse::title)
                             .collect(Collectors.joining("; "));
-                    Function<ExportInvoiceLine, ClaimExportRow> toRow = line -> new ClaimExportRow(
+                    List<InvoiceResponse> invoices = invoiceService.listByClaimId(claim.getId());
+                    List<InvoiceItemResponse> items = invoices.stream()
+                            .flatMap(invoice -> invoice.invoiceItems().stream())
+                            .toList();
+                    BigDecimal invoiceAmount = invoices.stream()
+                            .map(InvoiceResponse::totalAmount)
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal::add)
+                            .orElse(null);
+                    return new ClaimExportRow(
                             providerName,
                             claim.getServiceProviderId(),
                             benefitName,
@@ -282,30 +291,24 @@ public class ClaimServiceImpl implements ClaimService {
                             claim.getVisitType(),
                             codes,
                             descriptions,
-                            line.item() != null ? line.item().serviceDate() : null,
+                            items.stream().map(InvoiceItemResponse::serviceDate).filter(Objects::nonNull)
+                                    .min(Comparator.naturalOrder()).orElse(null),
                             claim.getClaimedAmount(),
-                            line.invoice() != null ? line.invoice().invoiceNumber() : null,
-                            line.invoice() != null ? line.invoice().issueDate() : null,
-                            line.invoice() != null ? line.invoice().totalAmount() : null,
-                            line.item() != null ? line.item().medicalServiceName() : null,
-                            line.item() != null ? department(departments, line.item().medicalServiceId()) : null,
+                            joinDistinct(invoices.stream().map(InvoiceResponse::invoiceNumber)),
+                            invoiceAmount,
+                            joinDistinct(items.stream().map(InvoiceItemResponse::medicalServiceName)),
+                            joinDistinct(items.stream().map(item -> department(departments, item.medicalServiceId()))),
                             claim.getClaimedAmountBase(),
                             claim.getExchangeRate());
-                    List<ExportInvoiceLine> lines = invoiceService.listByClaimId(claim.getId()).stream()
-                            .flatMap(invoice -> invoice.invoiceItems().isEmpty()
-                                    ? java.util.stream.Stream.of(new ExportInvoiceLine(invoice, null))
-                                    : invoice.invoiceItems().stream()
-                                            .map(item -> new ExportInvoiceLine(invoice, item)))
-                            .toList();
-                    if (lines.isEmpty()) {
-                        lines = List.of(new ExportInvoiceLine(null, null));
-                    }
-                    return lines.stream().map(toRow);
                 })
                 .toList();
     }
 
-    private record ExportInvoiceLine(InvoiceResponse invoice, InvoiceItemResponse item) {
+    /** Distinct non-blank values in encounter order joined with {@code "; "}, or null when there are none. */
+    private static String joinDistinct(java.util.stream.Stream<String> values) {
+        String joined = values.filter(v -> v != null && !v.isBlank()).distinct()
+                .collect(Collectors.joining("; "));
+        return joined.isEmpty() ? null : joined;
     }
 
     private String department(Map<UUID, String> cache, UUID medicalServiceId) {
