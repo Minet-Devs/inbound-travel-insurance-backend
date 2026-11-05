@@ -630,6 +630,19 @@ class VisitorServiceImplTest {
     }
 
     @Test
+    void markSentToMinetSetsTheFlag() {
+        UUID id = UUID.randomUUID();
+        Visitor visitor = new Visitor();
+        visitor.setId(id);
+        when(visitorRepository.findById(id)).thenReturn(Optional.of(visitor));
+
+        visitorService.markSentToMinet(id);
+
+        assertThat(visitor.isSentToMinet()).isTrue();
+        verify(visitorRepository).save(visitor);
+    }
+
+    @Test
     void countByInsurerIncludesInsurersWithZeroVisitors() {
         UUID emptyInsurerId = UUID.randomUUID();
         Insurer withVisitors = new Insurer();

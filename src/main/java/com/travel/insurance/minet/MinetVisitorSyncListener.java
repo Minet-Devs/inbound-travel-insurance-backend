@@ -34,6 +34,7 @@ public class MinetVisitorSyncListener {
                 return;
             }
             minetClient.sendVisitor(toRequest(visitor));
+            visitorService.markSentToMinet(event.visitorId());
         } catch (Exception ex) {
             log.error("Failed to send visitor {} to Minet: {}", event.visitorId(), ex.getMessage(), ex);
         }

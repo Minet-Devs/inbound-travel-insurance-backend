@@ -55,6 +55,9 @@ public interface VisitorService {
 
     void markActivationEmailSent(UUID id);
 
+    /** Flags the visitor as synced to Minet ({@code sent_to_minet = true}). */
+    void markSentToMinet(UUID id);
+
     /**
      * IDs of ACTIVE visitors created in {@code (createdAfter, createdBefore)} whose activation
      * email has not been sent yet, newest first, at most {@code limit}.

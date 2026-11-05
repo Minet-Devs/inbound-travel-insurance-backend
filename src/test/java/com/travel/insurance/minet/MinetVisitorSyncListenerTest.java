@@ -63,6 +63,7 @@ class MinetVisitorSyncListenerTest {
                 "A1234567", "GARIMA", "THAPLIYAL", null, "FEMALE",
                 LocalDate.of(1994, 7, 1), LocalDate.of(2026, 11, 6),
                 "mbashiavictor@gmail.com", "+254791531926", "IND"));
+        verify(visitorService).markSentToMinet(visitorId);
     }
 
     @Test
@@ -85,6 +86,7 @@ class MinetVisitorSyncListenerTest {
         listener.onVisitorCreated(event);
 
         verify(minetClient, never()).sendVisitor(any());
+        verify(visitorService, never()).markSentToMinet(any());
     }
 
     @Test
@@ -93,5 +95,6 @@ class MinetVisitorSyncListenerTest {
         doThrow(new MinetClientException("boom")).when(minetClient).sendVisitor(any());
 
         assertThatCode(() -> listener.onVisitorCreated(event)).doesNotThrowAnyException();
+        verify(visitorService, never()).markSentToMinet(any());
     }
 }
