@@ -14,6 +14,7 @@ import java.util.UUID;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -26,6 +27,9 @@ class MinetAccessControlTest {
 
     @MockBean
     private MinetVisitorSyncService minetVisitorSyncService;
+
+    @MockBean
+    private MinetVisitorExcelWriter minetVisitorExcelWriter;
 
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
@@ -43,5 +47,19 @@ class MinetAccessControlTest {
     @WithMockUser(roles = "CONTACT_CENTER")
     void nonAdminIsForbidden() throws Exception {
         mockMvc.perform(post("/api/v1/visitors/minet-sync/A1").with(csrf())).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminCanExport() throws Exception {
+        when(minetVisitorExcelWriter.write(org.mockito.ArgumentMatchers.any())).thenReturn(new byte[]{1});
+
+        mockMvc.perform(get("/api/v1/visitors/export/minet-excel")).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "CONTACT_CENTER")
+    void nonAdminCannotExport() throws Exception {
+        mockMvc.perform(get("/api/v1/visitors/export/minet-excel")).andExpect(status().isForbidden());
     }
 }

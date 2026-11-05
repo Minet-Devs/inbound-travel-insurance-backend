@@ -9,9 +9,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import java.time.LocalDate;
-import java.util.Arrays;
-
 /**
  * Pushes every newly created visitor to the Minet system once the creating
  * transaction has committed. A Minet failure is logged and never affects the
@@ -41,23 +38,8 @@ public class MinetVisitorSyncListener {
     }
 
     static MinetVisitorRequest toRequest(Visitor visitor) {
-        String[] names = visitor.getFullName().trim().split("\\s+");
-        String firstName = names[0];
-        String lastName = names.length > 1 ? names[names.length - 1] : "";
-        String otherNames = names.length > 2
-                ? String.join(" ", Arrays.copyOfRange(names, 1, names.length - 1))
-                : null;
-        LocalDate dateJoined = visitor.getDateIn() != null ? visitor.getDateIn() : LocalDate.now();
-        return new MinetVisitorRequest(
-                visitor.getPassportNumber(),
-                firstName,
-                lastName,
-                otherNames,
-                visitor.getGender().name(),
-                visitor.getDateOfBirth(),
-                dateJoined,
-                visitor.getEmail(),
-                visitor.getPhoneNumber(),
+        return MinetVisitorRequest.of(visitor.getPassportNumber(), visitor.getFullName(), visitor.getGender(),
+                visitor.getDateOfBirth(), visitor.getDateIn(), visitor.getEmail(), visitor.getPhoneNumber(),
                 visitor.getNationality());
     }
 }

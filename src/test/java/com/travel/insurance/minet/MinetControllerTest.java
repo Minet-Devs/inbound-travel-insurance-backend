@@ -9,11 +9,16 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -25,6 +30,9 @@ class MinetControllerTest {
 
     @MockBean
     private MinetVisitorSyncService minetVisitorSyncService;
+
+    @MockBean
+    private MinetVisitorExcelWriter minetVisitorExcelWriter;
 
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
@@ -71,5 +79,26 @@ class MinetControllerTest {
 
         mockMvc.perform(post("/api/v1/visitors/minet-sync/A1").with(csrf()))
                 .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void exportReturnsXlsxAttachmentAndPassesFilters() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(minetVisitorSyncService.listForExport(insurerId, com.travel.insurance.visitor.VisitorStatus.ACTIVE,
+                java.time.LocalDate.of(2026, 11, 1), java.time.LocalDate.of(2026, 11, 30)))
+                .thenReturn(List.of());
+        when(minetVisitorExcelWriter.write(any())).thenReturn(new byte[]{1, 2, 3});
+
+        mockMvc.perform(get("/api/v1/visitors/export/minet-excel")
+                        .param("insurerId", insurerId.toString())
+                        .param("status", "ACTIVE")
+                        .param("dateFrom", "2026-11-01")
+                        .param("dateTo", "2026-11-30"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"minet-visitors.xlsx\""))
+                .andExpect(content().bytes(new byte[]{1, 2, 3}));
     }
 }

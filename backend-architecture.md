@@ -105,7 +105,9 @@ com.travel.insurance/
 ├── 📁 minet/                               # Feature: Outbound sync to the Minet system
 │   ├── MinetVisitorSyncListener.java       # @TransactionalEventListener(AFTER_COMMIT) on
 │   │                                       # VisitorCreatedEvent; maps Visitor → request, never throws
-│   ├── MinetController.java                # POST /api/v1/visitors/minet-sync/{passportNumber} (ADMIN)
+│   ├── MinetController.java                # POST /api/v1/visitors/minet-sync/{passportNumber},
+│   │                                       # GET /api/v1/visitors/export/minet-excel (both ADMIN)
+│   ├── MinetVisitorExcelWriter.java        # Minet-format visitors .xlsx
 │   ├── MinetVisitorSyncService(Impl).java  # manual sync by passport: send, then set sent_to_minet
 │   ├── MinetSyncResponse.java              # { visitorId, sentToMinet }
 │   ├── MinetClient.java                    # RestClient: password-grant token, then POST visitor
@@ -1895,6 +1897,15 @@ Every newly created visitor is pushed to the Minet system.
   already flagged is allowed. Errors: unknown passport → `404`; visitor without a
   certificate serial number → `409` (`IllegalStateException`); Minet token/HTTP failure →
   `502` (`MinetClientException`, handled in `GlobalExceptionHandler`) with the flag untouched.
+- **Excel export in Minet format:** `GET /api/v1/visitors/export/minet-excel` (`ADMIN` only,
+  `@PreAuthorize`; optional filters `insurerId`, `status`, `dateFrom`, `dateTo` — ISO dates,
+  inclusive, matched on the visitor's `dateIn`) returns `minet-visitors.xlsx`, one row per
+  visitor, with columns `memberNumber, firstName, lastName, otherNames, gender, dateOfBirth,
+  emailAddress, primaryPhoneNumber, residenceCountry, dateJoined`. It uses the same mapping as
+  the sync (`MinetVisitorRequest.of`: name split, `dateJoined` = `dateIn` or today), so the file
+  matches what is sent to Minet. Dates are `yyyy-MM-dd` text. Unlike the sync, visitors without a
+  certificate serial number are included. A visitor with a missing name or gender exports with blank
+  cells rather than failing the whole export.
 
 ## OTP (Point-of-Service Verification)
 
