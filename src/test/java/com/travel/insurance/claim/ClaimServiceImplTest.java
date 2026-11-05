@@ -479,7 +479,7 @@ class ClaimServiceImplTest {
     }
 
     @Test
-    void listForExportEmitsOneRowPerInvoiceItemAndLooksEachReferenceUpOnce() {
+    void listForExportEmitsOneRowPerClaimSummingInvoicesAndLooksEachReferenceUpOnce() {
         UUID providerId = UUID.randomUUID();
         UUID serviceId = UUID.randomUUID();
         UUID claimId = UUID.randomUUID();
@@ -512,15 +512,19 @@ class ClaimServiceImplTest {
         InvoiceItemResponse item2 = new InvoiceItemResponse(UUID.randomUUID(), serviceId, "Consultation",
                 "Follow-up", BigDecimal.ONE, new BigDecimal("500"), new BigDecimal("500"),
                 new BigDecimal("3.85"), new BigDecimal("3.85"), LocalDate.of(2026, 10, 4));
-        when(invoiceService.listByClaimId(claimId)).thenReturn(List.of(new InvoiceResponse(invoiceId, claimId,
+        InvoiceResponse invoice1 = new InvoiceResponse(invoiceId, claimId,
                 "INV-1", LocalDate.of(2026, 10, 5), "KES", new BigDecimal("1000.00"), new BigDecimal("0.0077"),
                 "USD", new BigDecimal("7.70"), LocalDateTime.now(), List.of(item1, item2),
-                Instant.now(), Instant.now())));
+                Instant.now(), Instant.now());
+        InvoiceResponse invoice2 = new InvoiceResponse(UUID.randomUUID(), claimId,
+                "INV-2", LocalDate.of(2026, 10, 6), "KES", new BigDecimal("250.50"), new BigDecimal("0.0077"),
+                "USD", new BigDecimal("1.93"), LocalDateTime.now(), List.of(), Instant.now(), Instant.now());
+        when(invoiceService.listByClaimId(claimId)).thenReturn(List.of(invoice1, invoice2));
 
         List<ClaimExportRow> rows = claimService.listForExport(
                 ClaimStatus.APPROVED, insurerId, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31));
 
-        assertThat(rows).hasSize(2);
+        assertThat(rows).hasSize(1);
         ClaimExportRow row = rows.get(0);
         assertThat(row.serviceProviderName()).isEqualTo("Aga Khan Hospital");
         assertThat(row.serviceProviderId()).isEqualTo(providerId);
@@ -530,11 +534,9 @@ class ClaimServiceImplTest {
         assertThat(row.diagnosisCodes()).isEqualTo("1A00");
         assertThat(row.diagnosisDescriptions()).isEqualTo("Cholera");
         assertThat(row.visitDate()).isEqualTo(LocalDate.of(2026, 10, 3));
-        assertThat(rows.get(1).visitDate()).isEqualTo(LocalDate.of(2026, 10, 4));
         assertThat(row.claimedAmount()).isEqualByComparingTo("1000.00");
-        assertThat(row.invoiceNumber()).isEqualTo("INV-1");
-        assertThat(row.invoiceDate()).isEqualTo(LocalDate.of(2026, 10, 5));
-        assertThat(row.invoiceAmount()).isEqualByComparingTo("1000.00");
+        assertThat(row.invoiceNumber()).isEqualTo("INV-1; INV-2");
+        assertThat(row.invoiceAmount()).isEqualByComparingTo("1250.50");
         assertThat(row.serviceName()).isEqualTo("Consultation");
         assertThat(row.departmentName()).isEqualTo("General Medicine");
         assertThat(row.claimedAmountBase()).isEqualByComparingTo("7.70");
