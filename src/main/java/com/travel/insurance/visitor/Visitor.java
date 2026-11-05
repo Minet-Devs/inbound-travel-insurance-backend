@@ -152,7 +152,7 @@ public class Visitor extends BaseEntity {
     /** Set when the activation email (certificate + welcome pack) has gone out. */
     private Instant activationEmailSentAt;
 
-    /** True once the visitor has been synced to Minet. Not yet set by the sync listener. */
+    /** True once the visitor has been synced to Minet (set by the auto-sync listener and the manual sync API). */
     @Column(nullable = false)
     private boolean sentToMinet = false;
 }

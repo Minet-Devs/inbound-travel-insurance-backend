@@ -105,6 +105,9 @@ com.travel.insurance/
 ├── 📁 minet/                               # Feature: Outbound sync to the Minet system
 │   ├── MinetVisitorSyncListener.java       # @TransactionalEventListener(AFTER_COMMIT) on
 │   │                                       # VisitorCreatedEvent; maps Visitor → request, never throws
+│   ├── MinetController.java                # POST /api/v1/visitors/minet-sync/{passportNumber} (ADMIN)
+│   ├── MinetVisitorSyncService(Impl).java  # manual sync by passport: send, then set sent_to_minet
+│   ├── MinetSyncResponse.java              # { visitorId, sentToMinet }
 │   ├── MinetClient.java                    # RestClient: password-grant token, then POST visitor
 │   ├── MinetVisitorRequest.java            # Outbound payload (dates as yyyy-MM-dd)
 │   ├── MinetTokenResponse.java
@@ -1874,6 +1877,15 @@ Every newly created visitor is pushed to the Minet system.
   synced either.
 - **Config:** `app.minet.*` in `application.yml` (`MinetProperties`), each value
   overridable via `MINET_*` env vars. The production URLs and credentials are the defaults in the file.
+- **`sent_to_minet` flag:** `visitors.sent_to_minet` (boolean, default false) is set to `true` via
+  `VisitorService.markSentToMinet` only after Minet accepted the visitor — by the auto-sync
+  listener on success, and by the manual API below. A failed send leaves it unchanged.
+- **Manual sync:** `POST /api/v1/visitors/minet-sync/{passportNumber}` (`ADMIN` only,
+  `@PreAuthorize`) sends that visitor to Minet (same payload mapping as above), then sets
+  `sent_to_minet = true` and returns `200 { visitorId, sentToMinet }`. Re-sending a visitor
+  already flagged is allowed. Errors: unknown passport → `404`; visitor without a
+  certificate serial number → `409` (`IllegalStateException`); Minet token/HTTP failure →
+  `502` (`MinetClientException`, handled in `GlobalExceptionHandler`) with the flag untouched.
 
 ## OTP (Point-of-Service Verification)
 

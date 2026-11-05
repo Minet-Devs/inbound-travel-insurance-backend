@@ -206,6 +206,13 @@ public class VisitorServiceImpl implements VisitorService {
     }
 
     @Override
+    public void markSentToMinet(UUID id) {
+        Visitor visitor = getEntityById(id);
+        visitor.setSentToMinet(true);
+        visitorRepository.save(visitor);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<UUID> findIdsAwaitingActivationEmail(Instant createdAfter, Instant createdBefore, int limit) {
         return visitorRepository
