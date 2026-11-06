@@ -939,7 +939,24 @@ class ClaimServiceImplTest {
     }
 
     private ConvertPreauthorizationRequest convertRequest(String invoiceNumber, InvoiceItemRequest... lines) {
-        return new ConvertPreauthorizationRequest(invoiceNumber, LocalDate.of(2026, 10, 2), List.of(lines));
+        return new ConvertPreauthorizationRequest(invoiceNumber, LocalDate.of(2026, 10, 2), List.of(lines), null);
+    }
+
+    @Test
+    void createFromPreauthorizationUsesRequestedVisitTypeOverPreauths() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.APPROVED, false, List.of()));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ClaimResponse response = claimService.createFromPreauthorization(preauthId,
+                new ConvertPreauthorizationRequest("INV-81", null,
+                        List.of(invoiceLine(null, "1000.00")), VisitType.OUTPATIENT));
+
+        ArgumentCaptor<Claim> claimCaptor = ArgumentCaptor.forClass(Claim.class);
+        verify(claimRepository).save(claimCaptor.capture());
+        assertThat(claimCaptor.getValue().getVisitType()).isEqualTo(VisitType.OUTPATIENT);
+        assertThat(response.visitType()).isEqualTo(VisitType.OUTPATIENT);
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.travel.insurance.claim;
 
 import com.travel.insurance.auth.JwtTokenProvider;
+import com.travel.insurance.common.domain.VisitType;
 import com.travel.insurance.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -42,6 +46,29 @@ class ClaimConversionAccessControlTest {
     private JwtTokenProvider jwtTokenProvider;
 
     private final UUID preauthorizationId = UUID.randomUUID();
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void conversionPassesVisitTypeFromPayload() throws Exception {
+        mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY.replace("{\"invoiceNumber\"", "{\"visitType\":\"OUTPATIENT\",\"invoiceNumber\"")))
+                .andExpect(status().isCreated());
+
+        verify(claimService).createFromPreauthorization(eq(preauthorizationId),
+                argThat(request -> request.visitType() == VisitType.OUTPATIENT));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void conversionRejectsUnknownVisitType() throws Exception {
+        mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY.replace("{\"invoiceNumber\"", "{\"visitType\":\"DAYCASE\",\"invoiceNumber\"")))
+                .andExpect(status().isBadRequest());
+    }
 
     @Test
     @WithMockUser(roles = "ADMIN")
