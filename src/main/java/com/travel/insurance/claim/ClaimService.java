@@ -31,6 +31,9 @@ public interface ClaimService {
 
     Claim getEntityById(UUID id);
 
+    /** Flags the claim as sent to Minet ({@code sent_to_minet = true}). */
+    void markSentToMinet(UUID id);
+
     Page<ClaimResponse> list(Pageable pageable);
 
     List<ClaimResponse> listByVisitor(UUID visitorId);

@@ -130,6 +130,8 @@ app:
   minet:
     token-url: ${MINET_TOKEN_URL:https://api.healthcare.minet.co.ke/api/v1/uaa/oauth/token}
     visitors-url: ${MINET_VISITORS_URL:https://api.healthcare.minet.co.ke/api/v1/ecitizen/visitors}
+    claims-url: ${MINET_CLAIMS_URL:https://api.healthcare.minet.co.ke/api/v1/claims/inbound/create}
+    inbound-scheme-id: ${MINET_INBOUND_SCHEME_ID:3b83907b-0bf8-47cb-ab00-8055c050f7fe}
     basic-authorization: ${MINET_BASIC_AUTHORIZATION:cHJvZHVjdGlvbi1hcHBsaWNhdGlvbjp5SFNnSm1XUk16N3U5QnVVeFZnNHVGZm5oY3ZkdzQ5clRaUUptV1JNekRYdW1pc2hvYm85QnVVeFZnNHU2V09nT241VEljQUFBU0FaRHQ3aHpMSm1XUk16RFhqaTd1OUJ1VXhWZzR1YWM0MzlzS0pYV2ZlUzJVUm1GcXlCUVBuQzZOOGQ1Z0VtbWdidkhqVlpwR1Q=}
     client-id: ${MINET_CLIENT_ID:production-application}
     username: ${MINET_USERNAME:inbound_no_reply@minet.co.ke}
