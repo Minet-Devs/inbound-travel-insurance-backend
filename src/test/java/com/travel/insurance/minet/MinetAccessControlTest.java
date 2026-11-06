@@ -17,7 +17,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(MinetController.class)
+@WebMvcTest({MinetController.class, MinetClaimController.class})
 @Import(SecurityConfig.class)
 class MinetAccessControlTest {
 
@@ -26,6 +26,9 @@ class MinetAccessControlTest {
 
     @MockBean
     private MinetVisitorSyncService minetVisitorSyncService;
+
+    @MockBean
+    private MinetClaimSyncService minetClaimSyncService;
 
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
@@ -43,5 +46,21 @@ class MinetAccessControlTest {
     @WithMockUser(roles = "CONTACT_CENTER")
     void nonAdminIsForbidden() throws Exception {
         mockMvc.perform(post("/api/v1/visitors/minet-sync/A1").with(csrf())).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminCanResendClaim() throws Exception {
+        UUID claimId = UUID.randomUUID();
+        when(minetClaimSyncService.syncClaim(claimId)).thenReturn(new MinetClaimSyncResponse(claimId, true));
+
+        mockMvc.perform(post("/api/v1/claims/{id}/minet-sync", claimId).with(csrf())).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "CONTACT_CENTER")
+    void nonAdminCannotResendClaim() throws Exception {
+        mockMvc.perform(post("/api/v1/claims/{id}/minet-sync", UUID.randomUUID()).with(csrf()))
+                .andExpect(status().isForbidden());
     }
 }

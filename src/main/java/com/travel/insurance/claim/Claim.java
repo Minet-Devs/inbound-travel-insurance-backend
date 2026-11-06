@@ -109,4 +109,8 @@ public class Claim extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private ClaimStatus status = ClaimStatus.SUBMITTED;
+
+    /** True once the claim has been sent to Minet (set by the pre-auth conversion listener or the resend API). */
+    @Column(nullable = false)
+    private boolean sentToMinet = false;
 }

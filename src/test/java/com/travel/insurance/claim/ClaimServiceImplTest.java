@@ -114,6 +114,9 @@ class ClaimServiceImplTest {
     private EventPublisher eventPublisher;
 
     @Mock
+    private org.springframework.context.ApplicationEventPublisher applicationEventPublisher;
+
+    @Mock
     private PreauthorizationService preauthorizationService;
 
     private final ClaimMapper claimMapper = new ClaimMapper();
@@ -138,7 +141,7 @@ class ClaimServiceImplTest {
                 claimRepository, claimMapper, policyService, benefitService,
                 visitorService, insurerService, serviceProviderService, invoiceService,
                 medicalServiceService, icd11CodeService, procedureService,
-                currencyConversionService, eventPublisher, preauthorizationService);
+                currencyConversionService, eventPublisher, preauthorizationService, applicationEventPublisher);
         policyId = UUID.randomUUID();
         benefitId = UUID.randomUUID();
         visitorId = UUID.randomUUID();
@@ -973,6 +976,21 @@ class ClaimServiceImplTest {
                 .allSatisfy(item -> assertThat(item.medicalServiceId()).isEqualTo(medicalServiceId));
 
         verify(preauthorizationService).markPreAuthorizationConvertedToClaim(preauthId);
+        verify(applicationEventPublisher).publishEvent(
+                new PreauthorizationConvertedToClaimEvent(saved.getId(), preauthId));
+    }
+
+    @Test
+    void markSentToMinetSetsTheFlag() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = new Claim();
+        claim.setId(claimId);
+        when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
+
+        claimService.markSentToMinet(claimId);
+
+        assertThat(claim.isSentToMinet()).isTrue();
+        verify(claimRepository).save(claim);
     }
 
     @Test
