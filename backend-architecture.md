@@ -368,7 +368,8 @@ com.travel.insurance/
 │   │                                        # city, county (required for SERVICE_PROVIDER type),
 │   │                                        # logoUrl, policyToken, notificationEmail,
 │   │                                        # notificationEmailPassword (encrypted), host, port,
-│   │                                        # esignature, longitude/latitude (nullable, BigDecimal(9,6))
+│   │                                        # esignature, longitude/latitude (nullable, BigDecimal(9,6)),
+│   │                                        # minetServiceProviderId (SERVICE_PROVIDER only)
 │   │                                        # — all optional
 │   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER, REINSURER
 │   ├── OrganizationMapper.java
@@ -660,6 +661,13 @@ Policy
   `SERVICE_PROVIDER`-type organizations, and also propagated to the linked
   `ServiceProvider`; see the `Organization` → `Insurer`/`ServiceProvider`
   provisioning notes below.
+- An **Organization** also carries an optional `minetServiceProviderId`
+  (`organizations.minet_service_provider_id`, `varchar(255)`, max 255 on
+  `OrganizationRequest`/`OrganizationPatchRequest`, returned in `OrganizationResponse`).
+  It is only kept when `organizationType` is `SERVICE_PROVIDER` (always stored as null
+  otherwise); the value is trimmed and a blank string clears it. On `PATCH`, omitted/null
+  leaves it unchanged. `OrganizationCreatedListener`/`OrganizationUpdatedListener` pass it
+  to the linked `ServiceProvider` (null there = leave unchanged, per the next bullet).
 - A **ServiceProvider** carries `minetServiceProviderId` (`service_providers.minet_service_provider_id`,
   nullable `varchar(255)`): the provider's identifier in Minet's system, to be used when claims are sent
   to Minet. It is set through `PUT /api/v1/service-providers/{id}` (`ServiceProviderRequest.minetServiceProviderId`,

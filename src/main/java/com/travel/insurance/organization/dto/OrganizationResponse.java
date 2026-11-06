@@ -23,6 +23,7 @@ public record OrganizationResponse(
         String esignature,
         BigDecimal longitude,
         BigDecimal latitude,
+        String minetServiceProviderId,
         Instant createdDate,
         Instant updatedDate
 ) {
