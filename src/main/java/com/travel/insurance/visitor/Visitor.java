@@ -8,6 +8,8 @@ import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import jakarta.persistence.Transient;
 import lombok.Getter;
@@ -16,6 +18,7 @@ import lombok.Setter;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Period;
@@ -94,6 +97,16 @@ public class Visitor extends BaseEntity {
         return Period.between(dateOfBirth, dateIn).getYears();
     }
 
+    /** Persisted copy of {@link #getAgeAtTravel()}, kept in sync on every write. */
+    @Column
+    private Integer age;
+
+    @PrePersist
+    @PreUpdate
+    void syncAge() {
+        age = dateOfBirth != null && dateIn != null ? getAgeAtTravel() : null;
+    }
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MaritalStatus maritalStatus;
@@ -122,6 +135,10 @@ public class Visitor extends BaseEntity {
 
     private String paymentReference;
 
+    /** Premium actually paid by the visitor; optional, recorded to 2 decimal places. */
+    @Column(precision = 12, scale = 2)
+    private BigDecimal premiumAmountPaid;
+
     private String etaReference;
 
     private Instant entryTimestamp;
@@ -134,4 +151,8 @@ public class Visitor extends BaseEntity {
 
     /** Set when the activation email (certificate + welcome pack) has gone out. */
     private Instant activationEmailSentAt;
+
+    /** True once the visitor has been synced to Minet (set by the auto-sync listener and the manual sync API). */
+    @Column(nullable = false)
+    private boolean sentToMinet = false;
 }

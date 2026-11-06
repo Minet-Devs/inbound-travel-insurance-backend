@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -106,9 +107,20 @@ class UserControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void listReturnsUsers() throws Exception {
-        when(userService.list(any())).thenReturn(new PageImpl<>(List.of(sampleResponse())));
+        when(userService.list(any(), any(), any())).thenReturn(new PageImpl<>(List.of(sampleResponse())));
 
         mockMvc.perform(get("/api/v1/users"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].role").value("INSURER_USER"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listPassesEmailAndRoleFilters() throws Exception {
+        when(userService.list(eq("jane"), eq(Role.INSURER_USER), any()))
+                .thenReturn(new PageImpl<>(List.of(sampleResponse())));
+
+        mockMvc.perform(get("/api/v1/users").param("email", "jane").param("role", "INSURER_USER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].role").value("INSURER_USER"));
     }

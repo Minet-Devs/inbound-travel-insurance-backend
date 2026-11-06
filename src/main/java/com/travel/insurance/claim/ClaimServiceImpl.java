@@ -2,10 +2,14 @@ package com.travel.insurance.claim;
 
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.claim.dto.AttachInvoiceRequest;
+import com.travel.insurance.claim.dto.ClaimDashboardSummary;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
+import com.travel.insurance.claim.dto.ClaimExportRow;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
+import com.travel.insurance.claim.dto.InsurerClaimDistribution;
+import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
 import com.travel.insurance.common.service.CurrencyConversionService;
@@ -19,8 +23,10 @@ import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
 import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceItemRequest;
+import com.travel.insurance.invoice.dto.InvoiceItemResponse;
 import com.travel.insurance.invoice.dto.InvoiceRequest;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
+import com.travel.insurance.medicalservice.MedicalServiceService;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.preauthorization.Preauthorization;
@@ -30,6 +36,7 @@ import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
+import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -37,19 +44,28 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -72,6 +88,8 @@ public class ClaimServiceImpl implements ClaimService {
             ClaimStatus.SUBMITTED,
             ClaimStatus.UNDER_REVIEW);
 
+    private static final String UNKNOWN_LABEL = "Unknown";
+
     private final ClaimRepository claimRepository;
     private final ClaimMapper claimMapper;
     private final PolicyService policyService;
@@ -80,6 +98,7 @@ public class ClaimServiceImpl implements ClaimService {
     private final InsurerService insurerService;
     private final ServiceProviderService serviceProviderService;
     private final InvoiceService invoiceService;
+    private final MedicalServiceService medicalServiceService;
     private final Icd11CodeService icd11CodeService;
     private final ProcedureService procedureService;
     private final CurrencyConversionService currencyConversionService;
@@ -152,7 +171,10 @@ public class ClaimServiceImpl implements ClaimService {
         claim.setPreauthorizationId(preauth.id());
         claim.setClaimedAmount(invoiceTotal);
         claim.setDescription(preauth.serviceDescription());
-        claim.getDiagnosisIds().add(preauth.icd11CodeId());
+        claim.setVisitType(preauth.visitType());
+        if (preauth.icd11CodeId() != null) {
+            claim.getDiagnosisIds().add(preauth.icd11CodeId());
+        }
         claim.setStatus(ClaimStatus.OPEN);
         applyBaseConversion(claim);
         claim = claimRepository.save(claim);
@@ -207,7 +229,9 @@ public class ClaimServiceImpl implements ClaimService {
     @Override
     @Transactional(readOnly = true)
     public ClaimResponse getById(UUID id) {
-        return toResponse(getEntity(id));
+        Claim claim = getEntity(id);
+        assertVisibleToCurrentUser(claim);
+        return toResponse(claim);
     }
 
     @Override
@@ -222,6 +246,97 @@ public class ClaimServiceImpl implements ClaimService {
         return claimRepository.findAllByVisitorId(visitorId).stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ClaimResponse> listByVisitor(UUID visitorId, Pageable pageable) {
+        return claimRepository.findAllByVisitorId(visitorId, pageable).map(this::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClaimExportRow> listForExport(ClaimStatus status, UUID insurerId,
+                                              LocalDate dateFrom, LocalDate dateTo) {
+        Instant from = dateFrom != null ? dateFrom.atStartOfDay().toInstant(ZoneOffset.UTC) : null;
+        Instant to = dateTo != null ? dateTo.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC) : null;
+        Map<UUID, VisitorResponse> visitors = new HashMap<>();
+        Map<UUID, String> providers = new HashMap<>();
+        Map<UUID, String> benefits = new HashMap<>();
+        Map<UUID, Icd11CodeResponse> diagnoses = new HashMap<>();
+        Map<UUID, String> departments = new HashMap<>();
+        return claimRepository.findAllForExport(status, insurerId, from, to).stream()
+                .map(claim -> {
+                    VisitorResponse visitor = cached(visitors, claim.getVisitorId(), visitorService::getById);
+                    String providerName = cached(providers, claim.getServiceProviderId(),
+                            id -> serviceProviderService.getById(id).name());
+                    String benefitName = cached(benefits, claim.getBenefitId(),
+                            id -> benefitService.getById(id).benefitName());
+                    List<Icd11CodeResponse> claimDiagnoses = claim.getDiagnosisIds().stream()
+                            .map(id -> diagnoses.computeIfAbsent(id, this::resolveDiagnosis))
+                            .filter(Objects::nonNull)
+                            .toList();
+                    String codes = claimDiagnoses.stream().map(Icd11CodeResponse::code)
+                            .collect(Collectors.joining("; "));
+                    String descriptions = claimDiagnoses.stream().map(Icd11CodeResponse::title)
+                            .collect(Collectors.joining("; "));
+                    List<InvoiceResponse> invoices = invoiceService.listByClaimId(claim.getId());
+                    List<InvoiceItemResponse> items = invoices.stream()
+                            .flatMap(invoice -> invoice.invoiceItems().stream())
+                            .toList();
+                    BigDecimal invoiceAmount = invoices.stream()
+                            .map(InvoiceResponse::totalAmount)
+                            .filter(Objects::nonNull)
+                            .reduce(BigDecimal::add)
+                            .orElse(null);
+                    return new ClaimExportRow(
+                            providerName,
+                            claim.getServiceProviderId(),
+                            benefitName,
+                            visitor != null ? visitor.passportNumber() : null,
+                            claim.getCreatedDate(),
+                            claim.getVisitType(),
+                            codes,
+                            descriptions,
+                            items.stream().map(InvoiceItemResponse::serviceDate).filter(Objects::nonNull)
+                                    .min(Comparator.naturalOrder()).orElse(null),
+                            claim.getClaimedAmount(),
+                            joinDistinct(invoices.stream().map(InvoiceResponse::invoiceNumber)),
+                            invoiceAmount,
+                            joinDistinct(items.stream().map(InvoiceItemResponse::medicalServiceName)),
+                            joinDistinct(items.stream().map(item -> department(departments, item.medicalServiceId()))),
+                            claim.getClaimedAmountBase(),
+                            claim.getExchangeRate());
+                })
+                .toList();
+    }
+
+    /** Distinct non-blank values in encounter order joined with {@code "; "}, or null when there are none. */
+    private static String joinDistinct(java.util.stream.Stream<String> values) {
+        String joined = values.filter(v -> v != null && !v.isBlank()).distinct()
+                .collect(Collectors.joining("; "));
+        return joined.isEmpty() ? null : joined;
+    }
+
+    private String department(Map<UUID, String> cache, UUID medicalServiceId) {
+        if (medicalServiceId == null) {
+            return null;
+        }
+        return cache.computeIfAbsent(medicalServiceId, id -> {
+            try {
+                return medicalServiceService.getById(id).departmentName();
+            } catch (ResourceNotFoundException e) {
+                log.warn("Medical service {} not found for claims export, leaving department blank", id);
+                return null;
+            }
+        });
+    }
+
+    private <T> T cached(Map<UUID, T> cache, UUID id, Function<UUID, T> loader) {
+        if (id == null) {
+            return null;
+        }
+        return cache.computeIfAbsent(id, loader);
     }
 
     @Override
@@ -264,11 +379,115 @@ public class ClaimServiceImpl implements ClaimService {
         return claimRepository.sumClaimedAmountsByVisitorAndBenefit(visitorIds, benefitIds);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public ClaimDashboardSummary dashboardSummary(ClaimStatus status, LocalDate dateFrom, LocalDate dateTo) {
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return new ClaimDashboardSummary(0, BigDecimal.ZERO);
+        }
+        ClaimDashboardTotal total = claimRepository.summarize(status, scope.insurerId(), scope.serviceProviderId(),
+                startOf(dateFrom), endOf(dateTo));
+        return new ClaimDashboardSummary(total.getClaimCount(), total.getApprovedAmountUsd());
+    }
+
+    /**
+     * Every insurer is listed, including those with no claims, plus an "Unknown" row for claims with no
+     * insurer so the rows add up to the summary. An insurer user only ever sees their own row.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<InsurerClaimDistribution> distributionByInsurer(
+            ClaimStatus status, LocalDate dateFrom, LocalDate dateTo) {
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return List.of();
+        }
+        Map<UUID, ClaimDashboardTotal> totals = new HashMap<>();
+        ClaimDashboardTotal unknown = null;
+        for (ClaimDashboardTotal row : claimRepository.summarizeByInsurer(status, scope.insurerId(),
+                scope.serviceProviderId(), startOf(dateFrom), endOf(dateTo))) {
+            if (row.getGroupId() == null) {
+                unknown = row;
+            } else {
+                totals.put(row.getGroupId(), row);
+            }
+        }
+        List<InsurerClaimDistribution> result = new ArrayList<>();
+        for (InsurerResponse insurer : insurerService.listAll()) {
+            if (scope.insurerId() != null && !scope.insurerId().equals(insurer.id())) {
+                continue;
+            }
+            ClaimDashboardTotal total = totals.get(insurer.id());
+            result.add(new InsurerClaimDistribution(insurer.id(), insurer.name(),
+                    total != null ? total.getClaimCount() : 0,
+                    total != null ? total.getApprovedAmountUsd() : BigDecimal.ZERO));
+        }
+        if (unknown != null) {
+            result.add(new InsurerClaimDistribution(null, UNKNOWN_LABEL, unknown.getClaimCount(),
+                    unknown.getApprovedAmountUsd()));
+        }
+        return result;
+    }
+
+    /**
+     * Same shape as {@link #distributionByInsurer}, grouped by service provider. With a {@code limit} only
+     * the top providers by claim count (ties broken by approved USD) are returned: providers with no claims
+     * and the "Unknown" row are dropped.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<ServiceProviderClaimDistribution> distributionByServiceProvider(
+            ClaimStatus status, LocalDate dateFrom, LocalDate dateTo, Integer limit) {
+        if (limit != null && limit < 1) {
+            throw new IllegalArgumentException("limit must be at least 1");
+        }
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return List.of();
+        }
+        Map<UUID, ClaimDashboardTotal> totals = new HashMap<>();
+        ClaimDashboardTotal unknown = null;
+        for (ClaimDashboardTotal row : claimRepository.summarizeByServiceProvider(status, scope.insurerId(),
+                scope.serviceProviderId(), startOf(dateFrom), endOf(dateTo))) {
+            if (row.getGroupId() == null) {
+                unknown = row;
+            } else {
+                totals.put(row.getGroupId(), row);
+            }
+        }
+        List<ServiceProviderClaimDistribution> result = new ArrayList<>();
+        for (ServiceProviderResponse provider : serviceProviderService.listAll()) {
+            if (scope.serviceProviderId() != null && !scope.serviceProviderId().equals(provider.id())) {
+                continue;
+            }
+            ClaimDashboardTotal total = totals.get(provider.id());
+            result.add(new ServiceProviderClaimDistribution(provider.id(), provider.name(),
+                    total != null ? total.getClaimCount() : 0,
+                    total != null ? total.getApprovedAmountUsd() : BigDecimal.ZERO));
+        }
+        if (limit != null) {
+            return result.stream()
+                    .filter(row -> row.claimCount() > 0)
+                    .sorted(Comparator.comparingLong(ServiceProviderClaimDistribution::claimCount).reversed()
+                            .thenComparing(ServiceProviderClaimDistribution::approvedAmountUsd,
+                                    Comparator.reverseOrder()))
+                    .limit(limit)
+                    .toList();
+        }
+        if (unknown != null) {
+            result.add(new ServiceProviderClaimDistribution(null, UNKNOWN_LABEL, unknown.getClaimCount(),
+                    unknown.getApprovedAmountUsd()));
+        }
+        return result;
+    }
+
     private void applyDecision(Claim claim, ClaimDecisionRequest request) {
         claim.setStatus(request.status());
         claim.setDecisionReason(request.reason());
         if (request.status() == ClaimStatus.REJECTED) {
             claim.setApprovedAmount(BigDecimal.ZERO);
+            claim.setApprovedAmountBase(toApprovedBase(claim));
             return;
         }
         if (request.status() == ClaimStatus.UNDER_REVIEW) {
@@ -281,6 +500,21 @@ public class ClaimServiceImpl implements ClaimService {
             throw new IllegalArgumentException("Approved amount cannot exceed claimed amount");
         }
         claim.setApprovedAmount(approved);
+        claim.setApprovedAmountBase(toApprovedBase(claim));
+    }
+
+    /**
+     * The approved amount scaled by the claim's base/claimed ratio, not by {@code exchangeRate}: with invoices
+     * attached the claimed base is the sum of the invoices' base totals, which can differ from the claim's rate.
+     */
+    private static BigDecimal toApprovedBase(Claim claim) {
+        BigDecimal approved = claim.getApprovedAmount();
+        BigDecimal claimed = claim.getClaimedAmount();
+        BigDecimal claimedBase = claim.getClaimedAmountBase();
+        if (approved == null || claimedBase == null || claimed == null || claimed.signum() == 0) {
+            return null;
+        }
+        return approved.multiply(claimedBase).divide(claimed, 2, RoundingMode.HALF_UP);
     }
 
     private UUID validateReferences(ClaimRequest request) {
@@ -332,6 +566,7 @@ public class ClaimServiceImpl implements ClaimService {
         } else {
             claim.setClaimedAmountBase(aggregateInvoiceBaseAmounts(claim));
         }
+        claim.setApprovedAmountBase(toApprovedBase(claim));
     }
 
     private BigDecimal aggregateInvoiceBaseAmounts(Claim claim) {
@@ -364,6 +599,35 @@ public class ClaimServiceImpl implements ClaimService {
         }
     }
 
+    /** Insurer and provider users are pinned to their own entity; an unresolvable entity means no data. */
+    private DashboardScope resolveDashboardScope() {
+        AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
+        if (user != null && "PROVIDER_USER".equals(user.role())) {
+            return serviceProviderService.findIdByOrganizationId(user.organizationId())
+                    .map(id -> new DashboardScope(null, id, false))
+                    .orElse(DashboardScope.NONE);
+        }
+        if (user != null && "INSURER_USER".equals(user.role())) {
+            return insurerService.findIdByOrganizationId(user.organizationId())
+                    .map(id -> new DashboardScope(id, null, false))
+                    .orElse(DashboardScope.NONE);
+        }
+        return DashboardScope.ALL;
+    }
+
+    private static Instant startOf(LocalDate date) {
+        return date != null ? date.atStartOfDay().toInstant(ZoneOffset.UTC) : null;
+    }
+
+    private static Instant endOf(LocalDate date) {
+        return date != null ? date.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC) : null;
+    }
+
+    private record DashboardScope(UUID insurerId, UUID serviceProviderId, boolean empty) {
+        static final DashboardScope ALL = new DashboardScope(null, null, false);
+        static final DashboardScope NONE = new DashboardScope(null, null, true);
+    }
+
     private Page<Claim> findScoped(Pageable pageable) {
         AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
         if (user != null && "PROVIDER_USER".equals(user.role())) {
@@ -374,7 +638,37 @@ public class ClaimServiceImpl implements ClaimService {
             }
             return claimRepository.findAllByServiceProviderId(serviceProviderId, pageable);
         }
+        if (user != null && "INSURER_USER".equals(user.role())) {
+            UUID insurerId = insurerService.findIdByOrganizationId(user.organizationId()).orElse(null);
+            if (insurerId == null) {
+                return Page.empty(pageable);
+            }
+            return claimRepository.findAllByInsurerId(insurerId, pageable);
+        }
         return claimRepository.findAll(pageable);
+    }
+
+    /**
+     * Org-scoped users may only read their own organization's claims: an insurer user those raised
+     * against their insurer, a provider user those raised by their service provider.
+     */
+    private void assertVisibleToCurrentUser(Claim claim) {
+        AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
+        if (user == null) {
+            return;
+        }
+        if ("INSURER_USER".equals(user.role())) {
+            UUID insurerId = insurerService.findIdByOrganizationId(user.organizationId()).orElse(null);
+            if (insurerId == null || !insurerId.equals(claim.getInsurerId())) {
+                throw new AccessDeniedException("Claim belongs to another insurer");
+            }
+        } else if ("PROVIDER_USER".equals(user.role())) {
+            UUID serviceProviderId = serviceProviderService.findIdByOrganizationId(user.organizationId())
+                    .orElse(null);
+            if (serviceProviderId == null || !serviceProviderId.equals(claim.getServiceProviderId())) {
+                throw new AccessDeniedException("Claim belongs to another service provider");
+            }
+        }
     }
 
     private void publishIfApproved(Claim claim) {
@@ -442,7 +736,8 @@ public class ClaimServiceImpl implements ClaimService {
                 claim.getDecisionReason(),
                 claim.getStatus(),
                 claim.getCreatedDate(),
-                claim.getUpdatedDate()
+                claim.getUpdatedDate(),
+                claim.getVisitType()
         );
     }
 

@@ -1,11 +1,17 @@
 package com.travel.insurance.claim;
 
+import com.travel.insurance.common.domain.VisitType;
 import com.travel.insurance.benefit.BenefitService;
+import com.travel.insurance.benefit.dto.BenefitResponse;
 import com.travel.insurance.claim.dto.AttachInvoiceRequest;
+import com.travel.insurance.claim.dto.ClaimDashboardSummary;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
+import com.travel.insurance.claim.dto.ClaimExportRow;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
+import com.travel.insurance.claim.dto.InsurerClaimDistribution;
+import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
 import com.travel.insurance.common.service.CurrencyConversionService;
@@ -17,7 +23,10 @@ import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
 import com.travel.insurance.invoice.InvoiceService;
 import com.travel.insurance.invoice.dto.InvoiceItemRequest;
+import com.travel.insurance.invoice.dto.InvoiceItemResponse;
 import com.travel.insurance.invoice.dto.InvoiceRequest;
+import com.travel.insurance.medicalservice.MedicalServiceService;
+import com.travel.insurance.medicalservice.dto.MedicalServiceResponse;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
@@ -29,6 +38,7 @@ import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import com.travel.insurance.procedure.ProcedureService;
 import com.travel.insurance.procedure.dto.ProcedureResponse;
 import com.travel.insurance.serviceprovider.ServiceProviderService;
+import com.travel.insurance.serviceprovider.dto.ServiceProviderResponse;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -43,6 +53,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -58,6 +69,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -85,6 +98,9 @@ class ClaimServiceImplTest {
 
     @Mock
     private InvoiceService invoiceService;
+
+    @Mock
+    private MedicalServiceService medicalServiceService;
 
     @Mock
     private Icd11CodeService icd11CodeService;
@@ -122,7 +138,7 @@ class ClaimServiceImplTest {
         claimService = new ClaimServiceImpl(
                 claimRepository, claimMapper, policyService, benefitService,
                 visitorService, insurerService, serviceProviderService, invoiceService,
-                icd11CodeService, procedureService,
+                medicalServiceService, icd11CodeService, procedureService,
                 currencyConversionService, eventPublisher, preauthorizationService);
         policyId = UUID.randomUUID();
         benefitId = UUID.randomUUID();
@@ -157,7 +173,7 @@ class ClaimServiceImplTest {
         return new ClaimRequest(
                 policyId, benefitId, null, null, null,
                 new BigDecimal("50000.00"), null, null,
-                Set.of(diagnosisId1), Set.of(procedureId1), null, null);
+                Set.of(diagnosisId1), Set.of(procedureId1), null, null, null);
     }
 
     private ClaimRequest fullRequest() {
@@ -168,7 +184,7 @@ class ClaimServiceImplTest {
                 Set.of(diagnosisId1, diagnosisId2),
                 Set.of(procedureId1),
                 Set.of(invoiceId),
-                Set.of(documentId));
+                Set.of(documentId), VisitType.INPATIENT);
     }
 
     private Visitor visitorOnPolicy() {
@@ -180,8 +196,8 @@ class ClaimServiceImplTest {
 
     private VisitorResponse visitorResponse() {
         return new VisitorResponse(visitorId, policyId, insurerId, "Jane Traveler", "P1234567",
-                null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null, Instant.now(), Instant.now());
+                null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, Instant.now(), Instant.now());
     }
 
     private InsurerResponse insurerResponse() {
@@ -251,6 +267,45 @@ class ClaimServiceImplTest {
     }
 
     @Test
+    void createPersistsVisitTypeWhenProvided() {
+        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(benefitService.getEntityById(benefitId)).thenReturn(null);
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(icd11CodeService.getEntityById(diagnosisId1)).thenReturn(null);
+        when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of());
+
+        ClaimRequest request = new ClaimRequest(
+                policyId, benefitId, null, null, null,
+                new BigDecimal("50000.00"), null, null,
+                Set.of(diagnosisId1), Set.of(procedureId1), null, null, VisitType.INPATIENT);
+
+        ClaimResponse response = claimService.create(request);
+
+        assertThat(response.visitType()).isEqualTo(VisitType.INPATIENT);
+    }
+
+    @Test
+    void createLeavesVisitTypeNullWhenOmitted() {
+        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(benefitService.getEntityById(benefitId)).thenReturn(null);
+        when(insurerService.exists(insurerId)).thenReturn(true);
+        when(icd11CodeService.getEntityById(diagnosisId1)).thenReturn(null);
+        when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of());
+
+        ClaimResponse response = claimService.create(baseRequest());
+
+        assertThat(response.visitType()).isNull();
+    }
+
+    @Test
     void createConvertsRawClaimedAmountWhenNoInvoicesAttached() {
         when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
         when(benefitService.getEntityById(benefitId)).thenReturn(null);
@@ -277,7 +332,7 @@ class ClaimServiceImplTest {
         ClaimRequest request = new ClaimRequest(
                 policyId, benefitId, null, null, null,
                 new BigDecimal("50000.00"), null, null,
-                null, Set.of(procedureId1), null, null);
+                null, Set.of(procedureId1), null, null, null);
 
         when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
         when(benefitService.getEntityById(benefitId)).thenReturn(null);
@@ -295,7 +350,7 @@ class ClaimServiceImplTest {
         ClaimRequest request = new ClaimRequest(
                 policyId, benefitId, null, null, null,
                 new BigDecimal("50000.00"), null, null,
-                Set.of(diagnosisId1), null, null, null);
+                Set.of(diagnosisId1), null, null, null, null);
 
         when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
         when(benefitService.getEntityById(benefitId)).thenReturn(null);
@@ -315,7 +370,7 @@ class ClaimServiceImplTest {
         ClaimRequest request = new ClaimRequest(
                 policyId, benefitId, null, preauthId, null,
                 new BigDecimal("50000.00"), null, null,
-                null, Set.of(procedureId1), null, null);
+                null, Set.of(procedureId1), null, null, null);
 
         Preauthorization preauth = new Preauthorization();
         preauth.setId(preauthId);
@@ -425,6 +480,98 @@ class ClaimServiceImplTest {
     }
 
     @Test
+    void listForExportEmitsOneRowPerClaimSummingInvoicesAndLooksEachReferenceUpOnce() {
+        UUID providerId = UUID.randomUUID();
+        UUID serviceId = UUID.randomUUID();
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(claimId);
+        claim.setVisitorId(visitorId);
+        claim.setBenefitId(benefitId);
+        claim.setServiceProviderId(providerId);
+        claim.setClaimedAmount(new BigDecimal("1000.00"));
+        claim.setClaimedAmountBase(new BigDecimal("7.70"));
+        claim.setExchangeRate(new BigDecimal("0.007700"));
+        claim.setVisitType(VisitType.OUTPATIENT);
+        claim.setDiagnosisIds(Set.of(diagnosisId1));
+        Instant from = LocalDate.of(2026, 10, 1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC);
+        Instant to = LocalDate.of(2026, 11, 1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC);
+        when(claimRepository.findAllForExport(ClaimStatus.APPROVED, insurerId, from, to))
+                .thenReturn(List.of(claim));
+        when(visitorService.getById(visitorId)).thenReturn(visitorResponse());
+        when(serviceProviderService.getById(providerId)).thenReturn(new ServiceProviderResponse(providerId,
+                "Aga Khan Hospital", null, null, null, null, null, null, null, Instant.now(), Instant.now()));
+        when(benefitService.getById(benefitId)).thenReturn(
+                new BenefitResponse(benefitId, "Outpatient", new BigDecimal("5000"), Instant.now(), Instant.now()));
+        when(icd11CodeService.getById(diagnosisId1)).thenReturn(
+                new Icd11CodeResponse(diagnosisId1, "1A00", "Cholera", Instant.now(), Instant.now()));
+        when(medicalServiceService.getById(serviceId)).thenReturn(new MedicalServiceResponse(
+                serviceId, "Consultation", UUID.randomUUID(), "General Medicine", Instant.now(), Instant.now()));
+        InvoiceItemResponse item1 = new InvoiceItemResponse(UUID.randomUUID(), serviceId, "Consultation",
+                "Consult", BigDecimal.ONE, new BigDecimal("500"), new BigDecimal("500"),
+                new BigDecimal("3.85"), new BigDecimal("3.85"), LocalDate.of(2026, 10, 3));
+        InvoiceItemResponse item2 = new InvoiceItemResponse(UUID.randomUUID(), serviceId, "Consultation",
+                "Follow-up", BigDecimal.ONE, new BigDecimal("500"), new BigDecimal("500"),
+                new BigDecimal("3.85"), new BigDecimal("3.85"), LocalDate.of(2026, 10, 4));
+        InvoiceResponse invoice1 = new InvoiceResponse(invoiceId, claimId,
+                "INV-1", LocalDate.of(2026, 10, 5), "KES", new BigDecimal("1000.00"), new BigDecimal("0.0077"),
+                "USD", new BigDecimal("7.70"), LocalDateTime.now(), List.of(item1, item2),
+                Instant.now(), Instant.now());
+        InvoiceResponse invoice2 = new InvoiceResponse(UUID.randomUUID(), claimId,
+                "INV-2", LocalDate.of(2026, 10, 6), "KES", new BigDecimal("250.50"), new BigDecimal("0.0077"),
+                "USD", new BigDecimal("1.93"), LocalDateTime.now(), List.of(), Instant.now(), Instant.now());
+        when(invoiceService.listByClaimId(claimId)).thenReturn(List.of(invoice1, invoice2));
+
+        List<ClaimExportRow> rows = claimService.listForExport(
+                ClaimStatus.APPROVED, insurerId, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31));
+
+        assertThat(rows).hasSize(1);
+        ClaimExportRow row = rows.get(0);
+        assertThat(row.serviceProviderName()).isEqualTo("Aga Khan Hospital");
+        assertThat(row.serviceProviderId()).isEqualTo(providerId);
+        assertThat(row.benefitName()).isEqualTo("Outpatient");
+        assertThat(row.passportNumber()).isEqualTo("P1234567");
+        assertThat(row.visitType()).isEqualTo(VisitType.OUTPATIENT);
+        assertThat(row.diagnosisCodes()).isEqualTo("1A00");
+        assertThat(row.diagnosisDescriptions()).isEqualTo("Cholera");
+        assertThat(row.visitDate()).isEqualTo(LocalDate.of(2026, 10, 3));
+        assertThat(row.claimedAmount()).isEqualByComparingTo("1000.00");
+        assertThat(row.invoiceNumber()).isEqualTo("INV-1; INV-2");
+        assertThat(row.invoiceAmount()).isEqualByComparingTo("1250.50");
+        assertThat(row.serviceName()).isEqualTo("Consultation");
+        assertThat(row.departmentName()).isEqualTo("General Medicine");
+        assertThat(row.claimedAmountBase()).isEqualByComparingTo("7.70");
+        assertThat(row.exchangeRate()).isEqualByComparingTo("0.007700");
+        verify(visitorService, org.mockito.Mockito.times(1)).getById(visitorId);
+        verify(medicalServiceService, org.mockito.Mockito.times(1)).getById(serviceId);
+    }
+
+    @Test
+    void listForExportEmitsOneRowWithBlankInvoiceColumnsWhenClaimHasNoInvoice() {
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(UUID.randomUUID());
+        claim.setVisitorId(null);
+        claim.setBenefitId(benefitId);
+        claim.setServiceProviderId(null);
+        claim.setDiagnosisIds(Set.of());
+        when(claimRepository.findAllForExport(null, null, null, null)).thenReturn(List.of(claim));
+        when(benefitService.getById(benefitId)).thenReturn(
+                new BenefitResponse(benefitId, "Outpatient", new BigDecimal("5000"), Instant.now(), Instant.now()));
+        when(invoiceService.listByClaimId(claim.getId())).thenReturn(List.of());
+
+        List<ClaimExportRow> rows = claimService.listForExport(null, null, null, null);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).serviceProviderName()).isNull();
+        assertThat(rows.get(0).serviceProviderId()).isNull();
+        assertThat(rows.get(0).passportNumber()).isNull();
+        assertThat(rows.get(0).invoiceNumber()).isNull();
+        assertThat(rows.get(0).serviceName()).isNull();
+        assertThat(rows.get(0).visitDate()).isNull();
+        assertThat(rows.get(0).benefitName()).isEqualTo("Outpatient");
+    }
+
+    @Test
     void listByVisitorReturnsClaimsForThatVisitor() {
         Claim claim = claimMapper.toEntity(baseRequest());
         claim.setId(UUID.randomUUID());
@@ -456,6 +603,131 @@ class ClaimServiceImplTest {
 
         assertThat(result.getContent()).hasSize(1);
         verify(claimRepository).findAllByServiceProviderId(serviceProviderId, pageable);
+        verify(claimRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listScopesToInsurerForInsurerUserViaOrganizationId() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(insurerId));
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(UUID.randomUUID());
+        claim.setInsurerId(insurerId);
+        Pageable pageable = PageRequest.of(0, 10);
+        when(claimRepository.findAllByInsurerId(insurerId, pageable)).thenReturn(new PageImpl<>(List.of(claim)));
+        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of());
+
+        Page<ClaimResponse> result = claimService.list(pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(claimRepository).findAllByInsurerId(insurerId, pageable);
+        verify(claimRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listReturnsEmptyForInsurerUserWithoutInsurer() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.empty());
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Page<ClaimResponse> result = claimService.list(pageable);
+
+        assertThat(result.getContent()).isEmpty();
+        verify(claimRepository, never()).findAll(any(Pageable.class));
+        verify(claimRepository, never()).findAllByInsurerId(any(), any());
+    }
+
+    @Test
+    void listReturnsAllClaimsForAdmin() {
+        authenticateAs(null, "ADMIN");
+        Pageable pageable = PageRequest.of(0, 10);
+        when(claimRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of()));
+
+        claimService.list(pageable);
+
+        verify(claimRepository).findAll(pageable);
+        verify(claimRepository, never()).findAllByInsurerId(any(), any());
+    }
+
+    @Test
+    void getByIdReturnsOwnClaimForInsurerUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(insurerId));
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setInsurerId(insurerId);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of());
+
+        assertThat(claimService.getById(id).id()).isEqualTo(id);
+    }
+
+    @Test
+    void getByIdRejectsOtherInsurersClaimForInsurerUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(UUID.randomUUID()));
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setInsurerId(insurerId);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+
+        assertThatThrownBy(() -> claimService.getById(id))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void getByIdReturnsOwnClaimForProviderUser() {
+        UUID organizationId = UUID.randomUUID();
+        UUID serviceProviderId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(serviceProviderId));
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setServiceProviderId(serviceProviderId);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of());
+
+        assertThat(claimService.getById(id).id()).isEqualTo(id);
+    }
+
+    @Test
+    void getByIdRejectsOtherProvidersClaimForProviderUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(UUID.randomUUID()));
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setServiceProviderId(UUID.randomUUID());
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+
+        assertThatThrownBy(() -> claimService.getById(id))
+                .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void listByVisitorPagedReturnsOnlyThatVisitorsClaims() {
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(UUID.randomUUID());
+        claim.setVisitorId(visitorId);
+        Pageable pageable = PageRequest.of(0, 10);
+        when(claimRepository.findAllByVisitorId(visitorId, pageable)).thenReturn(new PageImpl<>(List.of(claim)));
+        when(visitorService.getById(visitorId)).thenReturn(visitorResponse());
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of());
+
+        Page<ClaimResponse> result = claimService.listByVisitor(visitorId, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().getFirst().visitorId()).isEqualTo(visitorId);
         verify(claimRepository, never()).findAll(any(Pageable.class));
     }
 
@@ -647,11 +919,11 @@ class ClaimServiceImplTest {
 
     private PreauthorizationResponse preauthResponse(PreauthorizationStatus status, Boolean converted,
                                                      List<PreauthorizationItemResponse> items) {
-        return new PreauthorizationResponse(preauthId, policyId, insurerId, visitorId, "Jane Traveler",
+        return new PreauthorizationResponse(preauthId, policyId, insurerId, visitorId, "Jane Traveler", "A1234567",
                 diagnosisId1, "B54", "Malaria", benefitId, "Inpatient", serviceProviderId, "City Hospital",
                 medicalServiceId, "Ward admission", new BigDecimal("60000.00"), new BigDecimal("50000.00"),
                 "Admission for malaria", null, status, Instant.now(), Instant.now(), null, null,
-                items, converted);
+                items, converted, VisitType.INPATIENT, null, null, null, null);
     }
 
     private final UUID preauthId = UUID.randomUUID();
@@ -689,6 +961,7 @@ class ClaimServiceImplTest {
         assertThat(saved.getPreauthorizationId()).isEqualTo(preauthId);
         assertThat(saved.getClaimedAmount()).isEqualByComparingTo("45000.00");
         assertThat(saved.getDescription()).isEqualTo("Admission for malaria");
+        assertThat(saved.getVisitType()).isEqualTo(VisitType.INPATIENT);
         assertThat(saved.getDiagnosisIds()).containsExactly(diagnosisId1);
         assertThat(saved.getProcedureIds()).isEmpty();
         assertThat(saved.getStatus()).isEqualTo(ClaimStatus.OPEN);
@@ -787,5 +1060,234 @@ class ClaimServiceImplTest {
                 .hasMessageContaining("already been converted");
         verify(claimRepository, never()).save(any());
         verify(invoiceService, never()).create(any());
+    }
+
+    @Test
+    void decideStoresApprovedAmountInUsdUsingClaimedBaseRatio() {
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setStatus(ClaimStatus.UNDER_REVIEW);
+        claim.setClaimedAmount(new BigDecimal("50000.00"));
+        claim.setClaimedAmountBase(new BigDecimal("385.00"));
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of());
+
+        claimService.decide(id, new ClaimDecisionRequest(ClaimStatus.APPROVED, new BigDecimal("40000.00"), "ok"));
+
+        assertThat(claim.getApprovedAmountBase()).isEqualByComparingTo("308.00");
+    }
+
+    @Test
+    void decideRejectionStoresZeroApprovedAmountInUsd() {
+        UUID id = UUID.randomUUID();
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(id);
+        claim.setStatus(ClaimStatus.UNDER_REVIEW);
+        claim.setClaimedAmount(new BigDecimal("50000.00"));
+        claim.setClaimedAmountBase(new BigDecimal("385.00"));
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of());
+
+        claimService.decide(id, new ClaimDecisionRequest(ClaimStatus.REJECTED, null, "no cover"));
+
+        assertThat(claim.getApprovedAmountBase()).isEqualByComparingTo("0.00");
+    }
+
+    private ClaimDashboardTotal dashboardTotal(UUID groupId, long count, String usd) {
+        return new ClaimDashboardTotal() {
+            @Override
+            public UUID getGroupId() {
+                return groupId;
+            }
+
+            @Override
+            public long getClaimCount() {
+                return count;
+            }
+
+            @Override
+            public BigDecimal getApprovedAmountUsd() {
+                return new BigDecimal(usd);
+            }
+        };
+    }
+
+    @Test
+    void dashboardSummaryTotalsAllClaimsForAdmin() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        Instant from = LocalDate.of(2026, 10, 1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC);
+        Instant to = LocalDate.of(2026, 11, 1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC);
+        when(claimRepository.summarize(ClaimStatus.APPROVED, null, null, from, to))
+                .thenReturn(dashboardTotal(null, 7, "1234.50"));
+
+        ClaimDashboardSummary summary = claimService.dashboardSummary(
+                ClaimStatus.APPROVED, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31));
+
+        assertThat(summary.totalClaims()).isEqualTo(7);
+        assertThat(summary.totalApprovedAmountUsd()).isEqualByComparingTo("1234.50");
+    }
+
+    @Test
+    void dashboardSummaryIsScopedToInsurerUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(insurerId));
+        when(claimRepository.summarize(isNull(), eq(insurerId), isNull(), isNull(), isNull()))
+                .thenReturn(dashboardTotal(null, 2, "10.00"));
+
+        ClaimDashboardSummary summary = claimService.dashboardSummary(null, null, null);
+
+        assertThat(summary.totalClaims()).isEqualTo(2);
+    }
+
+    @Test
+    void dashboardSummaryIsScopedToProviderUser() {
+        UUID organizationId = UUID.randomUUID();
+        UUID providerId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(providerId));
+        when(claimRepository.summarize(isNull(), isNull(), eq(providerId), isNull(), isNull()))
+                .thenReturn(dashboardTotal(null, 3, "20.00"));
+
+        assertThat(claimService.dashboardSummary(null, null, null).totalClaims()).isEqualTo(3);
+    }
+
+    @Test
+    void dashboardIsEmptyWhenInsurerUserHasNoInsurer() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.empty());
+
+        assertThat(claimService.dashboardSummary(null, null, null).totalClaims()).isZero();
+        assertThat(claimService.distributionByInsurer(null, null, null)).isEmpty();
+        assertThat(claimService.distributionByServiceProvider(null, null, null, null)).isEmpty();
+        verify(claimRepository, never()).summarize(any(), any(), any(), any(), any());
+        verify(claimRepository, never()).summarizeByInsurer(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void distributionByInsurerIncludesZeroClaimInsurersAndUnknownBucket() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        UUID quietInsurerId = UUID.randomUUID();
+        when(insurerService.listAll()).thenReturn(List.of(
+                insurerResponse(),
+                new InsurerResponse(quietInsurerId, null, "Quiet Insurance", null, null, null, null,
+                        null, null, null, null, null, null, null, Instant.now(), Instant.now())));
+        when(claimRepository.summarizeByInsurer(null, null, null, null, null)).thenReturn(List.of(
+                dashboardTotal(insurerId, 4, "100.00"), dashboardTotal(null, 1, "5.00")));
+
+        List<InsurerClaimDistribution> result = claimService.distributionByInsurer(null, null, null);
+
+        assertThat(result).extracting(InsurerClaimDistribution::insurerName)
+                .containsExactly("Jubilee Insurance", "Quiet Insurance", "Unknown");
+        assertThat(result).extracting(InsurerClaimDistribution::claimCount).containsExactly(4L, 0L, 1L);
+        assertThat(result.get(1).approvedAmountUsd()).isEqualByComparingTo("0");
+        assertThat(result.get(2).insurerId()).isNull();
+    }
+
+    @Test
+    void distributionByInsurerShowsInsurerUserOnlyTheirOwnRow() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(insurerId));
+        when(insurerService.listAll()).thenReturn(List.of(
+                insurerResponse(),
+                new InsurerResponse(UUID.randomUUID(), null, "Other Insurance", null, null, null, null,
+                        null, null, null, null, null, null, null, Instant.now(), Instant.now())));
+        when(claimRepository.summarizeByInsurer(null, insurerId, null, null, null))
+                .thenReturn(List.of(dashboardTotal(insurerId, 4, "100.00")));
+
+        List<InsurerClaimDistribution> result = claimService.distributionByInsurer(null, null, null);
+
+        assertThat(result).extracting(InsurerClaimDistribution::insurerName).containsExactly("Jubilee Insurance");
+    }
+
+    @Test
+    void distributionByServiceProviderIncludesZeroClaimProvidersAndUnknownBucket() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        UUID busyId = UUID.randomUUID();
+        UUID quietId = UUID.randomUUID();
+        when(serviceProviderService.listAll()).thenReturn(List.of(
+                new ServiceProviderResponse(busyId, "Aga Khan Hospital", null, null, null, null, null, null, null,
+                        Instant.now(), Instant.now()),
+                new ServiceProviderResponse(quietId, "Quiet Clinic", null, null, null, null, null, null, null,
+                        Instant.now(), Instant.now())));
+        when(claimRepository.summarizeByServiceProvider(null, null, null, null, null)).thenReturn(List.of(
+                dashboardTotal(busyId, 9, "900.00"), dashboardTotal(null, 2, "0.00")));
+
+        List<ServiceProviderClaimDistribution> result =
+                claimService.distributionByServiceProvider(null, null, null, null);
+
+        assertThat(result).extracting(ServiceProviderClaimDistribution::serviceProviderName)
+                .containsExactly("Aga Khan Hospital", "Quiet Clinic", "Unknown");
+        assertThat(result).extracting(ServiceProviderClaimDistribution::claimCount).containsExactly(9L, 0L, 2L);
+    }
+
+    @Test
+    void distributionByServiceProviderShowsProviderUserOnlyTheirOwnRow() {
+        UUID organizationId = UUID.randomUUID();
+        UUID providerId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(providerId));
+        when(serviceProviderService.listAll()).thenReturn(List.of(
+                new ServiceProviderResponse(providerId, "Mine", null, null, null, null, null, null, null,
+                        Instant.now(), Instant.now()),
+                new ServiceProviderResponse(UUID.randomUUID(), "Theirs", null, null, null, null, null, null, null,
+                        Instant.now(), Instant.now())));
+        when(claimRepository.summarizeByServiceProvider(null, null, providerId, null, null))
+                .thenReturn(List.of(dashboardTotal(providerId, 1, "10.00")));
+
+        assertThat(claimService.distributionByServiceProvider(null, null, null, null))
+                .extracting(ServiceProviderClaimDistribution::serviceProviderName).containsExactly("Mine");
+    }
+
+    @Test
+    void distributionByServiceProviderWithLimitReturnsTopProvidersByClaimCount() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        UUID c = UUID.randomUUID();
+        UUID idle = UUID.randomUUID();
+        when(serviceProviderService.listAll()).thenReturn(List.of(
+                providerResponse(a, "A"), providerResponse(b, "B"), providerResponse(c, "C"),
+                providerResponse(idle, "Idle")));
+        when(claimRepository.summarizeByServiceProvider(null, null, null, null, null)).thenReturn(List.of(
+                dashboardTotal(a, 5, "10.00"), dashboardTotal(b, 9, "5.00"), dashboardTotal(c, 5, "50.00"),
+                dashboardTotal(null, 20, "1.00")));
+
+        List<ServiceProviderClaimDistribution> result =
+                claimService.distributionByServiceProvider(null, null, null, 2);
+
+        assertThat(result).extracting(ServiceProviderClaimDistribution::serviceProviderName)
+                .containsExactly("B", "C");
+    }
+
+    @Test
+    void distributionByServiceProviderWithLimitDropsZeroClaimProvidersAndUnknown() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        UUID a = UUID.randomUUID();
+        when(serviceProviderService.listAll()).thenReturn(List.of(
+                providerResponse(a, "A"), providerResponse(UUID.randomUUID(), "Idle")));
+        when(claimRepository.summarizeByServiceProvider(null, null, null, null, null)).thenReturn(List.of(
+                dashboardTotal(a, 1, "1.00"), dashboardTotal(null, 3, "1.00")));
+
+        assertThat(claimService.distributionByServiceProvider(null, null, null, 10))
+                .extracting(ServiceProviderClaimDistribution::serviceProviderName).containsExactly("A");
+    }
+
+    @Test
+    void distributionByServiceProviderRejectsNonPositiveLimit() {
+        assertThatThrownBy(() -> claimService.distributionByServiceProvider(null, null, null, 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("limit must be at least 1");
+    }
+
+    private ServiceProviderResponse providerResponse(UUID id, String name) {
+        return new ServiceProviderResponse(id, name, null, null, null, null, null, null, null,
+                Instant.now(), Instant.now());
     }
 }

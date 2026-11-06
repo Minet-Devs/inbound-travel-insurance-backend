@@ -1,5 +1,6 @@
 package com.travel.insurance.claim.dto;
 
+import com.travel.insurance.common.domain.VisitType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -20,6 +21,7 @@ public record ClaimRequest(
         Set<UUID> diagnosisIds,
         Set<UUID> procedureIds,
         Set<UUID> invoiceIds,
-        Set<UUID> documentIds
+        Set<UUID> documentIds,
+        VisitType visitType
 ) {
 }

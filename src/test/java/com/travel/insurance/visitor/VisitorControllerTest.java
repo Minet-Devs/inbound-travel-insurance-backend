@@ -60,12 +60,12 @@ class VisitorControllerTest {
 
     private VisitorResponse sampleVisitor() {
         return new VisitorResponse(visitorId, policyId, UUID.randomUUID(), "Jane Traveler", "P1234567",
-                LocalDate.of(1990, 5, 12), Gender.FEMALE, "Germany", "12 Example Street, Berlin",
+                LocalDate.of(1990, 5, 12), 36, Gender.FEMALE, "Germany", "12 Example Street, Berlin",
                 "jane.traveler@example.com", "+254700000000",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1), LocalDate.of(2027, 8, 1),
                 MaritalStatus.SINGLE, "Tourism", "https://storage.example.com/photos/jane.jpg", null,
                 VisitorStatus.PENDING, "John Traveler", "+254711111111",
-                null, null, null, null, null, null,
+                null, new BigDecimal("150.50"), null, null, null, null, null,
                 Instant.now(), Instant.now());
     }
 
@@ -76,7 +76,7 @@ class VisitorControllerTest {
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
                 MaritalStatus.SINGLE, "Tourism", "https://storage.example.com/photos/jane.jpg", null,
                 "John Traveler", "+254711111111",
-                null, null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     private VisitorBenefitResponse sampleBenefit() {
@@ -98,6 +98,8 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$.id").value(visitorId.toString()))
                 .andExpect(jsonPath("$.fullName").value("Jane Traveler"))
                 .andExpect(jsonPath("$.passportNumber").value("P1234567"))
+                .andExpect(jsonPath("$.age").value(36))
+                .andExpect(jsonPath("$.premiumAmountPaid").value(150.50))
                 .andExpect(jsonPath("$.policyId").value(policyId.toString()))
                 .andExpect(jsonPath("$.visitorBenefits[0].benefitId").value(benefitId.toString()))
                 .andExpect(jsonPath("$.visitorBenefits[0].benefitName").value("Medical Expenses"))
@@ -223,7 +225,7 @@ class VisitorControllerTest {
                 LocalDate.of(2026, 8, 1), LocalDate.of(2026, 11, 1),
                 MaritalStatus.SINGLE, "", "", null,
                 "John Traveler", "+254711111111",
-                null, null, null, null, null);
+                null, null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/visitors")
                         .with(csrf())
@@ -253,7 +255,8 @@ class VisitorControllerTest {
         when(visitorService.countByAgeGroup()).thenReturn(List.of(
                 new AgeGroupVisitorCount("0-2", 1),
                 new AgeGroupVisitorCount("3-17", 2),
-                new AgeGroupVisitorCount("18+", 3)));
+                new AgeGroupVisitorCount("18+", 3),
+                new AgeGroupVisitorCount("Unknown", 4)));
 
         mockMvc.perform(get("/api/v1/visitors/distribution-by-age-group"))
                 .andExpect(status().isOk())
@@ -261,7 +264,9 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$[0].totalVisitors").value(1))
                 .andExpect(jsonPath("$[1].ageGroup").value("3-17"))
                 .andExpect(jsonPath("$[2].ageGroup").value("18+"))
-                .andExpect(jsonPath("$[2].totalVisitors").value(3));
+                .andExpect(jsonPath("$[2].totalVisitors").value(3))
+                .andExpect(jsonPath("$[3].ageGroup").value("Unknown"))
+                .andExpect(jsonPath("$[3].totalVisitors").value(4));
     }
 
     @Test
@@ -272,13 +277,14 @@ class VisitorControllerTest {
                 new InsurerAgeGroupVisitorCount(insurerId, "Minet Insurance", List.of(
                         new AgeGroupVisitorCount("0-2", 1),
                         new AgeGroupVisitorCount("3-17", 2),
-                        new AgeGroupVisitorCount("18+", 3)), 6)));
+                        new AgeGroupVisitorCount("18+", 3),
+                        new AgeGroupVisitorCount("Unknown", 4)), 10)));
 
         mockMvc.perform(get("/api/v1/visitors/distribution-by-insurer-and-age-group"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].insurerId").value(insurerId.toString()))
                 .andExpect(jsonPath("$[0].insurerName").value("Minet Insurance"))
-                .andExpect(jsonPath("$[0].totalVisitors").value(6))
+                .andExpect(jsonPath("$[0].totalVisitors").value(10))
                 .andExpect(jsonPath("$[0].ageGroups[0].ageGroup").value("0-2"))
                 .andExpect(jsonPath("$[0].ageGroups[2].ageGroup").value("18+"))
                 .andExpect(jsonPath("$[0].ageGroups[2].totalVisitors").value(3));

@@ -1,9 +1,20 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.preauthorization.dto.ServiceProviderPreauthorizationDistribution;
+import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
+import com.travel.insurance.preauthorization.dto.InsurerPreauthorizationDistribution;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadRowStatus;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadRowResult;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadResponse;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import org.springframework.mock.web.MockMultipartFile;
+import com.travel.insurance.preauthorization.upload.PreauthorizationUploadService;
+import com.travel.insurance.common.domain.VisitType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDecisionRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationRequest;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUpdateRequest;
 import com.travel.insurance.preauthorization.dto.PreauthorizationResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +37,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -42,6 +54,9 @@ class PreauthorizationControllerTest {
     private PreauthorizationService preauthorizationService;
 
     @MockBean
+    private PreauthorizationUploadService preauthorizationUploadService;
+
+    @MockBean
     private JwtTokenProvider jwtTokenProvider;
 
     private final UUID preauthorizationId = UUID.randomUUID();
@@ -53,11 +68,12 @@ class PreauthorizationControllerTest {
 
     private PreauthorizationResponse sampleResponse(PreauthorizationStatus status) {
         return new PreauthorizationResponse(
-                preauthorizationId, policyId, UUID.randomUUID(), visitorId, "Jane Traveler",
+                preauthorizationId, policyId, UUID.randomUUID(), visitorId, "Jane Traveler", "A1234567",
                 icd11CodeId, "1A00", "Cholera", benefitId, "Medical Expenses",
                 serviceProviderId, "Aga Khan Hospital", null, null,
                 new BigDecimal("500.00"), null, "X-ray", null, status,
-                Instant.now(), Instant.now(), null, null, List.of(), false);
+                Instant.now(), Instant.now(), null, null, List.of(), false, VisitType.OUTPATIENT, null, null,
+                new BigDecimal("0.007752"), new BigDecimal("3.88"));
     }
 
     @Test
@@ -68,7 +84,7 @@ class PreauthorizationControllerTest {
 
         PreauthorizationRequest request = new PreauthorizationRequest(
                 policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, null,
-                new BigDecimal("500.00"), "X-ray", null);
+                new BigDecimal("500.00"), "X-ray", null, VisitType.OUTPATIENT);
 
         mockMvc.perform(post("/api/v1/preauthorizations")
                         .with(csrf())
@@ -77,7 +93,58 @@ class PreauthorizationControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.visitorId").value(visitorId.toString()))
-                .andExpect(jsonPath("$.icd11CodeId").value(icd11CodeId.toString()));
+                .andExpect(jsonPath("$.icd11CodeId").value(icd11CodeId.toString()))
+                .andExpect(jsonPath("$.exchangeRate").value(0.007752))
+                .andExpect(jsonPath("$.approvedAmountInDollars").value(3.88));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void dashboardEndpointsReturnSummaryAndDistributions() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(preauthorizationService.dashboardSummary(any(), any()))
+                .thenReturn(new PreauthorizationDashboardSummary(10, 5, 2, 1));
+        when(preauthorizationService.distributionByInsurer(any(), any())).thenReturn(List.of(
+                new InsurerPreauthorizationDistribution(insurerId, "Jubilee", 4, new BigDecimal("2500.00"))));
+        when(preauthorizationService.topServiceProviders(any(), any(), any())).thenReturn(List.of(
+                new ServiceProviderPreauthorizationDistribution(serviceProviderId, "Aga Khan", 3,
+                        new BigDecimal("900.00"))));
+
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/summary").param("dateFrom", "2026-10-01"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalPreauthorizations").value(10))
+                .andExpect(jsonPath("$.approved").value(5))
+                .andExpect(jsonPath("$.rejected").value(2))
+                .andExpect(jsonPath("$.partiallyApproved").value(1));
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/by-insurer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].insurerName").value("Jubilee"))
+                .andExpect(jsonPath("$[0].preauthorizationCount").value(4))
+                .andExpect(jsonPath("$[0].approvedAmount").value(2500.00));
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/top-service-providers").param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].serviceProviderName").value("Aga Khan"))
+                .andExpect(jsonPath("$[0].preauthorizationCount").value(3));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void uploadReturnsPerRowResults() throws Exception {
+        UUID createdId = UUID.randomUUID();
+        when(preauthorizationUploadService.upload(any())).thenReturn(new PreauthorizationUploadResponse(2, 1, 1, List.of(
+                new PreauthorizationUploadRowResult(2, "A1", PreauthorizationUploadRowStatus.CREATED, createdId, null),
+                new PreauthorizationUploadRowResult(3, "B2", PreauthorizationUploadRowStatus.FAILED, null,
+                        "No visitor found for passport B2"))));
+
+        mockMvc.perform(multipart("/api/v1/preauthorizations/upload")
+                        .file(new MockMultipartFile("file", "approvals.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{1}))
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.createdRows").value(1))
+                .andExpect(jsonPath("$.failedRows").value(1))
+                .andExpect(jsonPath("$.rows[0].preauthorizationId").value(createdId.toString()))
+                .andExpect(jsonPath("$.rows[1].status").value("FAILED"))
+                .andExpect(jsonPath("$.rows[1].errorMessage").value("No visitor found for passport B2"));
     }
 
     @Test
@@ -85,7 +152,7 @@ class PreauthorizationControllerTest {
     void createRejectsMissingVisitorId() throws Exception {
         PreauthorizationRequest request = new PreauthorizationRequest(
                 policyId, null, icd11CodeId, benefitId, serviceProviderId, null,
-                new BigDecimal("500.00"), "X-ray", null);
+                new BigDecimal("500.00"), "X-ray", null, VisitType.OUTPATIENT);
 
         mockMvc.perform(post("/api/v1/preauthorizations")
                         .with(csrf())
@@ -104,6 +171,41 @@ class PreauthorizationControllerTest {
         mockMvc.perform(get("/api/v1/preauthorizations/{id}", preauthorizationId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(preauthorizationId.toString()));
+    }
+
+    @Test
+    @WithMockUser(roles = "PROVIDER_USER")
+    void updateReturnsUpdatedPreauthorization() throws Exception {
+        when(preauthorizationService.update(eq(preauthorizationId), any(PreauthorizationUpdateRequest.class)))
+                .thenReturn(sampleResponse(PreauthorizationStatus.PENDING));
+
+        PreauthorizationUpdateRequest request = new PreauthorizationUpdateRequest(
+                policyId, visitorId, icd11CodeId, benefitId, serviceProviderId, null,
+                new BigDecimal("500.00"), "X-ray", null, VisitType.OUTPATIENT,
+                null, null, null, null, null, null, null, null, null, null);
+
+        mockMvc.perform(put("/api/v1/preauthorizations/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(preauthorizationId.toString()))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    @WithMockUser(roles = "PROVIDER_USER")
+    void updateRejectsMissingVisitorId() throws Exception {
+        PreauthorizationUpdateRequest request = new PreauthorizationUpdateRequest(
+                policyId, null, icd11CodeId, benefitId, serviceProviderId, null,
+                new BigDecimal("500.00"), "X-ray", null, null,
+                null, null, null, null, null, null, null, null, null, null);
+
+        mockMvc.perform(put("/api/v1/preauthorizations/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

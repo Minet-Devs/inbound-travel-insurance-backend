@@ -17,6 +17,9 @@ Every code change must include, in the same piece of work:
      (note: `@WebMvcTest` uses default security, so non-GET requests need `.with(csrf())`
      and tests need `@WithMockUser`).
    - Run the affected tests before declaring the work done.
+   - After making any code change, always run the **full** test suite
+     (`JAVA_HOME=$(/usr/libexec/java_home -v 21) mvn test`), not just the affected tests,
+     and report any failures.
 2. **Documentation** — update `backend-architecture.md` when adding or changing
    endpoints, entities, statuses/transitions, or cross-feature events.
 

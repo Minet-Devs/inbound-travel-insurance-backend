@@ -1,9 +1,11 @@
 package com.travel.insurance.preauthorization.dto;
 
+import com.travel.insurance.common.domain.VisitType;
 import com.travel.insurance.preauthorization.PreauthorizationStatus;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,6 +15,7 @@ public record PreauthorizationResponse(
         UUID insurerId,
         UUID visitorId,
         String visitorName,
+        String passportNumber,
         UUID icd11CodeId,
         String icd11Code,
         String icd11Title,
@@ -32,7 +35,11 @@ public record PreauthorizationResponse(
         UUID decidedBy,
         Instant decidedAt,
         List<PreauthorizationItemResponse> preauthorizationItems,
-        Boolean convertedToClaim
-
+        Boolean convertedToClaim,
+        VisitType visitType,
+        LocalDate treatmentDate,
+        LocalDate dischargeDate,
+        BigDecimal exchangeRate,
+        BigDecimal approvedAmountInDollars
 ) {
 }

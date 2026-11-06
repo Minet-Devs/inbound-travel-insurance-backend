@@ -26,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.Period;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -111,55 +110,41 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     @Transactional(readOnly = true)
     public List<AgeGroupVisitorCount> countByAgeGroup() {
-        // date_of_birth is encrypted at rest, so it cannot be bucketed in SQL.
-        LocalDate today = LocalDate.now();
-        long infants = 0;
-        long minors = 0;
-        long adults = 0;
-        for (Visitor visitor : visitorRepository.findAll()) {
-            if (visitor.getDateOfBirth() == null) {
-                continue;
-            }
-            int age = Period.between(visitor.getDateOfBirth(), today).getYears();
-            if (age < 3) {
-                infants++;
-            } else if (age < 18) {
-                minors++;
-            } else {
-                adults++;
-            }
-        }
-        return List.of(
-                new AgeGroupVisitorCount("0-2", infants),
-                new AgeGroupVisitorCount("3-17", minors),
-                new AgeGroupVisitorCount("18+", adults));
+        long[] counts = new long[4];
+        visitorRepository.countVisitorsGroupedByAge()
+                .forEach(row -> counts[ageBucket(row.getAge())] += row.getTotal());
+        return toAgeGroups(counts);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<InsurerAgeGroupVisitorCount> countByInsurerAndAgeGroup() {
-        // date_of_birth is encrypted at rest, so it cannot be bucketed in SQL.
-        LocalDate today = LocalDate.now();
         Map<UUID, long[]> buckets = new HashMap<>();
-        for (Visitor visitor : visitorRepository.findAll()) {
-            if (visitor.getDateOfBirth() == null || visitor.getInsurerId() == null) {
-                continue;
-            }
-            int age = Period.between(visitor.getDateOfBirth(), today).getYears();
-            int bucket = age < 3 ? 0 : age < 18 ? 1 : 2;
-            buckets.computeIfAbsent(visitor.getInsurerId(), id -> new long[3])[bucket]++;
-        }
+        visitorRepository.countVisitorsGroupedByInsurerAndAge()
+                .forEach(row -> buckets.computeIfAbsent(row.getInsurerId(), id -> new long[4])
+                        [ageBucket(row.getAge())] += row.getTotal());
         return insurerRepository.findAll().stream()
                 .map(insurer -> {
-                    long[] counts = buckets.getOrDefault(insurer.getId(), new long[3]);
+                    long[] counts = buckets.getOrDefault(insurer.getId(), new long[4]);
                     return new InsurerAgeGroupVisitorCount(
                             insurer.getId(), insurer.getName(),
-                            List.of(new AgeGroupVisitorCount("0-2", counts[0]),
-                                    new AgeGroupVisitorCount("3-17", counts[1]),
-                                    new AgeGroupVisitorCount("18+", counts[2])),
-                            counts[0] + counts[1] + counts[2]);
+                            toAgeGroups(counts),
+                            counts[0] + counts[1] + counts[2] + counts[3]);
                 })
                 .toList();
+    }
+
+    /** Bucket index: 0 = "0-2", 1 = "3-17", 2 = "18+", 3 = "Unknown" (age not yet populated). */
+    private static int ageBucket(Integer age) {
+        return age == null ? 3 : age < 3 ? 0 : age < 18 ? 1 : 2;
+    }
+
+    private static List<AgeGroupVisitorCount> toAgeGroups(long[] counts) {
+        return List.of(
+                new AgeGroupVisitorCount("0-2", counts[0]),
+                new AgeGroupVisitorCount("3-17", counts[1]),
+                new AgeGroupVisitorCount("18+", counts[2]),
+                new AgeGroupVisitorCount("Unknown", counts[3]));
     }
 
     @Override
@@ -217,6 +202,13 @@ public class VisitorServiceImpl implements VisitorService {
     public void markActivationEmailSent(UUID id) {
         Visitor visitor = getEntityById(id);
         visitor.setActivationEmailSentAt(Instant.now());
+        visitorRepository.save(visitor);
+    }
+
+    @Override
+    public void markSentToMinet(UUID id) {
+        Visitor visitor = getEntityById(id);
+        visitor.setSentToMinet(true);
         visitorRepository.save(visitor);
     }
 

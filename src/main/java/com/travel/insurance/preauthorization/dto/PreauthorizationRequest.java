@@ -1,5 +1,6 @@
 package com.travel.insurance.preauthorization.dto;
 
+import com.travel.insurance.common.domain.VisitType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -18,6 +19,7 @@ public record PreauthorizationRequest(
         UUID medicalServiceId,
         @NotNull @Positive BigDecimal requestedAmount,
         @Size(max = 1000) String serviceDescription,
-        @Valid List<PreauthorizationItemRequest> preauthorizationItems
+        @Valid List<PreauthorizationItemRequest> preauthorizationItems,
+        VisitType visitType
 ) {
 }

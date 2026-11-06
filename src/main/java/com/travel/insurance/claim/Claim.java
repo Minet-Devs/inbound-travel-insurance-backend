@@ -2,6 +2,7 @@ package com.travel.insurance.claim;
 
 import com.travel.insurance.common.crypto.EncryptedStringConverter;
 import com.travel.insurance.common.domain.BaseEntity;
+import com.travel.insurance.common.domain.VisitType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -66,6 +67,9 @@ public class Claim extends BaseEntity {
     @Column(precision = 15, scale = 2)
     private BigDecimal approvedAmount;
 
+    @Column(precision = 15, scale = 2)
+    private BigDecimal approvedAmountBase;
+
     @Convert(converter = EncryptedStringConverter.class)
     @Column(columnDefinition = "text")
     private String description;
@@ -97,6 +101,10 @@ public class Claim extends BaseEntity {
     @Convert(converter = EncryptedStringConverter.class)
     @Column(columnDefinition = "text")
     private String decisionReason;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private VisitType visitType;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

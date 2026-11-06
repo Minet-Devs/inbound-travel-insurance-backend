@@ -92,6 +92,8 @@ public class PolicyDocumentRenderer {
         }
     }
 
+    private static final String EMERGENCY_EVACUATION_BENEFIT = "Emergency Medical Transportation/Evacuation";
+
     String renderHtml(PolicyDocumentData data) {
         Context context = new Context();
         context.setVariable("minetLogoUrl", MINET_LOGO_DATA_URI);
@@ -105,7 +107,7 @@ public class PolicyDocumentRenderer {
         context.setVariable("dateOfBirthLabel",
                 data.dateOfBirth() != null ? data.dateOfBirth().format(LONG_DATE) : "");
         context.setVariable("benefitLines", data.benefits().stream()
-                .map(line -> new BenefitLineView(line.benefitName(), line.limitAmount()))
+                .map(line -> new BenefitLineView(certificateLabel(line.benefitName()), line.limitAmount()))
                 .toList());
         return templateEngine.process("policy-certificate", context);
     }
@@ -350,6 +352,12 @@ public class PolicyDocumentRenderer {
         try (var in = connection.getInputStream()) {
             return in.readAllBytes();
         }
+    }
+
+    static String certificateLabel(String benefitName) {
+        return EMERGENCY_EVACUATION_BENEFIT.equals(benefitName)
+                ? benefitName + " within Kenya Only"
+                : benefitName;
     }
 
     static String displayName(String enumName) {

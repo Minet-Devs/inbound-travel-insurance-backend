@@ -26,6 +26,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -110,6 +111,7 @@ class VisitorServiceImplTest {
                 null,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -117,6 +119,22 @@ class VisitorServiceImplTest {
         Policy policy = new Policy();
         policy.setInsurerId(insurerId);
         return policy;
+    }
+
+    @Test
+    void mapperCarriesPremiumAmountPaidFromRequestToResponse() {
+        VisitorRequest withPremium = new VisitorRequest(
+                request.policyId(), request.fullName(), request.passportNumber(), request.dateOfBirth(),
+                request.gender(), request.nationality(), request.address(), request.email(),
+                request.phoneNumber(), request.dateIn(), request.dateOut(), request.maritalStatus(),
+                request.reasonForTravel(), request.facePhotoUrl(), null, null, null,
+                "PAY-1", new BigDecimal("150.50"), null, null, null, null);
+
+        Visitor visitor = visitorMapper.toEntity(withPremium);
+
+        assertThat(visitor.getPremiumAmountPaid()).isEqualByComparingTo("150.50");
+        assertThat(visitorMapper.toResponse(visitor).premiumAmountPaid()).isEqualByComparingTo("150.50");
+        assertThat(visitorMapper.toResponse(visitorMapper.toEntity(request)).premiumAmountPaid()).isNull();
     }
 
     @Test
@@ -188,6 +206,7 @@ class VisitorServiceImplTest {
                 null,
                 null,
                 null,
+                null,
                 null);
 
         VisitorResponse response = visitorService.create(secondVisitor);
@@ -213,7 +232,7 @@ class VisitorServiceImplTest {
                 "Germany", "12 Example Street, Berlin", "jane.traveler@example.com", "+254700000000",
                 dateIn, dateOut, MaritalStatus.SINGLE, "Tourism",
                 "https://storage.example.com/photos/jane.jpg", null, "John Traveler", "+254711111111",
-                null, null, null, null, null);
+                null, null, null, null, null, null);
     }
 
     @Test
@@ -611,6 +630,19 @@ class VisitorServiceImplTest {
     }
 
     @Test
+    void markSentToMinetSetsTheFlag() {
+        UUID id = UUID.randomUUID();
+        Visitor visitor = new Visitor();
+        visitor.setId(id);
+        when(visitorRepository.findById(id)).thenReturn(Optional.of(visitor));
+
+        visitorService.markSentToMinet(id);
+
+        assertThat(visitor.isSentToMinet()).isTrue();
+        verify(visitorRepository).save(visitor);
+    }
+
+    @Test
     void countByInsurerIncludesInsurersWithZeroVisitors() {
         UUID emptyInsurerId = UUID.randomUUID();
         Insurer withVisitors = new Insurer();
@@ -633,45 +665,51 @@ class VisitorServiceImplTest {
                 new InsurerVisitorCount(emptyInsurerId, "Empty Insurance", 0));
     }
 
-    private static Visitor visitorBornOn(LocalDate dateOfBirth) {
-        Visitor visitor = new Visitor();
-        visitor.setDateOfBirth(dateOfBirth);
-        return visitor;
+    private static VisitorRepository.AgeVisitorTotal ageTotal(Integer age, long total) {
+        return new VisitorRepository.AgeVisitorTotal() {
+            public Integer getAge() { return age; }
+            public long getTotal() { return total; }
+        };
+    }
+
+    private static VisitorRepository.InsurerAgeVisitorTotal insurerAgeTotal(UUID insurerId, Integer age, long total) {
+        return new VisitorRepository.InsurerAgeVisitorTotal() {
+            public UUID getInsurerId() { return insurerId; }
+            public Integer getAge() { return age; }
+            public long getTotal() { return total; }
+        };
     }
 
     @Test
     void countByAgeGroupBucketsOnBoundaries() {
-        LocalDate today = LocalDate.now();
-        when(visitorRepository.findAll()).thenReturn(List.of(
-                visitorBornOn(today),                                   // 0
-                visitorBornOn(today.minusYears(3).plusDays(1)),         // 2, turns 3 tomorrow
-                visitorBornOn(today.minusYears(3)),                     // 3
-                visitorBornOn(today.minusYears(18).plusDays(1)),        // 17, turns 18 tomorrow
-                visitorBornOn(today.minusYears(18)),                    // 18
-                visitorBornOn(today.minusYears(70)),                    // 70
-                visitorBornOn(null)));                                  // ignored
+        when(visitorRepository.countVisitorsGroupedByAge()).thenReturn(List.of(
+                ageTotal(0, 1), ageTotal(2, 1),      // 0-2
+                ageTotal(3, 1), ageTotal(17, 1),     // 3-17
+                ageTotal(18, 1), ageTotal(70, 1),    // 18+
+                ageTotal(null, 5)));                 // Unknown
 
         List<AgeGroupVisitorCount> result = visitorService.countByAgeGroup();
 
         assertThat(result).containsExactly(
                 new AgeGroupVisitorCount("0-2", 2),
                 new AgeGroupVisitorCount("3-17", 2),
-                new AgeGroupVisitorCount("18+", 2));
+                new AgeGroupVisitorCount("18+", 2),
+                new AgeGroupVisitorCount("Unknown", 5));
     }
 
     @Test
     void countByAgeGroupReturnsAllGroupsWhenNoVisitors() {
-        when(visitorRepository.findAll()).thenReturn(List.of());
+        when(visitorRepository.countVisitorsGroupedByAge()).thenReturn(List.of());
 
         assertThat(visitorService.countByAgeGroup()).containsExactly(
                 new AgeGroupVisitorCount("0-2", 0),
                 new AgeGroupVisitorCount("3-17", 0),
-                new AgeGroupVisitorCount("18+", 0));
+                new AgeGroupVisitorCount("18+", 0),
+                new AgeGroupVisitorCount("Unknown", 0));
     }
 
     @Test
     void countByInsurerAndAgeGroupBucketsPerInsurer() {
-        LocalDate today = LocalDate.now();
         UUID emptyInsurerId = UUID.randomUUID();
         Insurer minet = new Insurer();
         minet.setId(insurerId);
@@ -679,16 +717,11 @@ class VisitorServiceImplTest {
         Insurer empty = new Insurer();
         empty.setId(emptyInsurerId);
         empty.setName("Empty Insurance");
-        Visitor infant = visitorBornOn(today.minusYears(3).plusDays(1));
-        infant.setInsurerId(insurerId);
-        Visitor minor = visitorBornOn(today.minusYears(3));
-        minor.setInsurerId(insurerId);
-        Visitor adult = visitorBornOn(today.minusYears(18));
-        adult.setInsurerId(insurerId);
-        Visitor noInsurer = visitorBornOn(today.minusYears(30));
-        Visitor noDob = visitorBornOn(null);
-        noDob.setInsurerId(insurerId);
-        when(visitorRepository.findAll()).thenReturn(List.of(infant, minor, adult, noInsurer, noDob));
+        when(visitorRepository.countVisitorsGroupedByInsurerAndAge()).thenReturn(List.of(
+                insurerAgeTotal(insurerId, 2, 1),
+                insurerAgeTotal(insurerId, 3, 1),
+                insurerAgeTotal(insurerId, 18, 1),
+                insurerAgeTotal(insurerId, null, 2)));
         when(insurerRepository.findAll()).thenReturn(List.of(minet, empty));
 
         List<InsurerAgeGroupVisitorCount> result = visitorService.countByInsurerAndAgeGroup();
@@ -697,10 +730,12 @@ class VisitorServiceImplTest {
                 new InsurerAgeGroupVisitorCount(insurerId, "Minet Insurance", List.of(
                         new AgeGroupVisitorCount("0-2", 1),
                         new AgeGroupVisitorCount("3-17", 1),
-                        new AgeGroupVisitorCount("18+", 1)), 3),
+                        new AgeGroupVisitorCount("18+", 1),
+                        new AgeGroupVisitorCount("Unknown", 2)), 5),
                 new InsurerAgeGroupVisitorCount(emptyInsurerId, "Empty Insurance", List.of(
                         new AgeGroupVisitorCount("0-2", 0),
                         new AgeGroupVisitorCount("3-17", 0),
-                        new AgeGroupVisitorCount("18+", 0)), 0));
+                        new AgeGroupVisitorCount("18+", 0),
+                        new AgeGroupVisitorCount("Unknown", 0)), 0));
     }
 }

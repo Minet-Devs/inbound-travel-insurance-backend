@@ -4,5 +4,6 @@ public enum Role {
     ADMIN,
     INSURER_USER,
     PROVIDER_USER,
-    CONTACT_CENTER
+    CONTACT_CENTER,
+    KENYA_RE
 }
