@@ -15,6 +15,7 @@ import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -43,7 +44,13 @@ public class MinetClaimSyncServiceImpl implements MinetClaimSyncService {
     private final InvoiceService invoiceService;
     private final MinetClient minetClient;
 
+    /**
+     * Read-only transaction keeps the Hibernate session open so the claim's lazy
+     * {@code diagnosisIds} collection can be read. {@code markSentToMinet} runs in its own
+     * ({@code REQUIRES_NEW}) transaction, so the flag is still committed.
+     */
     @Override
+    @Transactional(readOnly = true)
     public MinetClaimSyncResponse syncClaim(UUID claimId) {
         Claim claim = claimService.getEntityById(claimId);
         if (claim.getServiceProviderId() == null) {
