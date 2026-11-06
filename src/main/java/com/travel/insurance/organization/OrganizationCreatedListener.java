@@ -50,7 +50,8 @@ public class OrganizationCreatedListener {
                     organization.getCounty(),
                     organization.getId(),
                     event.longitude(),
-                    event.latitude()));
+                    event.latitude(),
+                    organization.getMinetServiceProviderId()));
             case ADMIN, REINSURER -> {
             }
         }
