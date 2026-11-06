@@ -22,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -205,7 +206,9 @@ public class VisitorServiceImpl implements VisitorService {
         visitorRepository.save(visitor);
     }
 
+    /** REQUIRES_NEW: called from AFTER_COMMIT listeners, where joining the finished transaction would lose the write. */
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markSentToMinet(UUID id) {
         Visitor visitor = getEntityById(id);
         visitor.setSentToMinet(true);

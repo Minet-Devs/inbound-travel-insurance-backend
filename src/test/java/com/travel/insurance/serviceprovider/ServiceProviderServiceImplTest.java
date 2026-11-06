@@ -134,6 +134,51 @@ class ServiceProviderServiceImplTest {
     }
 
     @Test
+    void updateSetsMinetServiceProviderId() {
+        UUID id = UUID.randomUUID();
+        ServiceProvider existing = serviceProviderMapper.toEntity(request);
+        when(serviceProviderRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(serviceProviderRepository.save(any(ServiceProvider.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ServiceProviderResponse response = serviceProviderService.update(id, withMinetId(" MSP-1001 "));
+
+        assertThat(response.minetServiceProviderId()).isEqualTo("MSP-1001");
+        assertThat(existing.getMinetServiceProviderId()).isEqualTo("MSP-1001");
+    }
+
+    @Test
+    void updateWithoutMinetIdKeepsTheStoredOne() {
+        UUID id = UUID.randomUUID();
+        ServiceProvider existing = serviceProviderMapper.toEntity(withMinetId("MSP-1001"));
+        when(serviceProviderRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(serviceProviderRepository.save(any(ServiceProvider.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ServiceProviderResponse response = serviceProviderService.update(id, withMinetId(null));
+
+        assertThat(response.minetServiceProviderId()).isEqualTo("MSP-1001");
+    }
+
+    @Test
+    void updateWithBlankMinetIdClearsIt() {
+        UUID id = UUID.randomUUID();
+        ServiceProvider existing = serviceProviderMapper.toEntity(withMinetId("MSP-1001"));
+        when(serviceProviderRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(serviceProviderRepository.save(any(ServiceProvider.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ServiceProviderResponse response = serviceProviderService.update(id, withMinetId("  "));
+
+        assertThat(response.minetServiceProviderId()).isNull();
+    }
+
+    private ServiceProviderRequest withMinetId(String minetId) {
+        return new ServiceProviderRequest(request.name(), request.contactEmail(), request.contactPhone(),
+                request.address(), request.county(), null, request.longitude(), request.latitude(), minetId);
+    }
+
+    @Test
     void deleteRemovesEntity() {
         UUID id = UUID.randomUUID();
         ServiceProvider existing = serviceProviderMapper.toEntity(request);
