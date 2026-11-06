@@ -20,9 +20,12 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -102,6 +105,38 @@ class ServiceProviderControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Validation failed"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void updateAcceptsAndReturnsMinetServiceProviderId() throws Exception {
+        ServiceProviderRequest request = new ServiceProviderRequest("Nairobi Hospital",
+                "contact@nairobihospital.example", null, null, "Nairobi", null, null, null, "MSP-1001");
+        ServiceProviderResponse base = sampleResponse();
+        when(serviceProviderService.update(eq(providerId), any(ServiceProviderRequest.class)))
+                .thenReturn(new ServiceProviderResponse(base.id(), base.name(), base.contactEmail(),
+                        base.contactPhone(), base.address(), base.county(), null, base.longitude(),
+                        base.latitude(), base.createdDate(), base.updatedDate(), "MSP-1001"));
+
+        mockMvc.perform(put("/api/v1/service-providers/{id}", providerId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.minetServiceProviderId").value("MSP-1001"));
+        verify(serviceProviderService).update(eq(providerId), eq(request));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void updateRejectsOverlongMinetServiceProviderId() throws Exception {
+        ServiceProviderRequest request = new ServiceProviderRequest("Nairobi Hospital",
+                "contact@nairobihospital.example", null, null, "Nairobi", null, null, null, "x".repeat(256));
+        mockMvc.perform(put("/api/v1/service-providers/{id}", providerId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

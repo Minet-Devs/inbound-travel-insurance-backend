@@ -112,6 +112,10 @@ com.travel.insurance/
 │   ├── MinetSyncResponse.java              # { visitorId, sentToMinet }
 │   ├── MinetClient.java                    # RestClient: password-grant token, then POST visitor
 │   ├── MinetVisitorRequest.java            # Outbound payload (dates as yyyy-MM-dd)
+│   ├── MinetClaimSyncListener.java         # AFTER_COMMIT on PreauthorizationConvertedToClaimEvent; never throws
+│   ├── MinetClaimSyncService(Impl).java    # builds MinetClaimRequest from a claim, sends, sets claims.sent_to_minet
+│   ├── MinetClaimController.java           # POST /api/v1/claims/{id}/minet-sync (ADMIN) — resend
+│   ├── MinetClaimRequest.java              # Outbound inbound-claim payload
 │   ├── MinetTokenResponse.java
 │   └── MinetClientException.java
 │
@@ -161,7 +165,8 @@ com.travel.insurance/
 │   ├── ServiceProvider.java                # name (unique), contactEmail, contactPhone, address,
 │   │                                        # county (required on create/update; nullable in the DB for
 │   │                                        # legacy rows), organizationId (nullable, → Organization),
-│   │                                        # longitude/latitude (nullable, BigDecimal(9,6))
+│   │                                        # longitude/latitude (nullable, BigDecimal(9,6)),
+│   │                                        # minetServiceProviderId (nullable; Minet's id for the provider)
 │   ├── ServiceProviderMapper.java
 │   └── 📁 dto/
 │       ├── ServiceProviderRequest.java
@@ -657,6 +662,12 @@ Policy
   `SERVICE_PROVIDER`-type organizations, and also propagated to the linked
   `ServiceProvider`; see the `Organization` → `Insurer`/`ServiceProvider`
   provisioning notes below.
+- A **ServiceProvider** carries `minetServiceProviderId` (`service_providers.minet_service_provider_id`,
+  nullable `varchar(255)`): the provider's identifier in Minet's system, to be used when claims are sent
+  to Minet. It is set through `PUT /api/v1/service-providers/{id}` (`ServiceProviderRequest.minetServiceProviderId`,
+  max 255) and returned in `ServiceProviderResponse`. On update, **omitted/null leaves the stored value
+  unchanged** (so organization-driven updates via `OrganizationUpdatedListener` never wipe it) and a
+  **blank string clears it**; the value is trimmed. It is not unique-constrained.
 - A **ServiceProvider** carries `longitude`/`latitude`
   (`BigDecimal(9,6)`, nullable — set via its own `ServiceProviderRequest`, or
   indirectly through a linked `SERVICE_PROVIDER`-type `Organization`, see
@@ -984,7 +995,10 @@ Policy
   without `medicalServiceId` is tagged with the pre-auth's); then sets the pre-auth's
   `convertedToClaim`. 400 if the line total exceeds `approvedAmount` (fallback
   `requestedAmount`); 409 unless the pre-auth is `APPROVED`/`PARTIALLY_APPROVED` and not already converted.
-  `markPreAuthorizationConvertedToClaim` accepts both approved statuses.
+  `markPreAuthorizationConvertedToClaim` accepts both approved statuses. After that it publishes
+  `PreauthorizationConvertedToClaimEvent(claimId, preauthorizationId)`; the Minet claim sync
+  (see *Minet Visitor Sync* → *Claim sync*) listens for it after commit. `Claim.sentToMinet`
+  (`claims.sent_to_minet`, default false) and `ClaimResponse.sentToMinet` show whether Minet has the claim.
   Existing invoices can only be attached to a claim whose
   status is `OPEN` via `PUT /api/v1/claims/{id}/invoice` (`AttachInvoiceRequest`); attaching
   transitions the claim to `SUBMITTED` and syncs both the `claim_invoices` join table
@@ -1910,6 +1924,44 @@ Every newly created visitor is pushed to the Minet system.
   matches what is sent to Minet. Dates are `yyyy-MM-dd` text. Unlike the sync, visitors without a
   certificate serial number are included. A visitor with a missing name or gender exports with blank
   cells rather than failing the whole export.
+
+### Claim sync
+
+Every claim created by converting a pre-authorization is pushed to Minet's inbound-claim API.
+
+- **Trigger:** `ClaimServiceImpl.createFromPreauthorization` publishes
+  `PreauthorizationConvertedToClaimEvent`; `MinetClaimSyncListener` handles it with
+  `@TransactionalEventListener(AFTER_COMMIT)`. Claims created any other way are not sent
+  automatically (use the resend endpoint). Failures are logged and swallowed — conversion is never
+  affected and there is no automatic retry; the claim just stays `sent_to_minet = false`.
+- **Request:** `POST app.minet.claims-url` (`/api/v1/claims/inbound/create`) with query
+  `schemePublicId=<app.minet.inbound-scheme-id>` (env `MINET_INBOUND_SCHEME_ID`, default the production
+  scheme) and the same OAuth bearer token flow as the visitor sync. JSON (`MinetClaimRequest`):
+
+| Minet field | Source |
+|---|---|
+| `providerName` / `providerId` | `ServiceProvider.name` / `ServiceProvider.minetServiceProviderId` |
+| `benefit` | benefit name |
+| `passportNumber` | visitor passport (decrypted) |
+| `claimDate` | claim `createdDate` as a `yyyy-MM-dd` date in **Africa/Nairobi** |
+| `visitType` | `Outpatient` / `Inpatient` |
+| `diagnosisCode` / `diagnosisDescription` | ICD-11 code / title (several joined with `; `) |
+| `visitDate` | earliest invoice-item `serviceDate`, else the claim date |
+| `amountClaimed` | `claimedAmount` (claim currency) |
+| `invoiceNumber` / `invoiceDate` / `invoiceAmount` | invoice numbers joined with `; ` / earliest `issueDate` (else claim date) / sum of invoice `totalAmount` |
+| `service` / `department` | the literals `Grouped Service` / `Grouped Department` |
+| `claimAmountUsd` / `exchangeRate` | `claimedAmountBase` / `exchangeRate` |
+| `inboundClaimReference` | the claim id |
+
+- **No Minet provider id:** if the claim has no service provider, or the provider has no
+  `minetServiceProviderId`, nothing is sent (listener logs a warning; the resend endpoint returns `409`).
+- **`sent_to_minet`:** set via `ClaimService.markSentToMinet` only after Minet accepted the claim.
+  Both `ClaimService.markSentToMinet` and `VisitorService.markSentToMinet` run in `REQUIRES_NEW`
+  because they are called from `AFTER_COMMIT` listeners, where a plain `@Transactional` call would
+  join the already-finished transaction and its write would never be committed.
+- **Resend:** `POST /api/v1/claims/{id}/minet-sync` (`ADMIN` only, `@PreAuthorize`) sends the claim
+  again (allowed when already sent) and returns `200 { claimId, sentToMinet }`. Errors: unknown claim `404`;
+  no provider / no Minet provider id `409`; Minet failure `502`.
 
 ## OTP (Point-of-Service Verification)
 

@@ -177,6 +177,6 @@ class MemberStatementServiceImplTest {
                 "desc", null,
                 List.of(), List.of(), List.of(),
                 Set.of(), null, ClaimStatus.SUBMITTED,
-                createdDate, createdDate, null);
+                createdDate, createdDate, null, false);
     }
 }

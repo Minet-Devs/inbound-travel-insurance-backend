@@ -23,6 +23,11 @@ public class ServiceProviderMapper {
         provider.setOrganizationId(request.organizationId());
         provider.setLongitude(request.longitude());
         provider.setLatitude(request.latitude());
+        // Null = not supplied (e.g. organization-driven updates): keep the stored value. Blank clears it.
+        if (request.minetServiceProviderId() != null) {
+            String minetId = request.minetServiceProviderId().trim();
+            provider.setMinetServiceProviderId(minetId.isEmpty() ? null : minetId);
+        }
     }
 
     public ServiceProviderResponse toResponse(ServiceProvider provider) {
@@ -37,7 +42,8 @@ public class ServiceProviderMapper {
                 provider.getLongitude(),
                 provider.getLatitude(),
                 provider.getCreatedDate(),
-                provider.getUpdatedDate()
+                provider.getUpdatedDate(),
+                provider.getMinetServiceProviderId()
         );
     }
 

@@ -23,6 +23,8 @@ class MinetClientTest {
 
     private static final String TOKEN_URL = "http://minet/token";
     private static final String VISITORS_URL = "http://minet/visitors";
+    private static final String CLAIMS_URL = "http://minet/claims/inbound/create";
+    private static final String SCHEME_ID = "3b83907b-0bf8-47cb-ab00-8055c050f7fe";
 
     private MockRestServiceServer server;
     private MinetClient client;
@@ -37,6 +39,8 @@ class MinetClientTest {
         MinetProperties properties = new MinetProperties();
         properties.setTokenUrl(TOKEN_URL);
         properties.setVisitorsUrl(VISITORS_URL);
+        properties.setClaimsUrl(CLAIMS_URL);
+        properties.setInboundSchemeId(SCHEME_ID);
         properties.setBasicAuthorization("basic-secret");
         properties.setClientId("dev-application");
         properties.setUsername("user@minet");
@@ -87,6 +91,49 @@ class MinetClientTest {
 
         assertThatThrownBy(() -> client.sendVisitor(request))
                 .isInstanceOf(MinetClientException.class)
+                .hasMessageContaining("500");
+    }
+
+    private final MinetClaimRequest claimRequest = new MinetClaimRequest(
+            "AGA KHAN HOSPITAL NAIROBI", "MSP-1001", "Medical Expenses", "7777", "2026-11-06", "Outpatient",
+            "NOINJ", "No Injury", "2026-11-06", new java.math.BigDecimal("100000"), "INV030212983", "2026-11-06",
+            new java.math.BigDecimal("100000"), "Grouped Service", "Grouped Department",
+            new java.math.BigDecimal("769.88"), new java.math.BigDecimal("0.008"),
+            "2eadeb78-4028-465a-b3c4-33e51215a09e");
+
+    @Test
+    void postsClaimWithSchemePublicIdQueryAndBearerToken() {
+        server.expect(requestTo(TOKEN_URL))
+                .andRespond(withSuccess("{\"access_token\":\"tok123\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(CLAIMS_URL + "?schemePublicId=" + SCHEME_ID))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Bearer tok123"))
+                .andExpect(jsonPath("$.providerName").value("AGA KHAN HOSPITAL NAIROBI"))
+                .andExpect(jsonPath("$.providerId").value("MSP-1001"))
+                .andExpect(jsonPath("$.passportNumber").value("7777"))
+                .andExpect(jsonPath("$.claimDate").value("2026-11-06"))
+                .andExpect(jsonPath("$.amountClaimed").value(100000))
+                .andExpect(jsonPath("$.claimAmountUsd").value(769.88))
+                .andExpect(jsonPath("$.exchangeRate").value(0.008))
+                .andExpect(jsonPath("$.service").value("Grouped Service"))
+                .andExpect(jsonPath("$.department").value("Grouped Department"))
+                .andExpect(jsonPath("$.inboundClaimReference").value("2eadeb78-4028-465a-b3c4-33e51215a09e"))
+                .andRespond(withSuccess());
+
+        client.sendClaim(claimRequest);
+
+        server.verify();
+    }
+
+    @Test
+    void failsWhenClaimPostReturnsError() {
+        server.expect(requestTo(TOKEN_URL))
+                .andRespond(withSuccess("{\"access_token\":\"tok123\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(CLAIMS_URL + "?schemePublicId=" + SCHEME_ID)).andRespond(withServerError());
+
+        assertThatThrownBy(() -> client.sendClaim(claimRequest))
+                .isInstanceOf(MinetClientException.class)
+                .hasMessageContaining("Minet claim sync failed")
                 .hasMessageContaining("500");
     }
 }

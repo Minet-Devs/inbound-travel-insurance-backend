@@ -42,10 +42,12 @@ import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.dto.VisitorResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -104,6 +106,7 @@ public class ClaimServiceImpl implements ClaimService {
     private final CurrencyConversionService currencyConversionService;
     private final EventPublisher eventPublisher;
     private final PreauthorizationService preauthorizationService;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
     public ClaimResponse create(ClaimRequest request) {
@@ -183,7 +186,17 @@ public class ClaimServiceImpl implements ClaimService {
                 request.issueDate(), claim.getCurrency(), invoiceTotal, items));
 
         preauthorizationService.markPreAuthorizationConvertedToClaim(preauth.id());
+        applicationEventPublisher.publishEvent(new PreauthorizationConvertedToClaimEvent(claim.getId(), preauth.id()));
         return toResponse(claim);
+    }
+
+    /** REQUIRES_NEW: called from AFTER_COMMIT listeners, where joining the finished transaction would lose the write. */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markSentToMinet(UUID id) {
+        Claim claim = getEntity(id);
+        claim.setSentToMinet(true);
+        claimRepository.save(claim);
     }
 
     @Override
@@ -737,7 +750,8 @@ public class ClaimServiceImpl implements ClaimService {
                 claim.getStatus(),
                 claim.getCreatedDate(),
                 claim.getUpdatedDate(),
-                claim.getVisitType()
+                claim.getVisitType(),
+                claim.isSentToMinet()
         );
     }
 

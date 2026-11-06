@@ -41,4 +41,7 @@ public class ServiceProvider extends BaseEntity {
 
     @Column(precision = 9, scale = 6)
     private BigDecimal latitude;
+
+    /** The provider's identifier in Minet's system; used when sending claims to Minet. Null until set. */
+    private String minetServiceProviderId;
 }

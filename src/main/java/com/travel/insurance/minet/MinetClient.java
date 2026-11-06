@@ -9,6 +9,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.net.URI;
 
 @Component
 @RequiredArgsConstructor
@@ -26,6 +29,22 @@ public class MinetClient {
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (req, res) -> {
                     throw new MinetClientException("Minet visitor sync failed with status " + res.getStatusCode());
+                })
+                .toBodilessEntity();
+    }
+
+    public void sendClaim(MinetClaimRequest request) {
+        URI uri = UriComponentsBuilder.fromUriString(properties.getClaimsUrl())
+                .queryParam("schemePublicId", properties.getInboundSchemeId())
+                .build().toUri();
+        restClientBuilder.build().post()
+                .uri(uri)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + fetchAccessToken())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, res) -> {
+                    throw new MinetClientException("Minet claim sync failed with status " + res.getStatusCode());
                 })
                 .toBodilessEntity();
     }
