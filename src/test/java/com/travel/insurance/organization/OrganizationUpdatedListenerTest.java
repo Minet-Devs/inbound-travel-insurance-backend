@@ -87,6 +87,7 @@ class OrganizationUpdatedListenerTest {
     void onOrganizationUpdatedUpdatesMatchingServiceProvider() {
         listener = new OrganizationUpdatedListener(organizationService, insurerService, serviceProviderService);
         Organization organization = organization(OrganizationType.SERVICE_PROVIDER);
+        organization.setMinetServiceProviderId("MINET-7");
         UUID providerId = UUID.randomUUID();
         when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
         when(serviceProviderService.findIdByOrganizationId(organization.getId())).thenReturn(Optional.of(providerId));
@@ -106,6 +107,7 @@ class OrganizationUpdatedListenerTest {
         assertThat(captor.getValue().organizationId()).isEqualTo(organization.getId());
         assertThat(captor.getValue().longitude()).isEqualTo(longitude);
         assertThat(captor.getValue().latitude()).isEqualTo(latitude);
+        assertThat(captor.getValue().minetServiceProviderId()).isEqualTo("MINET-7");
         verify(insurerService, never()).update(any(), any());
     }
 

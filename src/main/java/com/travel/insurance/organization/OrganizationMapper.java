@@ -32,6 +32,7 @@ public class OrganizationMapper {
         organization.setEsignature(request.esignature());
         organization.setLongitude(request.longitude());
         organization.setLatitude(request.latitude());
+        applyMinetServiceProviderId(organization, request.minetServiceProviderId());
     }
 
     public void patchEntity(Organization organization, OrganizationPatchRequest request) {
@@ -80,6 +81,19 @@ public class OrganizationMapper {
         if (request.latitude() != null) {
             organization.setLatitude(request.latitude());
         }
+        if (request.minetServiceProviderId() != null) {
+            applyMinetServiceProviderId(organization, request.minetServiceProviderId());
+        } else if (organization.getOrganizationType() != OrganizationType.SERVICE_PROVIDER) {
+            organization.setMinetServiceProviderId(null);
+        }
+    }
+
+    /** Trimmed; blank clears it; always null unless the organization is a SERVICE_PROVIDER. */
+    private void applyMinetServiceProviderId(Organization organization, String value) {
+        String trimmed = value == null ? null : value.trim();
+        boolean keep = organization.getOrganizationType() == OrganizationType.SERVICE_PROVIDER
+                && trimmed != null && !trimmed.isEmpty();
+        organization.setMinetServiceProviderId(keep ? trimmed : null);
     }
 
     public OrganizationResponse toResponse(Organization organization) {
@@ -100,6 +114,7 @@ public class OrganizationMapper {
                 organization.getEsignature(),
                 organization.getLongitude(),
                 organization.getLatitude(),
+                organization.getMinetServiceProviderId(),
                 organization.getCreatedDate(),
                 organization.getUpdatedDate()
         );

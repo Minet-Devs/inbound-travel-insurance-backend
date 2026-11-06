@@ -59,7 +59,8 @@ public class OrganizationUpdatedListener {
                                 organization.getCounty(),
                                 organization.getId(),
                                 longitude,
-                                latitude));
+                                latitude,
+                                organization.getMinetServiceProviderId()));
                     });
             case ADMIN -> {
             }

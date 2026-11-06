@@ -80,6 +80,7 @@ class OrganizationCreatedListenerTest {
     void onOrganizationCreatedCreatesServiceProviderForServiceProviderType() {
         listener = new OrganizationCreatedListener(organizationService, insurerService, serviceProviderService);
         Organization organization = organization(OrganizationType.SERVICE_PROVIDER);
+        organization.setMinetServiceProviderId("MINET-7");
         when(organizationService.getEntityById(organization.getId())).thenReturn(organization);
         java.math.BigDecimal longitude = new java.math.BigDecimal("36.821946");
         java.math.BigDecimal latitude = new java.math.BigDecimal("-1.292066");
@@ -94,6 +95,7 @@ class OrganizationCreatedListenerTest {
         assertThat(captor.getValue().organizationId()).isEqualTo(organization.getId());
         assertThat(captor.getValue().longitude()).isEqualTo(longitude);
         assertThat(captor.getValue().latitude()).isEqualTo(latitude);
+        assertThat(captor.getValue().minetServiceProviderId()).isEqualTo("MINET-7");
         verify(insurerService, never()).create(any());
     }
 

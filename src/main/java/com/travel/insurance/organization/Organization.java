@@ -64,4 +64,7 @@ public class Organization extends BaseEntity {
 
     @Column(precision = 9, scale = 6)
     private BigDecimal latitude;
+
+    /** Minet's identifier for the provider; only kept for SERVICE_PROVIDER organizations. */
+    private String minetServiceProviderId;
 }
