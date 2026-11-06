@@ -174,7 +174,7 @@ public class ClaimServiceImpl implements ClaimService {
         claim.setPreauthorizationId(preauth.id());
         claim.setClaimedAmount(invoiceTotal);
         claim.setDescription(preauth.serviceDescription());
-        claim.setVisitType(preauth.visitType());
+        claim.setVisitType(request.visitType() != null ? request.visitType() : preauth.visitType());
         if (preauth.icd11CodeId() != null) {
             claim.getDiagnosisIds().add(preauth.icd11CodeId());
         }
