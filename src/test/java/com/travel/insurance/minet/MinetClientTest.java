@@ -118,7 +118,7 @@ class MinetClientTest {
                 .andExpect(jsonPath("$.service").value("Grouped Service"))
                 .andExpect(jsonPath("$.department").value("Grouped Department"))
                 .andExpect(jsonPath("$.inboundClaimReference").value("2eadeb78-4028-465a-b3c4-33e51215a09e"))
-                .andRespond(withSuccess());
+                .andRespond(withSuccess("{\"success\":true,\"claimId\":\"c1\",\"claimNumber\":\"CLM-1\"}", MediaType.APPLICATION_JSON));
 
         client.sendClaim(claimRequest);
 
@@ -135,5 +135,28 @@ class MinetClientTest {
                 .isInstanceOf(MinetClientException.class)
                 .hasMessageContaining("Minet claim sync failed")
                 .hasMessageContaining("500");
+    }
+
+    @Test
+    void failsWhenClaimResponseBodyHasSuccessFalseEvenWith200() {
+        server.expect(requestTo(TOKEN_URL))
+                .andRespond(withSuccess("{\"access_token\":\"tok123\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(CLAIMS_URL + "?schemePublicId=" + SCHEME_ID))
+                .andRespond(withSuccess("{\"rowNumber\":0,\"passportNumber\":\"7777\",\"success\":false,"
+                        + "\"claimId\":null,\"message\":\"Unexpected error: null\"}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.sendClaim(claimRequest))
+                .isInstanceOf(MinetClientException.class)
+                .hasMessageContaining("Unexpected error: null");
+    }
+
+    @Test
+    void failsWhenClaimResponseBodyIsEmpty() {
+        server.expect(requestTo(TOKEN_URL))
+                .andRespond(withSuccess("{\"access_token\":\"tok123\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(CLAIMS_URL + "?schemePublicId=" + SCHEME_ID)).andRespond(withSuccess());
+
+        assertThatThrownBy(() -> client.sendClaim(claimRequest))
+                .isInstanceOf(MinetClientException.class);
     }
 }
