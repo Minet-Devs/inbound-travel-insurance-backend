@@ -42,6 +42,7 @@ public record ClaimResponse(
         ClaimStatus status,
         Instant createdDate,
         Instant updatedDate,
-        VisitType visitType
+        VisitType visitType,
+        boolean sentToMinet
 ) {
 }
