@@ -999,6 +999,8 @@ Policy
   `PreauthorizationConvertedToClaimEvent(claimId, preauthorizationId)`; the Minet claim sync
   (see *Minet Visitor Sync* → *Claim sync*) listens for it after commit. `Claim.sentToMinet`
   (`claims.sent_to_minet`, default false) and `ClaimResponse.sentToMinet` show whether Minet has the claim.
+  Minet's response **body** decides success: `sent_to_minet` is set only when it contains `"success": true`
+  (an HTTP 200 with `success: false` is a failure; its `message` is surfaced in the error).
   Existing invoices can only be attached to a claim whose
   status is `OPEN` via `PUT /api/v1/claims/{id}/invoice` (`AttachInvoiceRequest`); attaching
   transitions the claim to `SUBMITTED` and syncs both the `claim_invoices` join table

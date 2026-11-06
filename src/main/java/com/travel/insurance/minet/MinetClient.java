@@ -37,7 +37,7 @@ public class MinetClient {
         URI uri = UriComponentsBuilder.fromUriString(properties.getClaimsUrl())
                 .queryParam("schemePublicId", properties.getInboundSchemeId())
                 .build().toUri();
-        restClientBuilder.build().post()
+        MinetClaimResponse response = restClientBuilder.build().post()
                 .uri(uri)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + fetchAccessToken())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -46,7 +46,11 @@ public class MinetClient {
                 .onStatus(HttpStatusCode::isError, (req, res) -> {
                     throw new MinetClientException("Minet claim sync failed with status " + res.getStatusCode());
                 })
-                .toBodilessEntity();
+                .body(MinetClaimResponse.class);
+        if (response == null || !Boolean.TRUE.equals(response.success())) {
+            throw new MinetClientException("Minet claim sync failed: "
+                    + (response != null && response.message() != null ? response.message() : "no success response"));
+        }
     }
 
     private String fetchAccessToken() {
