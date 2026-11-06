@@ -943,7 +943,7 @@ class ClaimServiceImplTest {
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ClaimResponse response = claimService.createFromPreauthorization(
-                preauthId, new ConvertPreauthorizationRequest(" INV-77 ", LocalDate.of(2026, 10, 2)));
+                preauthId, new ConvertPreauthorizationRequest(" INV-77 ", LocalDate.of(2026, 10, 2), null));
 
         ArgumentCaptor<Claim> claimCaptor = ArgumentCaptor.forClass(Claim.class);
         verify(claimRepository).save(claimCaptor.capture());
@@ -976,13 +976,29 @@ class ClaimServiceImplTest {
     }
 
     @Test
+    void createFromPreauthorizationUsesRequestedVisitTypeOverPreauths() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.APPROVED, false, List.of()));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ClaimResponse response = claimService.createFromPreauthorization(
+                preauthId, new ConvertPreauthorizationRequest("INV-81", null, VisitType.OUTPATIENT));
+
+        ArgumentCaptor<Claim> claimCaptor = ArgumentCaptor.forClass(Claim.class);
+        verify(claimRepository).save(claimCaptor.capture());
+        assertThat(claimCaptor.getValue().getVisitType()).isEqualTo(VisitType.OUTPATIENT);
+        assertThat(response.visitType()).isEqualTo(VisitType.OUTPATIENT);
+    }
+
+    @Test
     void createFromPreauthorizationWithoutItemsInvoicesTheClaimedAmount() {
         when(preauthorizationService.getById(preauthId)).thenReturn(
                 preauthResponse(PreauthorizationStatus.APPROVED, null, List.of()));
         when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        claimService.createFromPreauthorization(preauthId, new ConvertPreauthorizationRequest("INV-78", null));
+        claimService.createFromPreauthorization(preauthId, new ConvertPreauthorizationRequest("INV-78", null, null));
 
         ArgumentCaptor<InvoiceRequest> invoiceCaptor = ArgumentCaptor.forClass(InvoiceRequest.class);
         verify(invoiceService).create(invoiceCaptor.capture());
@@ -996,7 +1012,7 @@ class ClaimServiceImplTest {
                 preauthResponse(PreauthorizationStatus.PENDING, false, List.of()));
 
         assertThatThrownBy(() -> claimService.createFromPreauthorization(
-                preauthId, new ConvertPreauthorizationRequest("INV-79", null)))
+                preauthId, new ConvertPreauthorizationRequest("INV-79", null, null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Only approved");
         verify(claimRepository, never()).save(any());
@@ -1009,7 +1025,7 @@ class ClaimServiceImplTest {
                 preauthResponse(PreauthorizationStatus.APPROVED, true, List.of()));
 
         assertThatThrownBy(() -> claimService.createFromPreauthorization(
-                preauthId, new ConvertPreauthorizationRequest("INV-80", null)))
+                preauthId, new ConvertPreauthorizationRequest("INV-80", null, null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("already been converted");
         verify(claimRepository, never()).save(any());
