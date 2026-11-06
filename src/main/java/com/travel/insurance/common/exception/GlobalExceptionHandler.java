@@ -74,6 +74,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_GATEWAY, "eKYC service error: " + ex.getMessage(), request);
     }
 
+    @ExceptionHandler(com.travel.insurance.minet.MinetClientException.class)
+    public ResponseEntity<ApiError> handleMinetClient(
+            com.travel.insurance.minet.MinetClientException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_GATEWAY, "Minet error: " + ex.getMessage(), request);
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleDataIntegrity(
             DataIntegrityViolationException ex, HttpServletRequest request) {

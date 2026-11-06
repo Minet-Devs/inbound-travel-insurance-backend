@@ -25,6 +25,7 @@ summary and the full requirement-vs-codebase gap analysis.
   - [Claim & Pre-authorization Documents](#claim--pre-authorization-documents)
   - [Messaging (RabbitMQ)](#messaging-rabbitmq)
   - [Notifications (Policy Document Email)](#notifications-policy-document-email)
+  - [Minet Visitor Sync](#minet-visitor-sync)
   - [OTP (Point-of-Service Verification)](#otp-point-of-service-verification)
   - [Mobile Visitor Login (Email OTP)](#mobile-visitor-login-email-otp)
   - [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)
@@ -58,6 +59,8 @@ com.travel.insurance/
 ├── 📁 config/                              # Global configuration
 │   ├── SecurityConfig.java                 # Filter chain, route rules, PasswordEncoder
 │   ├── JpaAuditingConfig.java              # @EnableJpaAuditing + AuditorAware
+│   ├── AsyncConfig.java                    # @EnableAsync + bounded "notificationExecutor" for post-commit emails
+│   ├── HttpClientConfig.java               # RestClientCustomizer: connect/read timeouts on all RestClients
 │   ├── OpenApiConfig.java                  # Swagger/OpenAPI metadata
 │   ├── RabbitConfig.java                   # Exchanges, queues, bindings
 │   ├── MailProperties.java                 # app.mail.* (from address, emergency-assistance contact)
@@ -65,7 +68,8 @@ com.travel.insurance/
 │
 ├── 📁 common/                              # Shared, feature-agnostic code
 │   ├── 📁 domain/
-│   │   └── BaseEntity.java                 # @MappedSuperclass: ID, audit + soft-delete fields
+│   │   ├── BaseEntity.java                 # @MappedSuperclass: ID, audit + soft-delete fields
+│   │   └── VisitType.java                  # Enum OUTPATIENT/INPATIENT, shared by Claim & Preauthorization
 │   ├── 📁 exception/
 │   │   ├── GlobalExceptionHandler.java     # @RestControllerAdvice (ExchangeRateUnavailable → 503)
 │   │   ├── ResourceNotFoundException.java
@@ -73,12 +77,13 @@ com.travel.insurance/
 │   ├── 📁 service/
 │   │   └── CurrencyConversionService.java  # KES→USD rate via ExchangeRate-API (RestClient,
 │   │                                       # @Cacheable("fxRates"), 24h TTL)
+│   │                                       # exposed at GET /api/v1/exchange-rate
 │   ├── 📁 messaging/
 │   │   └── EventPublisher.java             # Thin wrapper over RabbitTemplate
 │   ├── 📁 email/
-│   │   └── EmailService.java               # Thin wrapper over JavaMailSender; sends serialized,
-│   │                                       # retries transient SMTP 4xx (e.g. 432 concurrent limit)
-│   │                                       # up to 3x with backoff; 7-arg send returns delivered?
+│   │   └── EmailService.java               # Thin wrapper over JavaMailSender; SMTP exchanges serialized
+│   │                                       # (lock NOT held during backoff), retries transient SMTP 4xx
+│   │                                       # (e.g. 432 concurrent limit) up to 3x with backoff; 7-arg send returns delivered?
 │   └── 📁 util/
 │
 ├── 📁 notification/                        # Feature: Visitor-facing notifications
@@ -90,11 +95,25 @@ com.travel.insurance/
 │   │                                       # (certificate + Welcome Pack copy/attachment)
 │   ├── ActivationEmailController.java      # POST /api/v1/visitors/by-passport/resend-activation-email
 │   │                                       # ?passportNumber=… (manual resend, see Notifications section)
+│   ├── PolicyDocumentController.java       # GET /api/v1/visitors/{id}/policy-documents (certificate + receipt PDF)
 │   ├── ActivationEmailResendJob.java       # @Scheduled safety net: re-sends the activation email to
 │   │                                       # ACTIVE visitors with activationEmailSentAt null (app.mail.resend.*:
 │   │                                       # interval 10m, min-age 5m, max-age 7d, batch 50, enabled flag)
 │   ├── PolicyDocumentRenderer.java         # Thymeleaf → HTML → PDF (openhtmltopdf)
 │   └── PolicyDocumentData.java             # Internal template data holder (not a DTO)
+│
+├── 📁 minet/                               # Feature: Outbound sync to the Minet system
+│   ├── MinetVisitorSyncListener.java       # @TransactionalEventListener(AFTER_COMMIT) on
+│   │                                       # VisitorCreatedEvent; maps Visitor → request, never throws
+│   ├── MinetController.java                # POST /api/v1/visitors/minet-sync/{passportNumber},
+│   │                                       # GET /api/v1/visitors/export/minet-excel (both ADMIN)
+│   ├── MinetVisitorExcelWriter.java        # Minet-format visitors .xlsx
+│   ├── MinetVisitorSyncService(Impl).java  # manual sync by passport: send, then set sent_to_minet
+│   ├── MinetSyncResponse.java              # { visitorId, sentToMinet }
+│   ├── MinetClient.java                    # RestClient: password-grant token, then POST visitor
+│   ├── MinetVisitorRequest.java            # Outbound payload (dates as yyyy-MM-dd)
+│   ├── MinetTokenResponse.java
+│   └── MinetClientException.java
 │
 ├── 📁 auth/                                # Feature: Authentication
 │   ├── AuthController.java                 # /login, /refresh
@@ -112,7 +131,7 @@ com.travel.insurance/
 │   ├── UserRepository.java                 # Data access (extends JpaRepository)
 │   ├── User.java                           # Domain entity (@Entity)
 │   ├── Role.java                           # Enum: ADMIN, INSURER_USER,
-│   │                                       #       PROVIDER_USER, CONTACT_CENTER
+│   │                                       #       PROVIDER_USER, CONTACT_CENTER, KENYA_RE
 │   ├── UserMapper.java                     # Entity ⇄ DTO mapping
 │   └── 📁 dto/
 │       ├── UserRequest.java
@@ -182,7 +201,8 @@ com.travel.insurance/
 │   ├── Visitor.java                        # policyId + passport-based KYC attributes,
 │   │                                       # incl. address, facePhotoUrl, reasonForTravel,
 │   │                                       # underlyingConditions; plus nullable
-│   │                                       # paymentReference, etaReference, portOfEntry,
+│   │                                       # paymentReference, premiumAmountPaid
+│   │                                       # (BigDecimal, 2dp), etaReference, portOfEntry,
 │   │                                       # entryTimestamp, exitTimestamp
 │   ├── VisitorCreatedEvent.java            # In-process event on visitor creation;
 │   │                                       # consumed by visitorbenefit to seed benefits
@@ -222,7 +242,7 @@ com.travel.insurance/
 │   ├── Preauthorization.java               # policyId, insurerId (denormalized from Policy),
 │   │                                       # visitorId, icd11CodeId, benefitId,
 │   │                                       # serviceProviderId, requestedAmount,
-│   │                                       # approvedAmount — the raw ask, decided via
+│   │                                       # approvedAmount, visitType (optional) — the raw ask, decided via
 │   │                                       # PENDING/APPROVED/PARTIALLY_APPROVED/REJECTED
 │   ├── PreauthorizationEnhancement.java    # preauthorizationId (plain UUID column, no JPA
 │   │                                       # relation — same convention as VisitorBenefit),
@@ -237,11 +257,19 @@ com.travel.insurance/
 │   ├── PreauthorizationStatus.java         # Enum: PENDING, APPROVED, PARTIALLY_APPROVED,
 │   │                                       #       REJECTED, EXPIRED
 │   ├── PreauthorizationMapper.java
+│   ├── 📁 upload/                          # Excel offline-approvals import
+│   │   ├── PreauthorizationExcelParser.java        # Apache POI; "preauth-upload" sheet by header
+│   │   ├── PreauthorizationUploadService.java
+│   │   └── PreauthorizationUploadServiceImpl.java  # not @Transactional: one tx per row
 │   └── 📁 dto/
 │       ├── PreauthorizationRequest.java    # embeds medicalServiceId + preauthorizationItems
 │       ├── PreauthorizationItemRequest.java
 │       ├── PreauthorizationItemResponse.java
 │       ├── PreauthorizationDecisionRequest.java   # Approve/reject with amount and reason
+│       ├── OfflineApproval.java            # One already-approved row from the Excel upload
+│       ├── PreauthorizationUploadResponse.java     # totals + per-row results
+│       ├── PreauthorizationUploadRowResult.java
+│       ├── PreauthorizationUploadRowStatus.java    # CREATED, FAILED
 │       └── PreauthorizationResponse.java
 │
 ├── 📁 claim/                               # Feature: Claims Processing
@@ -249,6 +277,7 @@ com.travel.insurance/
 │   ├── ClaimService.java                   # Interface
 │   ├── ClaimServiceImpl.java
 │   ├── ClaimRepository.java
+│   ├── ClaimExcelWriter.java               # Apache POI writer for the claims export
 │   ├── Claim.java                          # policyId, benefitId, serviceProviderId,
 │   │                                       # preauthorizationId, visitorId (all nullable
 │   │                                       # except policy/benefit), insurerId (derived
@@ -256,6 +285,7 @@ com.travel.insurance/
 │   │                                       # currency/baseCurrency, claimedAmountBase
 │   │                                       # (USD), exchangeRate + fxRateDate (snapshot
 │   │                                       # at save), approvedAmount, prescription,
+│   │                                       # visitType (optional VisitType enum),
 │   │                                       # documentIds (UUID element collection); the
 │   │                                       # claim_diagnoses / claim_procedures /
 │   │                                       # claim_invoices tables persist IDs only
@@ -266,6 +296,7 @@ com.travel.insurance/
 │   └── 📁 dto/
 │       ├── ClaimRequest.java               # insurerId NOT accepted — derived server-side
 │       ├── ClaimDecisionRequest.java
+│       ├── ClaimExportRow.java             # One row of the Excel export (resolved names)
 │       └── ClaimResponse.java              # embeds full visitor/insurer/invoices/
 │                                           # diagnoses (ICD-11)/procedures objects
 │
@@ -336,14 +367,14 @@ com.travel.insurance/
 │   │                                        # notificationEmailPassword (encrypted), host, port,
 │   │                                        # esignature, longitude/latitude (nullable, BigDecimal(9,6))
 │   │                                        # — all optional
-│   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER
+│   ├── OrganizationType.java                # enum: ADMIN, INSURER, SERVICE_PROVIDER, REINSURER
 │   ├── OrganizationMapper.java
 │   ├── OrganizationCreatedEvent.java         # organizationId + longitude/latitude (mirrors the
 │   │                                         # create request, see below); published on
 │   │                                         # create, consumed below
 │   ├── OrganizationCreatedListener.java      # @EventListener — provisions the matching
 │   │                                         # Insurer/ServiceProvider for organizationType
-│   │                                         # INSURER/SERVICE_PROVIDER (ADMIN is a no-op)
+│   │                                         # INSURER/SERVICE_PROVIDER (ADMIN and REINSURER are no-ops)
 │   ├── OrganizationUpdatedEvent.java         # organizationId + longitude/latitude (null = "leave
 │   │                                         # the linked ServiceProvider's location unchanged");
 │   │                                         # published on update/patch, consumed below
@@ -424,7 +455,7 @@ com.travel.insurance/
 │   ├── PremiumReceiptService.java          # Interface
 │   ├── PremiumReceiptServiceImpl.java
 │   ├── PremiumReceiptRepository.java
-│   ├── PremiumReceipt.java                 # totalPremium/minorPremium/infantPremium (age-tiered),
+│   ├── PremiumReceipt.java                 # totalPremium (flat, all ages),
 │   │                                        # pcfLevy, insurancePremiumLevy, stampDuty, trainingLevy
 │   │                                        # — one fixed row, no create/delete
 │   ├── PremiumReceiptMapper.java
@@ -530,7 +561,9 @@ Policy
   signature block (`policy-certificate.html`'s `.sign` table), replacing the
   default "No wet signature required" copy with "Digitally signed by the
   underwriter" so the certificate reads as genuinely signed when an insurer
-  has provided one.
+  has provided one. On the certificate's schedule of benefits, the benefit
+  "Emergency Medical Transportation/Evacuation" is rendered as "… within Kenya
+  Only" (`PolicyDocumentRenderer.certificateLabel`); the catalog name is unchanged.
 - **Benefit** is a standalone **global catalog** entry: a `benefitName` (free
   text) and a `limitAmount` (limit of cover). It is no longer scoped to a
   policy — there is no `policyId` or fixed `BenefitType` enum. The catalog is
@@ -587,7 +620,7 @@ Policy
   `/api/v1/departments` and `/api/v1/medical-services` are restricted to
   `ADMIN`; reads are open to any authenticated user.
 - An **Organization** is a standalone directory entry — `name` (unique),
-  `organizationType` (enum: `ADMIN`, `INSURER`, `SERVICE_PROVIDER`), `email`,
+  `organizationType` (enum: `ADMIN`, `INSURER`, `SERVICE_PROVIDER`, `REINSURER`), `email`,
   `phoneNumber`, `address`, `city`, `county` — with plain CRUD
   (`/api/v1/organizations`), following the same shape as Department. It is
   unrelated to the `organizationId` column described in
@@ -637,7 +670,8 @@ Policy
   computed in-app (`ServiceProviderServiceImpl.findNearby`) rather than in
   the database — there's no PostGIS/spatial extension in this project.
   Access follows the rest of `/api/v1/service-providers/**`: `ADMIN` or
-  `PROVIDER_USER` only (`SecurityConfig`).
+  `PROVIDER_USER` only (`SecurityConfig`), except the paged list
+  `GET /api/v1/service-providers`, which `CONTACT_CENTER` may also call.
 - A **TouristAttraction** (`name` unique, case-insensitively at the service
   layer; `county`, both required) maps a park/reserve/landmark to the county it
   sits in. It has plain CRUD at `/api/v1/tourist-attractions` — writes are
@@ -683,7 +717,9 @@ Policy
   policy. `dateOut` remains the visitor's own declared travel end date, used
   for the 1-to-365-day validation above and reporting. It also carries a
   set of nullable border/payment-tracking attributes populated after
-  onboarding: `paymentReference`, `etaReference` (eTA/authorization
+  onboarding: `paymentReference`, `premiumAmountPaid` (premium actually paid,
+  `numeric(12,2)`, must be ≥ 0 with at most 2 decimals; accepted on
+  create/update and returned in the visitor responses), `etaReference` (eTA/authorization
   reference), `portOfEntry`, and `entryTimestamp`/`exitTimestamp` (actual
   border-crossing times, distinct from the declared `dateIn`/`dateOut`
   cover dates). `entryTimestamp`/`exitTimestamp` are set independently via
@@ -700,18 +736,22 @@ Policy
   `insurerId` skipped). Backed by `VisitorService.countByInsurer`
   (`VisitorRepository.countVisitorsGroupedByInsurer` + `InsurerRepository.findAll`).
   `GET /api/v1/visitors/distribution-by-age-group` (dashboard) returns
-  `[{ageGroup, totalVisitors}]` — all visitors regardless of status, always three
-  entries in order: `0-2` (age 0 to under 3), `3-17` (3 to under 18), `18+`. Age is
-  computed as of today from `dateOfBirth`. Because `date_of_birth` is encrypted at
-  rest, bucketing is done in memory (`VisitorServiceImpl.countByAgeGroup` over
-  `VisitorRepository.findAll`), not in SQL; revisit if the table grows large.
+  `[{ageGroup, totalVisitors}]` — all visitors regardless of status, always four
+  entries in order: `0-2` (age 0 to under 3), `3-17` (3 to under 18), `18+`, `Unknown`
+  (`age` not populated, e.g. rows awaiting `VisitorAgeBackfillRunner`). Age is
+  the persisted `Visitor.age` column (age at travel, as at `dateIn`, kept in sync on
+  every write), not age as of today. `VisitorServiceImpl.countByAgeGroup` runs a
+  grouped count in SQL (`VisitorRepository.countVisitorsGroupedByAge`) and folds the
+  per-age counts into the four buckets; null-`age` visitors land in `Unknown`, so the
+  buckets sum to the total visitor count.
   `GET /api/v1/visitors/distribution-by-insurer-and-age-group` (dashboard) returns
   `[{insurerId, insurerName, ageGroups:[{ageGroup, totalVisitors}], totalVisitors}]` —
   the two distributions above combined: one entry per insurer (zero-visitor insurers
-  included), each with the three age buckets `0-2`, `3-17`, `18+` in order, all statuses.
-  Visitors with a null `insurerId` or `dateOfBirth` are skipped. Backed by
-  `VisitorService.countByInsurerAndAgeGroup`, bucketed in memory for the same
-  encryption reason.
+  included), each with the four age buckets `0-2`, `3-17`, `18+`, `Unknown` in order, all statuses.
+  Visitors with a null `insurerId` are skipped; null `age` goes to `Unknown`. Backed by
+  `VisitorService.countByInsurerAndAgeGroup`
+  (`VisitorRepository.countVisitorsGroupedByInsurerAndAge`), also from the `age`
+  column.
   `GET /api/v1/visitors` (the paged list) takes an optional `insurerId` query
   param — omitted, it returns all visitors (`VisitorRepository.findAll`);
   provided, it filters to that insurer's visitors
@@ -752,8 +792,10 @@ Policy
   benefit has since been deleted), plus two **transient, computed-on-read**
   fields — `utilizedAmount` and `balance` — so clients can display
   assignments and remaining cover without extra lookups. `utilizedAmount` is
-  the sum of `Claim.claimedAmount` across every claim for that
-  `(visitorId, benefitId)` pair, regardless of claim status; `balance` is
+  the sum of `Claim.claimedAmountBase` (USD, the same currency as
+  `limitAmount`) across every claim for that `(visitorId, benefitId)` pair,
+  regardless of claim status; claims with a null `claimedAmountBase` add
+  nothing. `balance` is
   `limitAmount − utilizedAmount` (it can go negative if claims exceed the
   limit). Neither value is persisted — `VisitorBenefitServiceImpl` computes
   them per request via `ClaimService.sumClaimedAmountsByVisitorAndBenefit`
@@ -763,13 +805,75 @@ Policy
   only runs where `VisitorBenefit` rows are returned; the plain paginated
   `GET /api/v1/visitors` never embeds `visitorBenefits` at all (see above),
   so it is unaffected regardless of claim volume.
+- **Offline-approvals Excel upload**: `POST /api/v1/preauthorizations/upload` (`ADMIN`,
+  `CONTACT_CENTER`; multipart `file`, `.xlsx`) imports already-approved pre-authorizations.
+  `PreauthorizationExcelParser` reads the `preauth-upload` sheet (else the first sheet), matching
+  headers `PASSPORT NO.`, `NAME OF PROVIDER`, `BENEFIT`, `VISIT TYPE`, `DATE OF TREATMENT`,
+  `DATE OF DISCHARGE`, `AMOUNT` case-insensitively; rows with no passport/provider/benefit (totals)
+  are ignored. Per row, `PreauthorizationUploadServiceImpl` resolves the visitor by passport (its
+  policy gives `policyId`/`insurerId`), the provider and benefit by normalised name (exact, else a
+  single unambiguous containment match), the amount (must be positive), `visitType` (blank → null)
+  and the two dates (ISO, `d/M/yyyy`, then `M/d/yyyy`; blank/`TBA`/`TBD` → null), then calls
+  `PreauthorizationService.createOfflineApproval` in its own transaction. The result is an
+  `APPROVED` pre-authorization with `approvedAmount = requestedAmount`, `decisionReason`
+  "Offline approval (bulk upload)", no `icd11CodeId` (now nullable on the entity — the column
+  already was) and no enhancement/items; no `PREAUTHORIZATION_DECIDED` event is published. Failing
+  rows (unknown passport/provider/benefit, bad amount/date/visit type, inactive policy, or a duplicate
+  of an existing pre-auth with the same visitor + provider + benefit + `treatmentDate` + amount) are
+  skipped and reported in `PreauthorizationUploadResponse.rows` (`excelRowNumber`, `status`,
+  `preauthorizationId`, `errorMessage`); the valid rows are still created. `treatmentDate` /
+  `dischargeDate` are new nullable `Preauthorization` columns returned on `PreauthorizationResponse`
+  (not accepted on `PreauthorizationRequest`).
+- **Update a pre-authorization**: `PUT /api/v1/preauthorizations/{id}` (`ADMIN`, `PROVIDER_USER`,
+  `CONTACT_CENTER`) takes a `PreauthorizationUpdateRequest`: the create fields (`policyId`, `visitorId`,
+  `benefitId`, `serviceProviderId`, `requestedAmount` required; `icd11CodeId` (nullable, only validated when present), `medicalServiceId`,
+  `serviceDescription`, `preauthorizationItems`, `visitType` optional) which fully replace the details,
+  re-running create's validations (active policy, visitor, ICD-11 code if given, benefit, provider, medical service);
+  `insurerId` is re-derived from the policy. It also accepts the optional fields `approvedAmount`
+  (≤ `requestedAmount`, else `IllegalArgumentException` → 400), `exchangeRate`, `approvedAmountInDollars`,
+  `status`, `decisionReason`, `decidedBy`, `decidedAt`, `convertedToClaim`, `treatmentDate`, `dischargeDate`;
+  an omitted (null) optional field leaves the stored value untouched. If `approvedAmountInDollars` is omitted
+  but `approvedAmount` or `exchangeRate` is sent, it is recomputed (`approvedAmount * exchangeRate`).
+  `status` is set directly (no transition checks, no event published) and updates are allowed in any status.
+  `decidedBy`/`decidedAt` are stored in nullable `preauthorizations.decided_by` / `decided_at` (migration
+  `V202610291726`); when null the response still falls back to `updatedBy`/`updatedDate` for decided rows.
+  Read-only/derived response fields (`id`, names, codes, `insurerId`, `createdDate`, `updatedDate`) are not
+  accepted. The enhancement is updated in place (created if a legacy row has none) and its line items are
+  soft-deleted and re-saved. `PROVIDER_USER` is limited to its own provider's pre-auths (same visibility
+  check as `GET /{id}`, 403).
+- **Pre-authorization `exchangeRate`**: nullable `preauthorizations.exchange_rate` (`numeric(12,6)`,
+  migration `V202610291343`), returned on `PreauthorizationResponse` (not accepted on the request).
+  Snapshotted once at creation — in both `create` and `createOfflineApproval` — from
+  `CurrencyConversionService.getExchangeRate("KES", "USD")`. If the rate service is unavailable
+  (`ExchangeRateUnavailableException`) the pre-authorization is still saved with `exchangeRate = null`.
+  Rows that existed before the column was added were backfilled with `0.007702` (including soft-deleted rows).
+- **Pre-authorization `approvedAmountInDollars`**: nullable `preauthorizations.approved_amount_in_dollars`
+  (`numeric(15,2)`, migration `V202610291444`), returned on `PreauthorizationResponse`. Derived as
+  `approvedAmount * exchangeRate` (HALF_UP, 2dp) whenever `approvedAmount` is set — on `decide` (approve or
+  reject → 0) and on `createOfflineApproval`. Null while pending or when no `exchangeRate` was captured.
+  The migration backfills existing rows that have both values (including soft-deleted rows).
+- **Pre-authorizations dashboard** (`GET /api/v1/preauthorizations/dashboard/...`, all take optional
+  ISO `dateFrom`/`dateTo` on `createdDate`, inclusive, UTC; readable by `ADMIN`, `INSURER_USER`,
+  `PROVIDER_USER`, `CONTACT_CENTER` and the read-only `KENYA_RE`, matched ahead of the general
+  `/preauthorizations/**` rule in `SecurityConfig`). Insurer/provider users are pinned to their own
+  entity (an unresolvable one yields empty/zero), same as the claims dashboard:
+  - `/summary` → `PreauthorizationDashboardSummary` `{totalPreauthorizations, approved, rejected,
+    partiallyApproved}` (total counts every status incl. `PENDING`/`EXPIRED`).
+  - `/by-insurer` → `InsurerPreauthorizationDistribution` `{insurerId, insurerName, preauthorizationCount,
+    approvedAmount}` over `APPROVED` + `PARTIALLY_APPROVED`; every in-scope insurer is listed, including
+    those with none. `approvedAmount` sums `approvedAmount` in the stored (KES) currency — pre-authorizations
+    have no USD snapshot.
+  - `/top-service-providers` → `ServiceProviderPreauthorizationDistribution` (same fields, by provider),
+    top `limit` (default 10, must be ≥ 1) by count with ties broken by approved amount; providers with none
+    are dropped.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
   service and is decided by an `INSURER_USER` (or a admin agent). A
   `CONTACT_CENTER` user may also both raise (`POST /api/v1/preauthorizations`)
   and decide (`POST /api/v1/preauthorizations/{id}/decision`) on a caller's
   behalf; delete stays `ADMIN`-only. There is no check stopping the same
   contact-center user from deciding a pre-auth they raised. It also
-  carries a denormalized `insurerId` (non-nullable `UUID`, same rationale and
+  carries an optional `visitType` (`OUTPATIENT` / `INPATIENT`, nullable; on
+  `PreauthorizationRequest`/`Response`, copied to the claim on conversion) and a denormalized `insurerId` (non-nullable `UUID`, same rationale and
   pattern as `Visitor.insurerId`/`Claim.insurerId`), resolved from
   `policy.getInsurerId()` on the `Policy` already fetched by
   `validatePolicyActive` in `PreauthorizationServiceImpl.create` — not
@@ -783,8 +887,12 @@ Policy
   existing `PROVIDER_USER` auto-scoping (a `PROVIDER_USER` is always
   restricted to their own `serviceProviderId`; supplying `insurerId` narrows
   that further via `findAllByServiceProviderIdAndInsurerId` rather than
-  bypassing the scope, while any other role filters the full table via
-  `findAllByInsurerId`). Create
+  bypassing the scope; an `INSURER_USER` is always restricted to their own
+  insurer via `findAllByInsurerId` — the param is ignored, no linked insurer →
+  empty page; any other role filters the full table via
+  `findAllByInsurerId`). `GET /api/v1/preauthorizations/{id}` applies the same
+  row scoping: an `INSURER_USER`/`PROVIDER_USER` reading another insurer's /
+  service provider's pre-auth gets `AccessDeniedException` (403). Create
   requires the diagnosis (`icd11CodeId`, validated via `Icd11CodeService`),
   the patient (`visitorId`, validated via `VisitorService`, existence only —
   not checked against the request's `policyId`), the accessed hospital
@@ -795,7 +903,7 @@ Policy
   audit columns (already populated by `AuditorAware` on every save) and are
   surfaced in `PreauthorizationResponse` as `decidedBy`/`decidedAt`, `null`
   while the request is still `PENDING`. `PreauthorizationResponse` also
-  resolves display names for every referenced ID — `visitorName`,
+  resolves display names for every referenced ID — `visitorName`/`passportNumber`,
   `icd11Code`/`icd11Title`, `benefitName`,
   `serviceProviderName` — via the respective feature services, so API
   consumers never have to display a raw UUID.
@@ -832,6 +940,8 @@ Policy
   reimbursement (no pre-authorization). Decisions are made by the insurer;
   `PAID` is the terminal status. Since the augmentation, a claim may also
   carry a `visitorId` (must belong to the claim's policy), a `prescription`,
+  an optional `visitType` (`OUTPATIENT` / `INPATIENT`, nullable, accepted on
+  `ClaimRequest` and returned on `ClaimResponse`; copied from the pre-auth on conversion),
   and four UUID sets — `diagnosisIds` (ICD-11 codes, required unless
   auto-populated from a preauthorization), `procedureIds` (procedure catalog,
   always required), `invoiceIds` (validated through `InvoiceService`), and
@@ -843,6 +953,22 @@ Policy
   preauthorization's `icd11CodeId`. `procedureIds` are always required on
   `POST /api/v1/claims` — the preauthorization feature does not carry
   procedure references.
+- **Excel export**: `GET /api/v1/claims/export/excel` (`ADMIN` only, enforced by
+  `@PreAuthorize`; optional filters `status`, `insurerId`, `dateFrom`, `dateTo` —
+  ISO dates, inclusive, matched on `createdDate`, UTC). `ClaimServiceImpl.listForExport`
+  emits **exactly one row per claim** (a claim is never repeated). A claim's invoices are
+  collapsed: Invoice Amount is the **sum of the claim's invoice `totalAmount`s** (blank when
+  it has no invoices); Invoice Number, Service and department are the distinct values joined
+  with `; `; Visit Date is the earliest invoice-item `serviceDate`. References are
+  resolved via `VisitorService`/`ServiceProviderService`/`BenefitService`/`Icd11CodeService`/
+  `InvoiceService`/`MedicalServiceService` (each id looked up once per export) and
+  `ClaimExcelWriter` returns `claims.xlsx` with columns: Provider, Provider ID
+  (`serviceProviderId` UUID), Benefit, Passport No, ClaimDate (`createdDate`), Visit Type,
+  Diagnosis code / Diagnosis description (all diagnoses joined with `; `), Visit Date,
+  AmountClaimed (`claimedAmount`, claim currency), Invoice Number, Invoice Date (**the claim
+  date**, not the invoice `issueDate`), Invoice Amount, Service, department, claim amount USD
+  (`claimedAmountBase`), Exchange Rate (claim `exchangeRate`). All date columns are formatted
+  `dd-MM-yyyy` (claim instants rendered in UTC, matching the date filters).
 - **Pre-auth → claim conversion**: `POST /api/v1/claims/from-preauthorization/{preauthorizationId}`
   (`ADMIN`, `CONTACT_CENTER`, `PROVIDER_USER` — a provider only for its own facility's
   pre-auths, 404 otherwise; body `ConvertPreauthorizationRequest` — `invoiceNumber` and
@@ -852,7 +978,7 @@ Policy
   optional for older clients). `ClaimServiceImpl.createFromPreauthorization`
   reads the pre-auth via `PreauthorizationService.getById` and, in one transaction:
   creates an `OPEN` claim copying `policyId`, `insurerId`, `visitorId`, `benefitId`,
-  `serviceProviderId`, `serviceDescription` → `description`, `icd11CodeId` → `diagnosisIds`,
+  `serviceProviderId`, `serviceDescription` → `description`, `visitType`, `icd11CodeId` → `diagnosisIds`,
   with `claimedAmount` = sum of the request's line amounts, **without**
   requiring `procedureIds`; raises an `Invoice` (claim currency) with those lines (a line
   without `medicalServiceId` is tagged with the pre-auth's); then sets the pre-auth's
@@ -885,7 +1011,35 @@ Policy
   totals of those invoices; otherwise it is the raw KES `claimedAmount`
   multiplied by the spot KES→USD rate (2-dp, `HALF_UP`). Rates are never
   recomputed against the live endpoint for historical rows; a failure to reach
-  the API surfaces as `ExchangeRateUnavailableException` → 503.
+  the API surfaces as `ExchangeRateUnavailableException` → 503. The approved
+  amount gets a USD snapshot too (`approvedAmountBase`, migration
+  `V202610281154__claim_approved_amount_base.sql`): `approvedAmount ×
+  claimedAmountBase / claimedAmount` (2-dp, `HALF_UP`), set on every decision
+  (`0` when `REJECTED`) and recomputed whenever `applyBaseConversion` runs, so it
+  never drifts from the claimed base. The ratio is used instead of `exchangeRate`
+  because with invoices attached `claimedAmountBase` is the sum of invoice base
+  totals. `null` until the claim is decided; legacy rows are backfilled from their
+  (rate 1.0) claimed base, so they are approximate.
+- **Claims dashboard** (all `GET`, optional filters `status`, `dateFrom`, `dateTo` —
+  ISO dates, inclusive, matched on `createdDate`, UTC; invalid values → 400):
+  - `GET /api/v1/claims/dashboard/summary` → `{ totalClaims, totalApprovedAmountUsd }`
+  - `GET /api/v1/claims/dashboard/by-insurer` → `[ { insurerId, insurerName, claimCount, approvedAmountUsd } ]`
+  - `GET /api/v1/claims/dashboard/by-service-provider` →
+    `[ { serviceProviderId, serviceProviderName, claimCount, approvedAmountUsd } ]`;
+    optional `limit` (≥ 1, else 400) returns only the top providers by `claimCount`
+    (ties broken by `approvedAmountUsd`), e.g. `limit=10` for "Claims by Service Provider";
+    in that mode providers with no claims and the `Unknown` row are dropped
+
+  The USD total is `COALESCE(SUM(approvedAmountBase), 0)` over the filtered claims
+  (undecided claims count towards `totalClaims` but add `0`). Distributions list every
+  insurer / service provider (via `InsurerService.listAll` /
+  `ServiceProviderService.listAll`), including those with zero claims, plus a trailing
+  `Unknown` row (`null` id) for claims whose `insurerId` / `serviceProviderId` is null, so
+  the rows add up to the summary. Scoping mirrors the claim list: `INSURER_USER` is pinned
+  to their insurer and `PROVIDER_USER` to their service provider (so each sees only their
+  own row and totals); a user whose entity cannot be resolved gets an empty/zero result, never
+  unscoped data. `ADMIN`, `CONTACT_CENTER` and `KENYA_RE` see everything. `KENYA_RE`
+  is allowed these three paths only; the rest of `/api/v1/claims/**` stays closed to it.
 - An **Invoice** is a supporting document for a claim, referenced by ID only.
   It is created through its own feature (`POST /api/v1/invoices`) and a claim
   attaches already-existing invoices by UUID. Each line item (`InvoiceItem`) optionally references
@@ -978,15 +1132,24 @@ service provider staff. Users are distinguished by role, not by separate
 entities:
 
 - `User.role` is a single `Role` enum column (`ADMIN`, `INSURER_USER`,
-  `PROVIDER_USER`, `CONTACT_CENTER`) — a user has exactly one role, mapped to a single Spring
+  `PROVIDER_USER`, `CONTACT_CENTER`, `KENYA_RE`) — a user has exactly one role, mapped to a single Spring
   Security authority. `CONTACT_CENTER` is Minet-internal staff: like `ADMIN`
   they belong to the Minet admin organization and have no insurer/provider
   scoping (`insurerId`/`serviceProviderId` are `null`); it can list visitors
   (`GET /api/v1/visitors`), list insurers (`GET /api/v1/insurers`, paged only —
-  the rest of `/insurers/**` stays ADMIN-only) and resend activation emails
+  the rest of `/insurers/**` stays ADMIN-only), list service providers
+  (`GET /api/v1/service-providers`, paged only — the rest of
+  `/service-providers/**` stays ADMIN/PROVIDER_USER) and resend activation emails
   (`POST /api/v1/visitors/by-passport/resend-activation-email`). The JWT carries it as a single `role` claim
   (`JwtTokenProvider.CLAIM_ROLE`); `AuthenticatedUser.role` is a single
   `String`, not a set.
+- `KENYA_RE` is the Kenya Re (reinsurer) role, belonging to an organization of
+  type `REINSURER` (no `Insurer`/`ServiceProvider` is provisioned; `insurerId`/
+  `serviceProviderId` are `null`). It is **read-only reporting**: `SecurityConfig`
+  allows it `GET /api/v1/reports/**`, the three `GET /api/v1/visitors/distribution-by-*`
+  dashboard endpoints, the three `GET /api/v1/claims/dashboard/**` endpoints and the paged
+  `GET /api/v1/insurers` only; every other endpoint that is not
+  already role-restricted is closed to it via the final `anyRequest()` rule.
 - Besides the standard `sub` claim (the user id — clients should read the
   user id from `sub`, not a duplicate claim), the JWT also carries
   `firstName`, `lastName`, and `email` claims
@@ -995,6 +1158,9 @@ entities:
   `GET /api/v1/users/{id}` call. These are set once at token issuance
   (login/refresh) and are not re-verified per request — clients needing
   guaranteed-fresh profile data should still call the users endpoint.
+- `GET /api/v1/users` is paged and accepts two optional filters: `email`
+  (case-insensitive partial match on the email, which is the username) and
+  `role` (exact `Role` match). Omitted filters are ignored; both combine with AND.
 - Every user, regardless of role, carries a plain `organizationId: UUID`
   pointing directly at an `organization.Organization` row (the directory
   entry described earlier) — the same id an `ADMIN` client would get back
@@ -1029,7 +1195,17 @@ entities:
   `Insurer` id from their `organizationId` before filtering
   `findAllByInsurerId`; if no `Insurer`/`ServiceProvider` currently has that
   `organizationId`, scoping returns an empty page rather than falling back to
-  unscoped access. Roles gate *which endpoints* a user can call;
+  unscoped access. `ClaimServiceImpl.findScoped` (`GET /api/v1/claims`) does
+  the same per role: `PROVIDER_USER` → `findAllByServiceProviderId`,
+  `INSURER_USER` → `findAllByInsurerId` on the claim's own `insurerId`
+  column (any `insurerId` query parameter is ignored), everyone else →
+  unscoped. `ClaimServiceImpl.getById` likewise rejects an `INSURER_USER`
+  reading another insurer's claim, and a `PROVIDER_USER` reading another
+  service provider's claim, with `AccessDeniedException` (403). `VISITOR`
+  tokens never reach these endpoints at all — see "Visitor self-service"
+  under Mobile Auth. Claims
+  saved with a null `insurerId` (predating `V026`) are invisible to insurer
+  users. Roles gate *which endpoints* a user can call;
   `organizationId` (via this bridge) gates *which rows* they can see.
 - `UserResponse` and the JWT (`JwtTokenProvider.CLAIM_SERVICE_PROVIDER_ID`/
   `CLAIM_INSURER_ID`) also expose the bridged `serviceProviderId`/`insurerId`
@@ -1102,6 +1278,20 @@ entities:
 - The `auth` feature owns login and JWT concerns and depends on `user`
   (service → service); `config/SecurityConfig` wires the JWT filter and
   role-based route rules.
+
+## Exchange Rate
+
+`GET /api/v1/exchange-rate?from=USD&to=KES` returns the current rate from
+`CurrencyConversionService` (ExchangeRate-API, cached 24h per pair in the `fxRates` cache):
+
+```json
+{ "from": "USD", "to": "KES", "rate": 129.25 }
+```
+
+`from` defaults to `USD` and `to` to `KES`; both must be 3-letter codes (case-insensitive,
+echoed upper-cased), otherwise 400. If the upstream API is unconfigured or failing the
+endpoint returns 503 (`ExchangeRateUnavailableException`). **Access**: any authenticated user
+except `KENYA_RE` (default rule).
 
 ## Layering Rules
 
@@ -1182,6 +1372,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | Visitor Benefit   | `/api/v1/visitor-benefits`    | `visitor_benefits`  |
 | Pre-authorization | `/api/v1/preauthorizations`   | `preauthorizations` |
 | Claim             | `/api/v1/claims`              | `claims`            |
+| Claims Dashboard  | `/api/v1/claims/dashboard`    | — (aggregates `claims`) |
 | Invoice           | `/api/v1/invoices`            | `invoices`          |
 | Document          | `/api/v1/claims/{id}/documents`, `/api/v1/preauthorizations/{id}/documents`, `/api/v1/documents` | `documents` |
 | ICD-11 Code       | `/api/v1/icd11-codes`         | `icd11_codes`       |
@@ -1194,6 +1385,7 @@ Every entity extends `common/domain/BaseEntity` (`@MappedSuperclass`):
 | OTP               | `/api/v1/otps`                | `otps`               |
 | Reports           | `/api/v1/reports`             | (reads from existing tables) |
 | Member Statement  | `/api/v1/member-statements`   | — (computed, see [Member Statement Report](#member-statement-report)) |
+| Exchange Rate     | `/api/v1/exchange-rate`       | — (live rate via `CurrencyConversionService`) |
 
 ## Policy Tokenization (Quota Management)
 
@@ -1215,14 +1407,22 @@ The system enforces **per-insurer policy quotas** to prevent insurers from overs
    - `VisitorServiceImpl.create()` validates that the backing insurer has `policyToken > 0`
    - If validation passes, visitor is saved and `VisitorCreatedEvent` is published
    - `PolicyConsumptionListener` receives the event and decrements `policyToken` for the backing insurer
+   - The decrement is one atomic statement, `InsurerRepository.consumeOnePolicyToken` (`update insurers set policy_token = policy_token - 1 where id = ? and policy_token > 0`), not a read-modify-write on the entity: concurrent visitor creations for the same insurer can no longer lose a decrement, and the insurer row lock is held only for that statement. It returns 0 (logged as a warning, no organization sync) when the quota is null or already exhausted, e.g. a concurrent create took the last token after `requireInsurerWithQuota` passed. The new value is read back with `findPolicyTokenById` (a scalar query, so it ignores the stale entity in the session) and is what gets written to the organization
    - Example: Minet Insurance 1000 → 999 when first visitor is created
 
 2. **Visitor Deletion → Policy Restoration**
    - `VisitorServiceImpl.delete()` soft-deletes the visitor and publishes `VisitorDeletedEvent`
    - `PolicyRestorationListener` receives the event and restores (increments) `policyToken` for the backing insurer
+   - Like the decrement, the increment is one atomic statement, `InsurerRepository.restoreOnePolicyToken` (`policy_token = coalesce(policy_token, 0) + 1`, so a null quota becomes 1); the new value is read back with `findPolicyTokenById` and synced to the organization
    - Example: Minet Insurance 999 → 1000 when that visitor is deleted
 
-3. **Quota Exhaustion**
+3. **Organization Write-Back**
+   - `Organization.policyToken` mirrors the linked insurer's token (organization → insurer on PUT/PATCH via `OrganizationUpdatedListener`; insurer → organization in the other direction)
+   - After `PolicyConsumptionListener`/`PolicyRestorationListener` change the insurer's token, and after `InsurerService.update`, `OrganizationService.syncPolicyToken(organizationId, token)` copies the value onto the insurer's organization (no-op when the insurer has no `organizationId`). It publishes no event, so it cannot loop back into the insurer.
+   - Result: `GET /api/v1/organizations/{id}` reflects consumed/restored policies
+   - `V202610261810__backfill_organization_policy_token.sql` one-off copied each insurer's token onto its organization (skipping organizations linked to more than one insurer) to fix drift from before the write-back existed
+
+4. **Quota Exhaustion**
    - When `policyToken` reaches 0, any attempt to create a visitor using that insurer's policy fails with:
    - `IllegalStateException: "Insurer 'Minet Insurance' has no available policies left"`
    - HTTP 400 (Bad Request)
@@ -1231,8 +1431,8 @@ The system enforces **per-insurer policy quotas** to prevent insurers from overs
 
 | Component | Responsibility |
 |-----------|-----------------|
-| `PolicyConsumptionListener` | Listens to `VisitorCreatedEvent`; decrements `policyToken` for the backing insurer |
-| `PolicyRestorationListener` | Listens to `VisitorDeletedEvent`; restores `policyToken` for the backing insurer |
+| `PolicyConsumptionListener` | Listens to `VisitorCreatedEvent`; atomically decrements `policyToken` for the backing insurer via `InsurerRepository.consumeOnePolicyToken` |
+| `PolicyRestorationListener` | Listens to `VisitorDeletedEvent`; atomically restores `policyToken` for the backing insurer via `InsurerRepository.restoreOnePolicyToken` |
 | `VisitorServiceImpl.requireInsurerWithQuota()` | Pre-creation validation; checks the backing insurer has available policies, returns it |
 | `VisitorServiceImpl.delete()` | Publishes `VisitorDeletedEvent` after soft-delete |
 | `InsurerResponse.availablePolicies` | Exposes quota count in API responses for admin monitoring |
@@ -1375,6 +1575,44 @@ accepts and returns `documentIds`) and are deprecated in favour of this feature.
 
 ## Notifications (Policy Document Email)
 
+> **Email sending is off the request thread.** The `@TransactionalEventListener(AFTER_COMMIT)`
+> listeners that send email (`VisitorActivatedNotificationListener`, `otp.OtpNotificationListener`,
+> `mobileauth.VisitorOtpNotificationListener`) are also `@Async` on `AsyncConfig.NOTIFICATION_EXECUTOR`
+> (2–4 threads, queue 500, `CallerRunsPolicy` so nothing is dropped). An AFTER_COMMIT callback runs
+> before the request's JDBC connection is released, so a synchronous SMTP call used to pin one Hikari
+> connection per request and exhaust the pool ("Connection is not available") when SMTP was slow.
+> SMTP also has 10s connect/read/write timeouts (`spring.mail.properties.mail.smtp.*` and
+> `DefaultSmtpSenderFactory`). `EmailService` still serializes the SMTP exchange (Office 365 432
+> concurrent-connection limit) but releases the lock while sleeping between retries.
+>
+> **AFTER_COMMIT reads tolerate standby lag.** pgpool load-balances SELECTs onto async streaming
+> standbys (~2ms replication delay), so the first read in an `@Async` AFTER_COMMIT listener can miss a
+> row that was just committed (`ResourceNotFoundException: Visitor not found`).
+> `VisitorActivatedNotificationListener` therefore loads the visitor through `getVisitorAfterCommit`,
+> which retries up to 5 times with a linear 100ms backoff (~1s total) before rethrowing.
+>
+> **Outbound HTTP never holds a DB connection.** All `RestClient`s (biometrics microservice,
+> exchange-rate API) get a 5s connect / 15s read timeout from `HttpClientConfig`
+> (`app.http-client.connect-timeout` / `read-timeout`). `BiometricVerificationServiceImpl.create`
+> and `resend` run with `Propagation.NOT_SUPPORTED`: `create` commits the PENDING row, calls the
+> microservice, then commits the eKYC details in a second short transaction (via
+> `TransactionTemplate`). If the microservice call fails the inserted row is deleted and the
+> exception rethrown, matching the old single-transaction rollback behaviour. Exchange-rate
+> lookups in invoice/claim services still run inside their transactions but are cached for 24h
+> and bounded by the timeouts.
+>
+> Hikari leak detection is on (`spring.datasource.hikari.leak-detection-threshold`, default 20s,
+> env `DB_LEAK_DETECTION_THRESHOLD_MS`): any code holding a pooled connection longer than that logs
+> a warning with the stack trace of where the connection was acquired. Use it to find pool exhaustion
+> causes ("Connection is not available" errors).
+>
+> **pgpool in front of the DB.** Production reaches Postgres through pgpool-II, which closes clients
+> idle longer than `client_idle_limit` (120s) — surfacing in the app as `child connection forced to
+> terminate due to client_idle_limit:120` and `Connection is closed` on rollback. Hikari therefore
+> pings idle connections every 60s (`keepalive-time`, env `DB_KEEPALIVE_TIME_MS`) and pgjdbc has
+> `socketTimeout` 60s (env `DB_SOCKET_TIMEOUT_SECONDS`), `connectTimeout` 10s and `tcpKeepAlive`, so a
+> connection killed by the proxy fails fast instead of blocking a request thread forever.
+
 When a `Visitor`'s cover becomes `ACTIVE`, the `notification` package sends
 them a single email — their personalized policy certificate plus the "Welcome
 to Kenya" Welcome Pack copy and attachment. This used to be two separate
@@ -1393,8 +1631,8 @@ Store link is omitted until the app is approved):
 
 The activation email is not BCC'd to anyone. `EmailService` has a `send(...)` overload
 taking a BCC list; an empty list adds no BCC header.
-The insurer's `contactEmail` is also visibly CC'd on the activation email (skipped, with
-the email still sent, if blank); `send(...)` takes a CC list alongside the BCC list.
+The activation email is not CC'd to the insurer either (the insurer's `contactEmail` is no
+longer copied); `send(...)` still takes a CC list alongside the BCC list, and an empty list adds no CC header.
 
 The email closes with the bundled signature banner
 (`templates/Inbound-Travel-Health-Esignature.png`) after the text sign-off. It is
@@ -1443,6 +1681,19 @@ and the email goes out without it.
   **regardless of `activationEmailSentAt`** and re-stamps it on delivery. Synchronous: `200`
   `{visitorId, message}` when delivered; `404` unknown passport; `409` if the visitor is not
   `ACTIVE`, the benefit schedule is incomplete, or SMTP delivery failed.
+- **Certificate + receipt download:** `GET /api/v1/visitors/{id}/policy-documents`
+  (`PolicyDocumentController` → `VisitorActivatedNotificationListener.generateCertificateAndReceiptPdf`)
+  returns `application/pdf`: the policy certificate merged with the premium receipt — the same
+  document attached to the activation email. Works for any visitor status; `404` unknown visitor;
+  `409` if the benefit schedule is incomplete. Sends no email and changes no state.
+- **Policy wording download:** `GET /api/v1/visitors/{id}/policy-document`
+  (`PolicyDocumentController` → `generatePolicyWordingPdf`) returns `application/pdf`: the
+  `Inbound-Travel-Health-Policy-Document.pdf` wording, insurer-branded with the policy agreement
+  page filled in for the visitor — the "Policy Document.pdf" email attachment. Any visitor status;
+  `404` unknown visitor; `409` if the bundled wording can't be read. Never cached per visitor.
+- **Welcome Pack download:** `GET /api/v1/welcome-pack` (`WelcomePackController` →
+  `getWelcomePackPdf`) returns the bundled Minet Welcome Pack PDF, identical for every visitor.
+  `409` if the bundled file can't be read.
 - The listener composes data via `VisitorService`, `PolicyService`,
   `VisitorBenefitService`, and `InsurerService` (the same "fan-in at a
   boundary" shape already used for `VisitorDetailResponse`), builds a
@@ -1486,8 +1737,8 @@ and the email goes out without it.
 - The activation email carries up to four attachments: a single
   `Insurance Policy.pdf` (the certificate), the policy wording sent as
   `Policy Document.pdf` (rendered from `templates/Inbound-Travel-Health-Policy-Document.pdf`),
-  the bundled `templates/Inbound-Travel-Health-Insurance-Welcome-Pack.pdf`, and the bundled
-  `templates/Inbound-Travel-Health-Insurance-FAQs.pdf` (sent as `Inbound-Travel-Health-FAQs.pdf`).
+  the bundled `templates/Minet-Inbound-Travel-Health-Insurance-Welcome-Pack.pdf`, and the bundled
+  `templates/Minet-Inbound-Travel-Health-Insurance-FAQs.pdf` (sent as `Inbound-Travel-Health-FAQs.pdf`).
   The base wording, Welcome Pack and FAQs PDFs are each loaded once from the classpath and cached
   (`rawPolicyDocumentCache`, `welcomePackPdfCache`, `faqsPdfCache`); if any bundled
   document can't be read, that load is logged and skipped so the rest of the
@@ -1570,15 +1821,11 @@ and the email goes out without it.
   elsewhere on the receipt. `totalPremium` is the only levy-related value
   still shown, and unlike every other field on the receipt it's not a flat
   echo of visitor/insurer data — `VisitorActivatedNotificationListener` calls
-  `PremiumReceiptService.calculateTotalPremium(visitor.getAgeAtTravel())`,
-  which resolves one of three age-tiered rates configured on the same
-  singleton config exposed by `GET /api/v1/premium-receipts` (see
-  [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)):
-  `infantPremium` for age 2 and below, `minorPremium` for ages 3–17, and
-  `totalPremium` (the pre-existing field) for age 18 and above.
-  `Visitor.getAgeAtTravel()` is a `@Transient` helper computing
-  `Period.between(dateOfBirth, dateIn).getYears()` — age as at the start of
-  cover (`dateIn`), not the visitor's current age — so the resolved rate is
+  `PremiumReceiptService.calculateTotalPremium()`,
+  which returns the flat `totalPremium` (USD 44) configured on the singleton
+  config exposed by `GET /api/v1/premium-receipts` (see
+  [Premium Receipt (Singleton Levy Rates)](#premium-receipt-singleton-levy-rates)).
+  There is no age check: every visitor's receipt reads the same amount. It is
   echoed unchanged in the bottom `TOTAL PREMIUM (USD)` row. The levy rate
   fields (`pcfLevy`, `insurancePremiumLevy`, `stampDuty`, `trainingLevy`) are
   fetched from that same config for the admin-facing API but are no longer
@@ -1613,6 +1860,56 @@ and the email goes out without it.
   every reference insurer hardcodes it too).
 - No "document sent" tracking column exists — a resend on re-activation is
   desired behavior, not a defect.
+
+## Minet Visitor Sync
+
+Every newly created visitor is pushed to the Minet system.
+
+- **Trigger:** `MinetVisitorSyncListener` handles `VisitorCreatedEvent` with
+  `@TransactionalEventListener(AFTER_COMMIT)`, so Minet only ever sees committed
+  visitors. Any failure (token, HTTP error, mapping) is logged and swallowed —
+  a Minet outage never blocks or rolls back visitor creation, and there is no retry.
+- **Auth:** `MinetClient` first calls `app.minet.token-url` with a Basic
+  `Authorization` header and a form body (`grant_type=password`, `client_id`,
+  `username`, `password`), then sends `Authorization: Bearer <access_token>`.
+  A fresh token is fetched per sync (no caching).
+- **Request:** `POST app.minet.visitors-url` (`/ecitizen/visitors`), JSON:
+
+| Minet field | Source |
+|---|---|
+| `memberNumber` | `Visitor.passportNumber` (decrypted) |
+| `firstName` / `otherNames` / `lastName` | `fullName` split on whitespace: first token / middle tokens (null if none) / last token |
+| `gender` | `Visitor.gender` name (`MALE`, `FEMALE`, `OTHER`) |
+| `dateOfBirth`, `dateJoined` | `dateOfBirth`; `dateIn` (today if null), format `yyyy-MM-dd` |
+| `emailAddress`, `primaryPhoneNumber` | `email`, `phoneNumber` |
+| `residenceCountry` | `Visitor.nationality`, sent as stored |
+
+- **Tracking flag:** `Visitor.sentToMinet` (`visitors.sent_to_minet`, boolean, not null,
+  default `false`) is reserved for recording a completed sync. The column exists but
+  nothing sets it yet.
+- **Skipped:** visitors without a `certificateSerialNumber` (only set when the
+  visitor is created `ACTIVE`) are not sent; a visitor activated later is not
+  synced either.
+- **Config:** `app.minet.*` in `application.yml` (`MinetProperties`), each value
+  overridable via `MINET_*` env vars. The production URLs and credentials are the defaults in the file.
+- **`sent_to_minet` flag:** `visitors.sent_to_minet` (boolean, default false) is set to `true` via
+  `VisitorService.markSentToMinet` only after Minet accepted the visitor — by the auto-sync
+  listener on success, and by the manual API below. A failed send leaves it unchanged.
+- **Manual sync:** `POST /api/v1/visitors/minet-sync/{passportNumber}` (`ADMIN` only,
+  `@PreAuthorize`) sends that visitor to Minet (same payload mapping as above), then sets
+  `sent_to_minet = true` and returns `200 { visitorId, sentToMinet }`. Re-sending a visitor
+  already flagged is allowed. Errors: unknown passport → `404`; visitor without a
+  certificate serial number → `409` (`IllegalStateException`); Minet token/HTTP failure →
+  `502` (`MinetClientException`, handled in `GlobalExceptionHandler`) with the flag untouched.
+- **Excel export in Minet format:** `GET /api/v1/visitors/export/minet-excel` (`ADMIN` only,
+  `@PreAuthorize`; optional filters `insurerId`, `status`, `dateFrom`, `dateTo` — ISO dates,
+  inclusive, matched on the visitor's `dateIn`) returns `minet-visitors.xlsx`, one row per
+  visitor, with columns `memberNumber, firstName, lastName, otherNames, gender, dateOfBirth,
+  emailAddress, primaryPhoneNumber, residenceCountry, dateJoined`. It uses the same mapping as
+  the sync (`MinetVisitorRequest.of`: name split, `dateJoined` = `dateIn` or today), so the file
+  matches what is sent to Minet. Dates are `yyyy-MM-dd` text. Unlike the sync, visitors without a
+  certificate serial number are included. A visitor with a missing name or gender exports with blank
+  cells rather than failing the whole export.
 
 ## OTP (Point-of-Service Verification)
 
@@ -1731,6 +2028,21 @@ Design notes:
   `"VISITOR"` (not added to `user.Role`, which stays staff-only) — `JwtAuthenticationFilter` already
   builds `ROLE_<claim>` generically, so `hasRole("VISITOR")` works on future
   visitor-only endpoints without further filter changes.
+
+Visitor self-service (`mobile.VisitorSelfServiceController`, `VISITOR` only
+via `SecurityConfig`):
+- `GET /api/v1/mobile/me/claims` → `Page<ClaimResponse>`
+  (`ClaimService.listByVisitor(visitorId, Pageable)`)
+- `GET /api/v1/mobile/me/preauthorizations` → `Page<PreauthorizationResponse>`
+  (`PreauthorizationService.listByVisitor(visitorId, Pageable)`)
+
+Both default to `createdDate` descending (overridable with `page`/`size`/`sort`).
+The visitor is always the token's `sub` — there is no visitor-id parameter, so
+a visitor can only read their own records. Conversely `SecurityConfig`
+restricts `/api/v1/claims/**` and `/api/v1/preauthorizations/**` (including
+their `/documents` sub-resources) to the staff roles `ADMIN`, `INSURER_USER`,
+`PROVIDER_USER`, `CONTACT_CENTER`; before this, a visitor token fell through
+`anyRequest().authenticated()` and `GET /api/v1/claims` returned every claim.
 - **Deliberately not a generalization of the `otp` package** — see the note
   under OTP (Point-of-Service Verification) above. `Otp` hardcodes
   `serviceProviderId` as non-nullable with no purpose discriminator;
@@ -1773,8 +2085,8 @@ Design notes:
 ## Premium Receipt (Singleton Levy Rates)
 
 The `premiumreceipt` package holds the levy rates applied when computing a
-policy's premium: `totalPremium`, `minorPremium`, `infantPremium` (age-tiered
-base rates, `BigDecimal`, see below), `pcfLevy`, `insurancePremiumLevy`,
+policy's premium: `totalPremium` (flat
+base rate, `BigDecimal`, see below), `pcfLevy`, `insurancePremiumLevy`,
 `trainingLevy` (percentages expressed as `0`–`1`
 fractions), and `stampDuty` (a flat `BigDecimal` amount, not a percentage).
 Two endpoints, both under `/api/v1/premium-receipts` (no `{id}` path
@@ -1797,20 +2109,16 @@ Design notes:
   instead of relying on `BaseEntity`'s `@UuidGenerator`. GET/PATCH always
   fetch by that fixed constant — no create-or-lookup branching needed.
 - Percentage fields are validated with `@DecimalMin("0")`/`@DecimalMax("1")`;
-  `totalPremium`/`minorPremium`/`infantPremium`/`stampDuty` with
+  `totalPremium`/`stampDuty` with
   `@DecimalMin("0")` only, since they're amounts, not fractions.
-- **Age-tiered premium.** `totalPremium` (18+), `minorPremium` (ages 3–17,
-  default 22) and `infantPremium` (age 2 and below, default 0) are three
-  independently admin-editable rates rather than one flat figure —
-  added by `V202609081352__premium_receipt_age_tiers.sql` (`alter table ...
-  add column ... default`, so the existing singleton row picked up the
-  defaults without a separate data migration). `PremiumReceiptService
-  .calculateTotalPremium(int ageInYears)` resolves the applicable rate; the
-  only caller is `VisitorActivatedNotificationListener`, which passes
-  `visitor.getAgeAtTravel()` (age as at `Visitor.dateIn`, not the visitor's
-  current age) when building the activation email's premium receipt PDF.
-  The plain `GET`/`PATCH` endpoints above still return/accept all three rate
-  fields unchanged — there is no per-visitor calculation endpoint.
+- **Flat premium.** `totalPremium` (USD 44) is charged to every visitor
+  regardless of age. The earlier age tiers (`V202609081352__premium_receipt_age_tiers.sql`,
+  `V202610261654__premium_receipt_two_age_tiers.sql`) were removed by
+  `V202610270955__premium_receipt_flat_rate.sql`, which dropped `minor_premium`
+  and reset the singleton row's `total_premium` to 44. `PremiumReceiptService
+  .calculateTotalPremium()` takes no arguments; the only caller is
+  `VisitorActivatedNotificationListener`, when building the activation
+  email's premium receipt PDF. `PATCH` no longer accepts `minorPremium`.
 
 ## Claims Reports
 
@@ -1916,8 +2224,10 @@ Composed entirely from existing feature services (`VisitorService`,
   `LocalDate` via UTC), `amount` = `claim.claimedAmount`; `benefitName`/
   `serviceProviderName` are resolved from the claim's `benefitId`/
   `serviceProviderId`. This means the transaction total always agrees with
-  the benefit summary's `utilizedAmount` — both are sums of
-  `claim.claimedAmount` over the same claims (see
+  the benefit summary's `utilizedAmount` — both range over the same claims,
+  but the transaction `amount` is in the claim's own currency
+  (`claim.claimedAmount`) while `utilizedAmount` is in USD
+  (`claim.claimedAmountBase`) (see
   [VisitorBenefit](#core-insurance-flow)). Invoices were deliberately left
   out: `Invoice.claimId` and `Claim.invoiceIds` are kept in sync by
   `attachInvoice()` (which updates both the FK and the join table), and
@@ -2129,13 +2439,29 @@ Main Menu → 1. Find Hospital
        interrupted. Set the flag back to `false` afterward.
     2. Once backfill is confirmed complete (no `NULL`
        `passport_number_hash` among live rows, no duplicate hashes), ship
-       a follow-up migration adding `alter table visitors alter column
-       passport_number_hash set not null` and the
-       `uq_visitors_passport_number_hash` unique index (see the dropped
-       `uq_visitors_passport_number` index it replaces).
+       a follow-up migration adding the `uq_visitors_passport_number_hash`
+       unique index (see the dropped `uq_visitors_passport_number` index it
+       replaces). That index is `V202610261954__visitor_passport_number_hash_index.sql`,
+       a partial unique index `on visitors (passport_number_hash) where deleted = false`
+       (live rows only, so soft-deleted visitors can be re-created). It was missing
+       until then, which made every create's `existsByPassportNumberHash` and every
+       by-passport lookup a sequential scan; it also enforces no duplicate live
+       passports under concurrent creates. The `alter column passport_number_hash
+       set not null` step is still not applied (the entity declares it `nullable = false`).
     A fresh environment with no pre-existing data can skip the backfill
     step entirely — the hash is always populated at write time by
     `VisitorServiceImpl`.
+
+### Visitor age column
+
+`V202610211446__add_visitor_age.sql` adds nullable `visitors.age` — whole years as
+at `date_in` (start of cover), the same value as `Visitor.getAgeAtTravel()`. It is
+set by `Visitor.syncAge()` (`@PrePersist`/`@PreUpdate`), so it is filled on create
+and recomputed whenever `dateOfBirth` or `dateIn` change. Exposed as `age`
+(nullable integer, after `dateOfBirth`) in `VisitorResponse` and `VisitorDetailResponse`. **Backfill:** `date_of_birth` is encrypted, so existing rows are
+filled by `VisitorAgeBackfillRunner` (`visitor`), not SQL. Deploy once with
+`APP_VISITOR_AGE_BACKFILL_ENABLED=true`, then set it back to `false`. It only
+touches rows where `age` is null (idempotent) and includes soft-deleted rows.
 
 ## Database Connection Pool (HikariCP)
 

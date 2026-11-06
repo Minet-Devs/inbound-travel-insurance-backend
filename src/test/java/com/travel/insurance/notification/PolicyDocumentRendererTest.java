@@ -213,6 +213,17 @@ class PolicyDocumentRendererTest {
     }
 
     @Test
+    void appendsKenyaOnlyToEmergencyMedicalTransportationEvacuation() {
+        PolicyDocumentRenderer renderer = newRenderer();
+        PolicyDocumentData data = sampleData(List.of(
+                new BenefitLine("Emergency Medical Transportation/Evacuation", new BigDecimal("25000.00"))));
+
+        String html = renderer.renderHtml(data);
+
+        assertThat(html).contains("Emergency Medical Transportation/Evacuation within Kenya Only");
+    }
+
+    @Test
     void doesNotAddAsteriskToOtherBenefits() {
         PolicyDocumentRenderer renderer = newRenderer();
         PolicyDocumentData data = sampleData(List.of(
@@ -232,7 +243,7 @@ class PolicyDocumentRendererTest {
         String html = renderer.renderHtml(data);
 
         assertThat(html).contains("Emergency treatment for sudden, unforeseen, catastrophic medical or accidental events.");
-        assertThat(html).contains("Local emergency medical evacuation by air or road ambulance to the nearest suitable facility.");
+        assertThat(html).contains("Local emergency medical evacuation by air or road ambulance to the nearest suitable facility within Kenya.");
         assertThat(html).contains("Outpatient care and hospitalization for emergency medical conditions within the medical expenses limit.");
         assertThat(html).contains("Prescribed medicines for covered conditions, within the medical expenses limit.");
         assertThat(html).contains("Emergency Mental Health Treatment for acute mental illness, within the medical expenses limit.");

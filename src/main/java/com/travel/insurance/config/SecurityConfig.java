@@ -8,6 +8,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -46,12 +47,15 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET,"/api/v1/users").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/insurers").denyAll();
                     // CONTACT_CENTER may list insurers (paged) — must come BEFORE the broader insurers rule.
-                    auth.requestMatchers(HttpMethod.GET, "/api/v1/insurers").hasAnyRole("ADMIN", "CONTACT_CENTER");
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/insurers").hasAnyRole("ADMIN", "CONTACT_CENTER", "KENYA_RE");
                     auth.requestMatchers("/api/v1/insurers/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/policies").denyAll();
                     // Disable POST create endpoint specifically — must come BEFORE the broader service-providers rule
                     // insurers & service-providers are now create through organization to enable role based system access
                     auth.requestMatchers(HttpMethod.POST, "/api/v1/service-providers").denyAll();
+                    // CONTACT_CENTER may list service providers (paged) — must come BEFORE the broader service-providers rule.
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/service-providers")
+                            .hasAnyRole("ADMIN", "PROVIDER_USER", "CONTACT_CENTER");
                     // Visitors on the mobile app only need /nearby — must come BEFORE the broader
                     // service-providers rule, which keeps the rest of the CRUD surface ADMIN/PROVIDER_USER-only.
                     auth.requestMatchers(HttpMethod.GET, "/api/v1/service-providers/nearby")
@@ -62,7 +66,26 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.PUT, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**", "/api/v1/tourist-attractions/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.PATCH, "/api/v1/organizations/**").hasRole("ADMIN");
                     auth.requestMatchers(HttpMethod.DELETE, "/api/v1/departments/**", "/api/v1/medical-services/**", "/api/v1/organizations/**", "/api/v1/tourist-attractions/**").hasRole("ADMIN");
-                    auth.anyRequest().authenticated();
+                    // Visitors (mobile app) see only their own claims/pre-auths via /mobile/me; the
+                    // staff-wide claim and pre-auth endpoints (incl. their /documents) are closed to them.
+                    auth.requestMatchers("/api/v1/mobile/me/**").hasRole("VISITOR");
+                    // KENYA_RE may read the claims dashboard only; the rest of /claims stays closed to it.
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/claims/dashboard/**")
+                            .hasAnyRole("ADMIN", "INSURER_USER", "PROVIDER_USER", "CONTACT_CENTER", "KENYA_RE");
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/preauthorizations/dashboard/**")
+                            .hasAnyRole("ADMIN", "INSURER_USER", "PROVIDER_USER", "CONTACT_CENTER", "KENYA_RE");
+                    auth.requestMatchers("/api/v1/claims/**", "/api/v1/preauthorizations/**")
+                            .hasAnyRole("ADMIN", "INSURER_USER", "PROVIDER_USER", "CONTACT_CENTER");
+                    // KENYA_RE (reinsurer) is read-only reporting: GET /reports/**, the visitor dashboard
+                    // distributions and the insurer list (onboarded-insurers count) only, nothing else.
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/reports/**",
+                            "/api/v1/visitors/distribution-by-insurer",
+                            "/api/v1/visitors/distribution-by-age-group",
+                            "/api/v1/visitors/distribution-by-insurer-and-age-group").authenticated();
+                    auth.anyRequest().access((authentication, context) -> new AuthorizationDecision(
+                            authentication.get().isAuthenticated()
+                                    && authentication.get().getAuthorities().stream()
+                                    .noneMatch(a -> "ROLE_KENYA_RE".equals(a.getAuthority()))));
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

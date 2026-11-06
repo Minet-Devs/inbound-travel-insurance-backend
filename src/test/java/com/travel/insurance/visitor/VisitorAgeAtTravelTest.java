@@ -34,4 +34,28 @@ class VisitorAgeAtTravelTest {
 
         assertThat(visitor.getAgeAtTravel()).isEqualTo(1);
     }
+
+    @Test
+    void syncAgePersistsAgeAtDateIn() {
+        Visitor visitor = new Visitor();
+        visitor.setDateOfBirth(LocalDate.of(2000, 6, 15));
+        visitor.setDateIn(LocalDate.of(2026, 6, 14));
+
+        visitor.syncAge();
+
+        assertThat(visitor.getAge()).isEqualTo(25);
+    }
+
+    @Test
+    void syncAgeFollowsDateInChanges() {
+        Visitor visitor = new Visitor();
+        visitor.setDateOfBirth(LocalDate.of(2000, 6, 15));
+        visitor.setDateIn(LocalDate.of(2026, 6, 14));
+        visitor.syncAge();
+
+        visitor.setDateIn(LocalDate.of(2026, 6, 15));
+        visitor.syncAge();
+
+        assertThat(visitor.getAge()).isEqualTo(26);
+    }
 }

@@ -79,7 +79,11 @@ public class InsurerServiceImpl implements InsurerService {
         Insurer insurer = getEntity(id);
         validateOrganization(request.organizationId());
         insurerMapper.updateEntity(insurer, request);
-        return toResponse(insurerRepository.save(insurer));
+        Insurer saved = insurerRepository.save(insurer);
+        if (saved.getOrganizationId() != null) {
+            organizationService.syncPolicyToken(saved.getOrganizationId(), saved.getPolicyToken());
+        }
+        return toResponse(saved);
     }
 
     private void validateOrganization(UUID organizationId) {

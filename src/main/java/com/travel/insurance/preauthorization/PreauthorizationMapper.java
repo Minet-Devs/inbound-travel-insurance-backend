@@ -25,6 +25,7 @@ public class PreauthorizationMapper {
         preauthorization.setServiceProviderId(request.serviceProviderId());
         preauthorization.setRequestedAmount(request.requestedAmount());
         preauthorization.setServiceDescription(request.serviceDescription());
+        preauthorization.setVisitType(request.visitType());
         return preauthorization;
     }
 
@@ -59,6 +60,7 @@ public class PreauthorizationMapper {
                 preauthorization.getInsurerId(),
                 preauthorization.getVisitorId(),
                 visitor != null ? visitor.getFullName() : null,
+                visitor != null ? visitor.getPassportNumber() : null,
                 preauthorization.getIcd11CodeId(),
                 icd11Code != null ? icd11Code.getCode() : null,
                 icd11Code != null ? icd11Code.getTitle() : null,
@@ -75,10 +77,17 @@ public class PreauthorizationMapper {
                 preauthorization.getStatus(),
                 preauthorization.getCreatedDate(),
                 preauthorization.getUpdatedDate(),
-                decided ? preauthorization.getUpdatedBy() : null,
-                decided ? preauthorization.getUpdatedDate() : null,
+                preauthorization.getDecidedBy() != null ? preauthorization.getDecidedBy()
+                        : decided ? preauthorization.getUpdatedBy() : null,
+                preauthorization.getDecidedAt() != null ? preauthorization.getDecidedAt()
+                        : decided ? preauthorization.getUpdatedDate() : null,
                 items.stream().map(this::toItemResponse).toList(),
-                preauthorization.getConvertedToClaim()
+                preauthorization.getConvertedToClaim(),
+                preauthorization.getVisitType(),
+                preauthorization.getTreatmentDate(),
+                preauthorization.getDischargeDate(),
+                preauthorization.getExchangeRate(),
+                preauthorization.getApprovedAmountInDollars()
         );
     }
 

@@ -1,5 +1,17 @@
 package com.travel.insurance.preauthorization;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import java.util.List;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadRowStatus;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadRowResult;
+import com.travel.insurance.preauthorization.dto.PreauthorizationUploadResponse;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import org.springframework.mock.web.MockMultipartFile;
+import com.travel.insurance.preauthorization.upload.PreauthorizationUploadService;
+import com.travel.insurance.common.domain.VisitType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.config.SecurityConfig;
@@ -20,6 +32,7 @@ import java.util.UUID;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -40,6 +53,9 @@ class PreauthorizationAccessControlTest {
     private PreauthorizationService preauthorizationService;
 
     @MockBean
+    private PreauthorizationUploadService preauthorizationUploadService;
+
+    @MockBean
     private JwtTokenProvider jwtTokenProvider;
 
     private final UUID preauthorizationId = UUID.randomUUID();
@@ -47,7 +63,7 @@ class PreauthorizationAccessControlTest {
     private String createBody() throws Exception {
         return objectMapper.writeValueAsString(new PreauthorizationRequest(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                null, new BigDecimal("500.00"), "X-ray", null));
+                null, new BigDecimal("500.00"), "X-ray", null, null));
     }
 
     private String decisionBody() throws Exception {
@@ -67,12 +83,74 @@ class PreauthorizationAccessControlTest {
 
     @Test
     @WithMockUser(roles = "CONTACT_CENTER")
+    void contactCenterCanUpdatePreauthorization() throws Exception {
+        mockMvc.perform(put("/api/v1/preauthorizations/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "INSURER_USER")
+    void insurerUserCannotUpdatePreauthorization() throws Exception {
+        mockMvc.perform(put("/api/v1/preauthorizations/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createBody()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "CONTACT_CENTER")
     void contactCenterCanDecidePreauthorization() throws Exception {
         mockMvc.perform(post("/api/v1/preauthorizations/{id}/decision", preauthorizationId)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(decisionBody()))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "KENYA_RE")
+    void kenyaReCanReadPreauthorizationDashboardOnly() throws Exception {
+        when(preauthorizationService.dashboardSummary(any(), any()))
+                .thenReturn(new PreauthorizationDashboardSummary(0, 0, 0, 0));
+        when(preauthorizationService.distributionByInsurer(any(), any())).thenReturn(List.of());
+        when(preauthorizationService.topServiceProviders(any(), any(), any())).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/summary")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/by-insurer")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/top-service-providers"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/preauthorizations")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "VISITOR")
+    void visitorCannotReadPreauthorizationDashboard() throws Exception {
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/summary")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "CONTACT_CENTER")
+    void contactCenterCanUploadOfflineApprovals() throws Exception {
+        when(preauthorizationUploadService.upload(any()))
+                .thenReturn(new PreauthorizationUploadResponse(0, 0, 0, List.of()));
+
+        mockMvc.perform(multipart("/api/v1/preauthorizations/upload")
+                        .file(new MockMultipartFile("file", "approvals.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{1}))
+                        .with(csrf()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "PROVIDER_USER")
+    void providerUserCannotUploadOfflineApprovals() throws Exception {
+        mockMvc.perform(multipart("/api/v1/preauthorizations/upload")
+                        .file(new MockMultipartFile("file", "approvals.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[]{1}))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
     }
 
     @Test

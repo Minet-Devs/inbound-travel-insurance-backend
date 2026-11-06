@@ -12,9 +12,7 @@ public interface PremiumReceiptService {
     PremiumReceiptResponse patch(PremiumReceiptPatchRequest request);
 
     /**
-     * Resolves the premium rate for a visitor aged {@code ageInYears}: the
-     * infant rate for 2 and below, the minor rate for 3 to 17, and the
-     * standard rate for 18 and above.
+     * Returns the flat premium charged to every visitor; it does not vary by age.
      */
-    BigDecimal calculateTotalPremium(int ageInYears);
+    BigDecimal calculateTotalPremium();
 }

@@ -2,6 +2,7 @@ package com.travel.insurance.preauthorization;
 
 import com.travel.insurance.common.crypto.EncryptedStringConverter;
 import com.travel.insurance.common.domain.BaseEntity;
+import com.travel.insurance.common.domain.VisitType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
@@ -15,6 +16,8 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
@@ -35,7 +38,7 @@ public class Preauthorization extends BaseEntity {
     @Column(nullable = false)
     private UUID visitorId;
 
-    @Column(name = "icd11_code_id", nullable = false)
+    @Column(name = "icd11_code_id")
     private UUID icd11CodeId;
 
     @Column(nullable = false)
@@ -50,6 +53,18 @@ public class Preauthorization extends BaseEntity {
     @Column(precision = 15, scale = 2)
     private BigDecimal approvedAmount;
 
+    private LocalDate treatmentDate;
+
+    private LocalDate dischargeDate;
+
+    /** KES to USD rate snapshotted at creation; null when the rate service was unavailable. */
+    @Column(precision = 12, scale = 6)
+    private BigDecimal exchangeRate;
+
+    /** approvedAmount * exchangeRate; null until approved or when no exchange rate was captured. */
+    @Column(precision = 15, scale = 2)
+    private BigDecimal approvedAmountInDollars;
+
     @Convert(converter = EncryptedStringConverter.class)
     @Column(columnDefinition = "text")
     private String serviceDescription;
@@ -59,8 +74,17 @@ public class Preauthorization extends BaseEntity {
     private String decisionReason;
 
     @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private VisitType visitType;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PreauthorizationStatus status = PreauthorizationStatus.PENDING;
+
+    /** Explicit decision audit; null falls back to updatedBy/updatedDate once decided. */
+    private UUID decidedBy;
+
+    private Instant decidedAt;
 
     @Column()
     private Boolean convertedToClaim = false;

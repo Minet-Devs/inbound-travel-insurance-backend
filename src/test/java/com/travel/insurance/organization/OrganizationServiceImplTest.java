@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -315,5 +316,19 @@ class OrganizationServiceImplTest {
     void citiesMatchingReturnsEmptyForBlankQuery() {
         assertThat(organizationService.citiesMatching("  ")).isEmpty();
         verify(organizationRepository, never()).findByCityContainingIgnoreCase(any());
+    }
+
+    @Test
+    void syncPolicyTokenUpdatesOrganizationWithoutPublishingEvent() {
+        UUID id = UUID.randomUUID();
+        Organization existing = new Organization();
+        existing.setPolicyToken(100L);
+        when(organizationRepository.findById(id)).thenReturn(Optional.of(existing));
+
+        organizationService.syncPolicyToken(id, 99L);
+
+        assertThat(existing.getPolicyToken()).isEqualTo(99L);
+        verify(organizationRepository).save(existing);
+        verifyNoInteractions(eventPublisher);
     }
 }

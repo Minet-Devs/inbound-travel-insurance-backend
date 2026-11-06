@@ -2,6 +2,7 @@ package com.travel.insurance.policy;
 
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
+import com.travel.insurance.organization.OrganizationService;
 import com.travel.insurance.visitor.VisitorCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class PolicyConsumptionListener {
 
     private final PolicyRepository policyRepository;
     private final InsurerRepository insurerRepository;
+    private final OrganizationService organizationService;
 
     /**
      * Listens for visitor creation events and decrements the policy token
@@ -45,14 +47,21 @@ public class PolicyConsumptionListener {
                 .orElseThrow(() -> new IllegalStateException(
                         "Insurer not found: " + policy.getInsurerId()));
 
-        if (insurer.getPolicyToken() != null && insurer.getPolicyToken() > 0) {
-            long newToken = insurer.getPolicyToken() - 1;
-            insurer.setPolicyToken(newToken);
-            insurerRepository.save(insurer);
+        // Single atomic UPDATE (not read-modify-write on the entity) so concurrent creates for the
+        // same insurer neither lose a decrement nor hold the row lock across a long read/flush gap.
+        if (insurerRepository.consumeOnePolicyToken(insurer.getId()) == 1) {
+            long newToken = insurerRepository.findPolicyTokenById(insurer.getId()).orElseThrow();
+            syncOrganization(insurer, newToken);
             log.info("Policy consumed for insurer: {}. Remaining tokens: {}",
                     insurer.getName(), newToken);
         } else {
             log.warn("Insurer {} has no available policies left", insurer.getName());
+        }
+    }
+
+    private void syncOrganization(Insurer insurer, long token) {
+        if (insurer.getOrganizationId() != null) {
+            organizationService.syncPolicyToken(insurer.getOrganizationId(), token);
         }
     }
 }

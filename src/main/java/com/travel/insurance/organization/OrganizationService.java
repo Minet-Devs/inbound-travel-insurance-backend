@@ -26,6 +26,13 @@ public interface OrganizationService {
 
     Organization getEntityById(UUID id);
 
+    /**
+     * Writes the insurer's current policy token onto its organization so the
+     * organization API reflects consumption/restoration. Publishes no event, so it
+     * cannot loop back into the insurer.
+     */
+    void syncPolicyToken(UUID organizationId, Long policyToken);
+
     Map<UUID, String> namesByIds(Collection<UUID> organizationIds);
 
     /** Organization id → city for organizations whose city contains {@code city} (case-insensitive). */

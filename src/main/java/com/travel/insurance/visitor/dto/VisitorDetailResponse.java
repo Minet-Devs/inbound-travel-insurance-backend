@@ -5,6 +5,7 @@ import com.travel.insurance.visitor.MaritalStatus;
 import com.travel.insurance.visitor.VisitorStatus;
 import com.travel.insurance.visitorbenefit.dto.VisitorBenefitResponse;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -16,6 +17,7 @@ public record VisitorDetailResponse(
         String fullName,
         String passportNumber,
         LocalDate dateOfBirth,
+        Integer age,
         Gender gender,
         String nationality,
         String address,
@@ -31,6 +33,7 @@ public record VisitorDetailResponse(
         String nextOfKinName,
         String nextOfKinPhone,
         String paymentReference,
+        BigDecimal premiumAmountPaid,
         String etaReference,
         Instant entryTimestamp,
         Instant exitTimestamp,
@@ -48,6 +51,7 @@ public record VisitorDetailResponse(
                 visitor.fullName(),
                 visitor.passportNumber(),
                 visitor.dateOfBirth(),
+                visitor.age(),
                 visitor.gender(),
                 visitor.nationality(),
                 visitor.address(),
@@ -63,6 +67,7 @@ public record VisitorDetailResponse(
                 visitor.nextOfKinName(),
                 visitor.nextOfKinPhone(),
                 visitor.paymentReference(),
+                visitor.premiumAmountPaid(),
                 visitor.etaReference(),
                 visitor.entryTimestamp(),
                 visitor.exitTimestamp(),

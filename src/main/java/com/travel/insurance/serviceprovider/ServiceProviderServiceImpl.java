@@ -57,6 +57,12 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<ServiceProviderResponse> listAll() {
+        return serviceProviderRepository.findAll().stream().map(serviceProviderMapper::toResponse).toList();
+    }
+
+    @Override
     public ServiceProviderResponse update(UUID id, ServiceProviderRequest request) {
         ServiceProvider provider = getEntity(id);
         validateOrganization(request.organizationId());

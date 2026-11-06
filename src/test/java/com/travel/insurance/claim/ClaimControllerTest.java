@@ -1,9 +1,13 @@
 package com.travel.insurance.claim;
 
+import com.travel.insurance.common.domain.VisitType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
+import com.travel.insurance.claim.dto.ClaimDashboardSummary;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
+import com.travel.insurance.claim.dto.InsurerClaimDistribution;
+import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -16,17 +20,21 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -41,6 +49,9 @@ class ClaimControllerTest {
 
     @MockBean
     private ClaimService claimService;
+
+    @MockBean
+    private ClaimExcelWriter claimExcelWriter;
 
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
@@ -59,13 +70,13 @@ class ClaimControllerTest {
                 new BigDecimal("0.0077"), "USD", LocalDateTime.now(), null, "Hospital stay",
                 "Paracetamol 500mg twice daily",
                 List.of(), List.of(), List.of(),
-                Set.of(documentId), null, ClaimStatus.SUBMITTED, Instant.now(), Instant.now());
+                Set.of(documentId), null, ClaimStatus.SUBMITTED, Instant.now(), Instant.now(), VisitType.OUTPATIENT);
     }
 
     private ClaimRequest sampleRequest() {
         return new ClaimRequest(policyId, benefitId, null, null, visitorId,
                 new BigDecimal("50000.00"), "Hospital stay", "Paracetamol 500mg twice daily",
-                Set.of(UUID.randomUUID()), Set.of(UUID.randomUUID()), Set.of(invoiceId), Set.of(documentId));
+                Set.of(UUID.randomUUID()), Set.of(UUID.randomUUID()), Set.of(invoiceId), Set.of(documentId), VisitType.OUTPATIENT);
     }
 
     @Test
@@ -74,7 +85,7 @@ class ClaimControllerTest {
         when(claimService.create(any(ClaimRequest.class))).thenReturn(sampleClaim());
         ClaimRequest withoutPrescription = new ClaimRequest(policyId, benefitId, null, null, visitorId,
                 new BigDecimal("50000.00"), "Hospital stay", null,
-                null, null, null, null);
+                null, null, null, null, null);
 
         mockMvc.perform(post("/api/v1/claims")
                         .with(csrf())
@@ -158,5 +169,90 @@ class ClaimControllerTest {
     void getWithoutAuthenticationIsRejected() throws Exception {
         mockMvc.perform(get("/api/v1/claims/{id}", claimId))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void exportExcelReturnsWorkbookAttachment() throws Exception {
+        when(claimService.listForExport(ClaimStatus.APPROVED, insurerId,
+                java.time.LocalDate.of(2026, 10, 1), java.time.LocalDate.of(2026, 10, 31)))
+                .thenReturn(List.of());
+        when(claimExcelWriter.write(List.of())).thenReturn(new byte[]{1, 2, 3});
+
+        mockMvc.perform(get("/api/v1/claims/export/excel")
+                        .param("status", "APPROVED")
+                        .param("insurerId", insurerId.toString())
+                        .param("dateFrom", "2026-10-01")
+                        .param("dateTo", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"claims.xlsx\""))
+                .andExpect(content().bytes(new byte[]{1, 2, 3}));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void dashboardSummaryReturnsTotals() throws Exception {
+        when(claimService.dashboardSummary(ClaimStatus.APPROVED, LocalDate.of(2026, 10, 1),
+                LocalDate.of(2026, 10, 31)))
+                .thenReturn(new ClaimDashboardSummary(12, new BigDecimal("3456.78")));
+
+        mockMvc.perform(get("/api/v1/claims/dashboard/summary")
+                        .param("status", "APPROVED")
+                        .param("dateFrom", "2026-10-01")
+                        .param("dateTo", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalClaims").value(12))
+                .andExpect(jsonPath("$.totalApprovedAmountUsd").value(3456.78));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void dashboardByInsurerReturnsDistribution() throws Exception {
+        when(claimService.distributionByInsurer(null, null, null)).thenReturn(List.of(
+                new InsurerClaimDistribution(insurerId, "Jubilee Insurance", 4, new BigDecimal("100.00")),
+                new InsurerClaimDistribution(null, "Unknown", 1, new BigDecimal("5.00"))));
+
+        mockMvc.perform(get("/api/v1/claims/dashboard/by-insurer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].insurerName").value("Jubilee Insurance"))
+                .andExpect(jsonPath("$[0].claimCount").value(4))
+                .andExpect(jsonPath("$[0].approvedAmountUsd").value(100.00))
+                .andExpect(jsonPath("$[1].insurerId").doesNotExist())
+                .andExpect(jsonPath("$[1].insurerName").value("Unknown"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void dashboardByServiceProviderReturnsDistribution() throws Exception {
+        UUID providerId = UUID.randomUUID();
+        when(claimService.distributionByServiceProvider(null, null, null, null)).thenReturn(List.of(
+                new ServiceProviderClaimDistribution(providerId, "Aga Khan Hospital", 9, new BigDecimal("900.00"))));
+
+        mockMvc.perform(get("/api/v1/claims/dashboard/by-service-provider"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].serviceProviderId").value(providerId.toString()))
+                .andExpect(jsonPath("$[0].serviceProviderName").value("Aga Khan Hospital"))
+                .andExpect(jsonPath("$[0].claimCount").value(9));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void dashboardByServiceProviderPassesLimit() throws Exception {
+        when(claimService.distributionByServiceProvider(null, null, null, 10)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/claims/dashboard/by-service-provider").param("limit", "10"))
+                .andExpect(status().isOk());
+        verify(claimService).distributionByServiceProvider(null, null, null, 10);
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void dashboardRejectsInvalidStatusAndDate() throws Exception {
+        mockMvc.perform(get("/api/v1/claims/dashboard/summary").param("status", "NOT_A_STATUS"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/claims/dashboard/by-insurer").param("dateFrom", "not-a-date"))
+                .andExpect(status().isBadRequest());
     }
 }
