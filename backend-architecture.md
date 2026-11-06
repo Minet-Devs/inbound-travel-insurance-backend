@@ -969,10 +969,12 @@ Policy
   `dd-MM-yyyy` (claim instants rendered in UTC, matching the date filters).
 - **Pre-auth → claim conversion**: `POST /api/v1/claims/from-preauthorization/{preauthorizationId}`
   (`ADMIN`, `CONTACT_CENTER`; body `ConvertPreauthorizationRequest` —
-  `invoiceNumber` required, `issueDate` optional). `ClaimServiceImpl.createFromPreauthorization`
+  `invoiceNumber` required, `issueDate` optional, `visitType` optional — `OUTPATIENT`/`INPATIENT`,
+  overrides the pre-auth's visit type when given). `ClaimServiceImpl.createFromPreauthorization`
   reads the pre-auth via `PreauthorizationService.getById` and, in one transaction:
   creates an `OPEN` claim copying `policyId`, `insurerId`, `visitorId`, `benefitId`,
-  `serviceProviderId`, `serviceDescription` → `description`, `visitType`, `icd11CodeId` → `diagnosisIds`,
+  `serviceProviderId`, `serviceDescription` → `description`, `visitType` (unless the request
+  supplies one), `icd11CodeId` → `diagnosisIds`,
   and `approvedAmount` (fallback `requestedAmount`) → `claimedAmount`, **without**
   requiring `procedureIds`; raises an `Invoice` (claim currency) whose items are the
   pre-auth's items 1:1 tagged with its `medicalServiceId` (total = sum of items, or the
