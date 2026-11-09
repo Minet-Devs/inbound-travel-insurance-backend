@@ -20,7 +20,8 @@ public interface ServiceProviderService {
 
     ServiceProviderResponse getById(UUID id);
 
-    Page<ServiceProviderResponse> list(Pageable pageable);
+    /** Pages providers; a non-blank {@code name} filters by case-insensitive "contains" match. */
+    Page<ServiceProviderResponse> list(String name, Pageable pageable);
 
     List<ServiceProviderResponse> listAll();
 
