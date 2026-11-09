@@ -288,7 +288,8 @@ com.travel.insurance/
 │   │                                       # currency/baseCurrency, claimedAmountBase
 │   │                                       # (USD), exchangeRate + fxRateDate (snapshot
 │   │                                       # at save), approvedAmount, prescription,
-│   │                                       # visitType (optional VisitType enum),
+│   │                                       # visitType (VisitType enum,
+│   │                                       # defaults to OUTPATIENT when omitted),
 │   │                                       # documentIds (UUID element collection); the
 │   │                                       # claim_diagnoses / claim_procedures /
 │   │                                       # claim_invoices tables persist IDs only

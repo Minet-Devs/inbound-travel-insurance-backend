@@ -1,6 +1,7 @@
 package com.travel.insurance.claim;
 
 import com.travel.insurance.claim.dto.ClaimRequest;
+import com.travel.insurance.common.domain.VisitType;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -24,7 +25,7 @@ public class ClaimMapper {
         claim.setClaimedAmount(request.claimedAmount());
         claim.setDescription(request.description());
         claim.setPrescription(request.prescription());
-        claim.setVisitType(request.visitType());
+        claim.setVisitType(request.visitType() != null ? request.visitType() : VisitType.OUTPATIENT);
         claim.setDiagnosisIds(orEmpty(request.diagnosisIds()));
         claim.setProcedureIds(orEmpty(request.procedureIds()));
         claim.setInvoiceIds(orEmpty(request.invoiceIds()));
