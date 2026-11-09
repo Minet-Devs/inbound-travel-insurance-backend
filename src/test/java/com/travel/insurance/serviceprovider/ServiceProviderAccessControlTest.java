@@ -36,7 +36,7 @@ class ServiceProviderAccessControlTest {
     @Test
     @WithMockUser(roles = "CONTACT_CENTER")
     void contactCenterCanListServiceProviders() throws Exception {
-        when(serviceProviderService.list(any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
+        when(serviceProviderService.list(any(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/service-providers").param("page", "0").param("size", "100"))
                 .andExpect(status().isOk());

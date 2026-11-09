@@ -679,7 +679,8 @@ Policy
 - A **ServiceProvider** carries `longitude`/`latitude`
   (`BigDecimal(9,6)`, nullable — set via its own `ServiceProviderRequest`, or
   indirectly through a linked `SERVICE_PROVIDER`-type `Organization`, see
-  above). `GET /api/v1/service-providers/nearby?lat=…&lng=…&radiusKm=…`
+  above). `GET /api/v1/service-providers` accepts an optional `name` query param (case-insensitive
+  "contains" match, paged; blank/absent returns all). `GET /api/v1/service-providers/nearby?lat=…&lng=…&radiusKm=…`
   (`@DecimalMin`/`@DecimalMax`-validated the same way, `radiusKm` must be
   `> 0`) returns every non-deleted `ServiceProvider` with both coordinates
   set whose great-circle (Haversine) distance from `(lat, lng)` is within
