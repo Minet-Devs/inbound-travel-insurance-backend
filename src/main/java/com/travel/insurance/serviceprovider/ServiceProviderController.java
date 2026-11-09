@@ -43,8 +43,9 @@ public class ServiceProviderController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<ServiceProviderResponse>> list(Pageable pageable) {
-        return ResponseEntity.ok(serviceProviderService.list(pageable));
+    public ResponseEntity<Page<ServiceProviderResponse>> list(@RequestParam(required = false) String name,
+                                                                  Pageable pageable) {
+        return ResponseEntity.ok(serviceProviderService.list(name, pageable));
     }
 
     @GetMapping("/nearby")

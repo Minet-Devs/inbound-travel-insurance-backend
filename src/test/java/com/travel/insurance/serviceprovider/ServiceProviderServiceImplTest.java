@@ -10,6 +10,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -240,6 +244,30 @@ class ServiceProviderServiceImplTest {
 
         assertThat(results).hasSize(1);
         assertThat(results.get(0).name()).isEqualTo("Nairobi Hospital");
+    }
+
+    @Test
+    void listFiltersByTrimmedNameWhenProvided() {
+        ServiceProvider provider = serviceProviderMapper.toEntity(request);
+        provider.setId(UUID.randomUUID());
+        Pageable pageable = PageRequest.of(0, 10);
+        when(serviceProviderRepository.findByNameContainingIgnoreCase("Nairobi", pageable))
+                .thenReturn(new PageImpl<>(List.of(provider)));
+
+        Page<ServiceProviderResponse> page = serviceProviderService.list("  Nairobi ", pageable);
+
+        assertThat(page.getContent()).hasSize(1);
+        assertThat(page.getContent().get(0).name()).isEqualTo("Nairobi Hospital");
+        verify(serviceProviderRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listReturnsAllWhenNameBlank() {
+        Pageable pageable = PageRequest.of(0, 10);
+        when(serviceProviderRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of()));
+
+        assertThat(serviceProviderService.list("  ", pageable).getContent()).isEmpty();
+        verify(serviceProviderRepository, never()).findByNameContainingIgnoreCase(any(), any(Pageable.class));
     }
 
     @Test

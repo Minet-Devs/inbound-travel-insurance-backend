@@ -52,8 +52,12 @@ public class ServiceProviderServiceImpl implements ServiceProviderService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ServiceProviderResponse> list(Pageable pageable) {
-        return serviceProviderRepository.findAll(pageable).map(serviceProviderMapper::toResponse);
+    public Page<ServiceProviderResponse> list(String name, Pageable pageable) {
+        if (name == null || name.isBlank()) {
+            return serviceProviderRepository.findAll(pageable).map(serviceProviderMapper::toResponse);
+        }
+        return serviceProviderRepository.findByNameContainingIgnoreCase(name.trim(), pageable)
+                .map(serviceProviderMapper::toResponse);
     }
 
     @Override
