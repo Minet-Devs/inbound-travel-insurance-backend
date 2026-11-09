@@ -104,7 +104,7 @@ public class Claim extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
-    private VisitType visitType;
+    private VisitType visitType = VisitType.OUTPATIENT;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

@@ -291,7 +291,7 @@ class ClaimServiceImplTest {
     }
 
     @Test
-    void createLeavesVisitTypeNullWhenOmitted() {
+    void createDefaultsVisitTypeToOutpatientWhenOmitted() {
         when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
         when(benefitService.getEntityById(benefitId)).thenReturn(null);
         when(insurerService.exists(insurerId)).thenReturn(true);
@@ -304,7 +304,7 @@ class ClaimServiceImplTest {
 
         ClaimResponse response = claimService.create(baseRequest());
 
-        assertThat(response.visitType()).isNull();
+        assertThat(response.visitType()).isEqualTo(VisitType.OUTPATIENT);
     }
 
     @Test
@@ -921,11 +921,17 @@ class ClaimServiceImplTest {
 
     private PreauthorizationResponse preauthResponse(PreauthorizationStatus status, Boolean converted,
                                                      List<PreauthorizationItemResponse> items) {
+        return preauthResponse(status, converted, items, VisitType.INPATIENT);
+    }
+
+    private PreauthorizationResponse preauthResponse(PreauthorizationStatus status, Boolean converted,
+                                                     List<PreauthorizationItemResponse> items,
+                                                     VisitType visitType) {
         return new PreauthorizationResponse(preauthId, policyId, insurerId, visitorId, "Jane Traveler", "A1234567",
                 diagnosisId1, "B54", "Malaria", benefitId, "Inpatient", serviceProviderId, "City Hospital",
                 medicalServiceId, "Ward admission", new BigDecimal("60000.00"), new BigDecimal("50000.00"),
                 "Admission for malaria", null, status, Instant.now(), Instant.now(), null, null,
-                items, converted, VisitType.INPATIENT, null, null, null, null);
+                items, converted, visitType, null, null, null, null);
     }
 
     private PreauthorizationItemResponse preauthItem(String amount) {
@@ -936,6 +942,21 @@ class ClaimServiceImplTest {
     private final UUID preauthId = UUID.randomUUID();
     private final UUID serviceProviderId = UUID.randomUUID();
     private final UUID medicalServiceId = UUID.randomUUID();
+
+    @Test
+    void createFromPreauthorizationDefaultsVisitTypeToOutpatientWhenNeitherSet() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(preauthResponse(
+                PreauthorizationStatus.APPROVED, false, List.of(preauthItem("30000.00")), null));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        claimService.createFromPreauthorization(
+                preauthId, new ConvertPreauthorizationRequest("INV-78", LocalDate.of(2026, 10, 2), null));
+
+        ArgumentCaptor<Claim> claimCaptor = ArgumentCaptor.forClass(Claim.class);
+        verify(claimRepository).save(claimCaptor.capture());
+        assertThat(claimCaptor.getValue().getVisitType()).isEqualTo(VisitType.OUTPATIENT);
+    }
 
     @Test
     void createFromPreauthorizationCopiesPreauthAndInvoicesItsItems() {

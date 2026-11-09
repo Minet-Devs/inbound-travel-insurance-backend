@@ -10,6 +10,7 @@ import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
 import com.travel.insurance.claim.dto.InsurerClaimDistribution;
 import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
+import com.travel.insurance.common.domain.VisitType;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.messaging.EventPublisher;
 import com.travel.insurance.common.service.CurrencyConversionService;
@@ -160,7 +161,13 @@ public class ClaimServiceImpl implements ClaimService {
         claim.setPreauthorizationId(preauth.id());
         claim.setClaimedAmount(preauth.approvedAmount() != null ? preauth.approvedAmount() : preauth.requestedAmount());
         claim.setDescription(preauth.serviceDescription());
-        claim.setVisitType(request.visitType() != null ? request.visitType() : preauth.visitType());
+        if (request.visitType() != null) {
+            claim.setVisitType(request.visitType());
+        } else if (preauth.visitType() != null) {
+            claim.setVisitType(preauth.visitType());
+        } else {
+            claim.setVisitType(VisitType.OUTPATIENT);
+        }
         if (preauth.icd11CodeId() != null) {
             claim.getDiagnosisIds().add(preauth.icd11CodeId());
         }
