@@ -972,6 +972,30 @@ Policy
   preauthorization's `icd11CodeId`. `procedureIds` are always required on
   `POST /api/v1/claims` — the preauthorization feature does not carry
   procedure references.
+- **Filtered list**: `GET /api/v1/claims` takes optional query params bound to
+  `ClaimSearchCriteria` plus standard `page`/`size`/`sort` (default `createdDate,desc`;
+  the admin UI also sorts by `claimedAmountBase`). Filters AND together:
+  `status`; `q` (see below); `dateFrom`/`dateTo` (inclusive, submitted date in UTC);
+  `benefitIds`; `serviceProviderIds` OR `providerUnlinked=true` (no provider);
+  `insurerIds`; `minAmountBase`/`maxAmountBase` (inclusive, USD); `sentToMinet`;
+  `flags` (`ClaimAttentionFlag`, any-of: `OUTSIDE_STAY` — submitted before the
+  visitor's `dateIn` or after `dateOut`; `NO_PREAUTH` — `preauthorizationId` null;
+  `INVOICE_MISMATCH` — has invoices whose `totalAmount` sum ≠ `claimedAmount`).
+  List params take repeated or comma-separated values; an unknown enum value is a 400.
+  `q` is resolved to ids through the owning services (`InvoiceService.findClaimIdsByInvoiceNumber`
+  — contains, case-insensitive; `VisitorService.findIdByPassportNumber` — exact, via the
+  passport blind index; `Icd11CodeService.search` — code/title contains; or a claim id
+  UUID) and matches any of them. Visitor **names cannot be searched**: `fullName` is
+  encrypted at rest. Predicates live in `ClaimSpecifications`; `ClaimRepository` is a
+  `JpaSpecificationExecutor`. `OUTSIDE_STAY` and `INVOICE_MISMATCH` are read-only
+  correlated subqueries on `Visitor`/`Invoice` — a deliberate exception to "cross-feature
+  only via services", because the flags must filter and count in SQL.
+- **List summary**: `GET /api/v1/claims/summary` (same params, `status` ignored) →
+  `ClaimListSummary { total, countsByStatus (every ClaimStatus, 0 when none),
+  awaitingDecision (OPEN + SUBMITTED + UNDER_REVIEW), totalValueBase (sum of
+  claimedAmountBase over all matches, USD), needsAttention (awaiting claims with any
+  flag), notSentToMinet }`. Aggregates run in `ClaimRepositoryCustomImpl`
+  (Criteria group-by/sum over the same `Specification`).
 - **Excel export**: `GET /api/v1/claims/export/excel` (`ADMIN` only, enforced by
   `@PreAuthorize`; optional filters `status`, `insurerId`, `dateFrom`, `dateTo` —
   ISO dates, inclusive, matched on `createdDate`, UTC). `ClaimServiceImpl.listForExport`
@@ -990,8 +1014,10 @@ Policy
   `dd-MM-yyyy` (claim instants rendered in UTC, matching the date filters).
 - **Pre-auth → claim conversion**: `POST /api/v1/claims/from-preauthorization/{preauthorizationId}`
   (`ADMIN`, `CONTACT_CENTER`, `PROVIDER_USER` — a provider only for its own facility's
-  pre-auths, 404 otherwise; body `ConvertPreauthorizationRequest` — `invoiceNumber` and
-  a non-empty `invoiceItems` list (`InvoiceItemRequest`) required, `issueDate` optional,
+  pre-auths, 404 otherwise; body `ConvertPreauthorizationRequest` — a non-empty `invoices`
+  list (`ConvertInvoiceRequest`: `invoiceNumber` and a non-empty `invoiceItems` list
+  (`InvoiceItemRequest`) required, `issueDate` optional; invoice numbers must be unique within
+  the request, compared trimmed and case-insensitively, 400 otherwise),
   `visitType` optional — `OUTPATIENT`/`INPATIENT`, overrides the pre-auth's visit type when given).
   Hospital service lines are captured here, not at pre-auth creation (pre-auths are
   raised with just a manually entered `requestedAmount`; `preauthorizationItems` stays
@@ -999,10 +1025,11 @@ Policy
   reads the pre-auth via `PreauthorizationService.getById` and, in one transaction:
   creates an `OPEN` claim copying `policyId`, `insurerId`, `visitorId`, `benefitId`,
   `serviceProviderId`, `serviceDescription` → `description`, `visitType` (unless the request supplies one),
-  `icd11CodeId` → `diagnosisIds`, with `claimedAmount` = sum of the request's line amounts, **without**
-  requiring `procedureIds`; raises an `Invoice` (claim currency) with those lines (a line
-  without `medicalServiceId` is tagged with the pre-auth's); then sets the pre-auth's
-  `convertedToClaim`. 400 if the line total exceeds `approvedAmount` (fallback
+  `icd11CodeId` → `diagnosisIds`, with `claimedAmount` = sum of all line amounts across all
+  invoices, **without** requiring `procedureIds`; raises one `Invoice` (claim currency) per
+  requested invoice with its own lines and `totalAmount` (a line without `medicalServiceId` is
+  tagged with the pre-auth's); then sets the pre-auth's
+  `convertedToClaim`. 400 if the combined line total exceeds `approvedAmount` (fallback
   `requestedAmount`); 409 unless the pre-auth is `APPROVED`/`PARTIALLY_APPROVED` and not already converted.
   `markPreAuthorizationConvertedToClaim` accepts both approved statuses. After that it publishes
   `PreauthorizationConvertedToClaimEvent(claimId, preauthorizationId)`; the Minet claim sync
@@ -1220,11 +1247,13 @@ entities:
   `Insurer` id from their `organizationId` before filtering
   `findAllByInsurerId`; if no `Insurer`/`ServiceProvider` currently has that
   `organizationId`, scoping returns an empty page rather than falling back to
-  unscoped access. `ClaimServiceImpl.findScoped` (`GET /api/v1/claims`) does
-  the same per role: `PROVIDER_USER` → `findAllByServiceProviderId`,
-  `INSURER_USER` → `findAllByInsurerId` on the claim's own `insurerId`
-  column (any `insurerId` query parameter is ignored), everyone else →
-  unscoped. `ClaimServiceImpl.getById` likewise rejects an `INSURER_USER`
+  unscoped access. `GET /api/v1/claims` (`ClaimServiceImpl.search`) and
+  `GET /api/v1/claims/summary` scope the same way through `resolveDashboardScope`:
+  `PROVIDER_USER` → the claim's `serviceProviderId`, `INSURER_USER` → the claim's
+  own `insurerId` column (the `insurerIds` filter cannot widen it), everyone else →
+  unscoped; an org-scoped user with no matching row gets an empty page/summary.
+  (`ClaimServiceImpl.list`/`findScoped` keep the older unfiltered scoping for
+  internal callers.) `ClaimServiceImpl.getById` likewise rejects an `INSURER_USER`
   reading another insurer's claim, and a `PROVIDER_USER` reading another
   service provider's claim, with `AccessDeniedException` (403). `VISITOR`
   tokens never reach these endpoints at all — see "Visitor self-service"

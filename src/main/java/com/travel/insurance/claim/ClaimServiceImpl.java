@@ -5,8 +5,11 @@ import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDashboardSummary;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimExportRow;
+import com.travel.insurance.claim.dto.ClaimListSummary;
+import com.travel.insurance.claim.dto.ClaimSearchCriteria;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
+import com.travel.insurance.claim.dto.ConvertInvoiceRequest;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
 import com.travel.insurance.claim.dto.InsurerClaimDistribution;
 import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
@@ -44,7 +47,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -59,11 +64,16 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -153,12 +163,24 @@ public class ClaimServiceImpl implements ClaimService {
             throw new IllegalStateException("Pre-authorization has already been converted to a claim");
         }
 
-        List<InvoiceItemRequest> items = request.invoiceItems().stream()
-                .map(item -> item.medicalServiceId() != null ? item
-                        : new InvoiceItemRequest(preauth.medicalServiceId(), item.description(),
-                                item.quantity(), item.unitPrice(), item.amount(), item.serviceDate()))
-                .toList();
-        BigDecimal invoiceTotal = items.stream().map(InvoiceItemRequest::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        Set<String> seenNumbers = new HashSet<>();
+        for (ConvertInvoiceRequest invoice : request.invoices()) {
+            String number = invoice.invoiceNumber().trim();
+            if (!seenNumbers.add(number.toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException("Duplicate invoice number in request: " + number);
+            }
+        }
+
+        Map<ConvertInvoiceRequest, List<InvoiceItemRequest>> itemsByInvoice = new LinkedHashMap<>();
+        for (ConvertInvoiceRequest invoice : request.invoices()) {
+            itemsByInvoice.put(invoice, invoice.invoiceItems().stream()
+                    .map(item -> item.medicalServiceId() != null ? item
+                            : new InvoiceItemRequest(preauth.medicalServiceId(), item.description(),
+                                    item.quantity(), item.unitPrice(), item.amount(), item.serviceDate()))
+                    .toList());
+        }
+        BigDecimal invoiceTotal = itemsByInvoice.values().stream().flatMap(List::stream)
+                .map(InvoiceItemRequest::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal authorizedAmount = preauth.approvedAmount() != null ? preauth.approvedAmount() : preauth.requestedAmount();
         if (invoiceTotal.compareTo(authorizedAmount) > 0) {
             throw new IllegalArgumentException("Invoice total " + invoiceTotal.toPlainString()
@@ -182,8 +204,13 @@ public class ClaimServiceImpl implements ClaimService {
         applyBaseConversion(claim);
         claim = claimRepository.save(claim);
 
-        invoiceService.create(new InvoiceRequest(claim.getId(), request.invoiceNumber().trim(),
-                request.issueDate(), claim.getCurrency(), invoiceTotal, items));
+        for (Map.Entry<ConvertInvoiceRequest, List<InvoiceItemRequest>> entry : itemsByInvoice.entrySet()) {
+            ConvertInvoiceRequest invoice = entry.getKey();
+            BigDecimal total = entry.getValue().stream()
+                    .map(InvoiceItemRequest::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+            invoiceService.create(new InvoiceRequest(claim.getId(), invoice.invoiceNumber().trim(),
+                    invoice.issueDate(), claim.getCurrency(), total, entry.getValue()));
+        }
 
         preauthorizationService.markPreAuthorizationConvertedToClaim(preauth.id());
         applicationEventPublisher.publishEvent(new PreauthorizationConvertedToClaimEvent(claim.getId(), preauth.id()));
@@ -251,6 +278,104 @@ public class ClaimServiceImpl implements ClaimService {
     @Transactional(readOnly = true)
     public Page<ClaimResponse> list(Pageable pageable) {
         return findScoped(pageable).map(this::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ClaimResponse> search(ClaimSearchCriteria criteria, Pageable pageable) {
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return Page.empty(pageable);
+        }
+        return claimRepository.findAll(buildSpecification(criteria, scope), pageable).map(this::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ClaimListSummary summary(ClaimSearchCriteria criteria) {
+        Map<ClaimStatus, Long> counts = new EnumMap<>(ClaimStatus.class);
+        for (ClaimStatus status : ClaimStatus.values()) {
+            counts.put(status, 0L);
+        }
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return new ClaimListSummary(0, counts, 0, BigDecimal.ZERO, 0, 0);
+        }
+        Specification<Claim> filtered = buildSpecification(criteria.withoutStatus(), scope);
+        counts.putAll(claimRepository.countByStatus(filtered));
+        long total = counts.values().stream().mapToLong(Long::longValue).sum();
+        if (total == 0) {
+            return new ClaimListSummary(0, counts, 0, BigDecimal.ZERO, 0, 0);
+        }
+        long awaiting = OPEN_STATUSES.stream().mapToLong(counts::get).sum();
+        BigDecimal totalValue = claimRepository.sumClaimedAmountBase(filtered);
+        long needsAttention = awaiting == 0 ? 0 : claimRepository.count(filtered
+                .and(ClaimSpecifications.statusIn(OPEN_STATUSES))
+                .and(ClaimSpecifications.needsAttention(EnumSet.allOf(ClaimAttentionFlag.class))));
+        long notSentToMinet = claimRepository.count(filtered.and(ClaimSpecifications.sentToMinet(false)));
+        return new ClaimListSummary(total, counts, awaiting, totalValue, needsAttention, notSentToMinet);
+    }
+
+    private Specification<Claim> buildSpecification(ClaimSearchCriteria criteria, DashboardScope scope) {
+        List<Specification<Claim>> specs = new ArrayList<>();
+        if (scope.insurerId() != null) {
+            specs.add(ClaimSpecifications.insurer(scope.insurerId()));
+        }
+        if (scope.serviceProviderId() != null) {
+            specs.add(ClaimSpecifications.serviceProvider(scope.serviceProviderId()));
+        }
+        if (criteria.status() != null) {
+            specs.add(ClaimSpecifications.statusIn(EnumSet.of(criteria.status())));
+        }
+        if (criteria.dateFrom() != null || criteria.dateTo() != null) {
+            specs.add(ClaimSpecifications.createdBetween(startOf(criteria.dateFrom()), endOf(criteria.dateTo())));
+        }
+        if (hasAny(criteria.benefitIds())) {
+            specs.add(ClaimSpecifications.attributeIn("benefitId", criteria.benefitIds()));
+        }
+        boolean providerUnlinked = Boolean.TRUE.equals(criteria.providerUnlinked());
+        if (hasAny(criteria.serviceProviderIds()) || providerUnlinked) {
+            specs.add(ClaimSpecifications.providers(criteria.serviceProviderIds(), providerUnlinked));
+        }
+        if (hasAny(criteria.insurerIds())) {
+            specs.add(ClaimSpecifications.attributeIn("insurerId", criteria.insurerIds()));
+        }
+        if (criteria.minAmountBase() != null || criteria.maxAmountBase() != null) {
+            specs.add(ClaimSpecifications.amountBaseBetween(criteria.minAmountBase(), criteria.maxAmountBase()));
+        }
+        if (criteria.sentToMinet() != null) {
+            specs.add(ClaimSpecifications.sentToMinet(criteria.sentToMinet()));
+        }
+        if (hasAny(criteria.flags())) {
+            specs.add(ClaimSpecifications.needsAttention(criteria.flags()));
+        }
+        if (criteria.hasSearch()) {
+            specs.add(searchSpecification(criteria.q().trim()));
+        }
+        return Specification.allOf(specs);
+    }
+
+    /** Resolves free text into ids through the owning features' services; see {@link ClaimSearchCriteria}. */
+    private Specification<Claim> searchSpecification(String q) {
+        List<UUID> claimIds = new ArrayList<>(invoiceService.findClaimIdsByInvoiceNumber(q));
+        parseUuid(q).ifPresent(claimIds::add);
+        List<UUID> visitorIds = visitorService.findIdByPassportNumber(q).map(List::of).orElse(List.of());
+        List<UUID> diagnosisIds = icd11CodeService.search(q, PageRequest.of(0, 200)).getContent().stream()
+                .map(Icd11CodeResponse::id)
+                .toList();
+        return ClaimSpecifications.search(claimIds, visitorIds, diagnosisIds);
+    }
+
+    private static Optional<UUID> parseUuid(String value) {
+        try {
+            return Optional.of(UUID.fromString(value));
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
+    private static boolean hasAny(Collection<?> values) {
+        return values != null && !values.isEmpty();
     }
 
     @Override

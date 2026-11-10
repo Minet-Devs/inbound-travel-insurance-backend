@@ -1,6 +1,8 @@
 package com.travel.insurance.claim;
 
 import com.travel.insurance.claim.dto.AttachInvoiceRequest;
+import com.travel.insurance.claim.dto.ClaimListSummary;
+import com.travel.insurance.claim.dto.ClaimSearchCriteria;
 import com.travel.insurance.claim.dto.ClaimDashboardSummary;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimExportRow;
@@ -35,6 +37,12 @@ public interface ClaimService {
     void markSentToMinet(UUID id);
 
     Page<ClaimResponse> list(Pageable pageable);
+
+    /** Caller-scoped claims list (insurer/provider users see only their own) narrowed by {@code criteria}. */
+    Page<ClaimResponse> search(ClaimSearchCriteria criteria, Pageable pageable);
+
+    /** Header counts/KPIs for {@link #search} over the same filters, ignoring {@code criteria.status}. */
+    ClaimListSummary summary(ClaimSearchCriteria criteria);
 
     List<ClaimResponse> listByVisitor(UUID visitorId);
 
