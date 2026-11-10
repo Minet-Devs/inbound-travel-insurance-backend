@@ -72,7 +72,7 @@ class VisitorQuotaValidationTest {
                 "P1234567",
                 LocalDate.of(1990, 5, 12),
                 Gender.MALE,
-                "Kenya",
+                "Germany",
                 "123 Test Street",
                 "traveler@example.com",
                 "+254700000000",

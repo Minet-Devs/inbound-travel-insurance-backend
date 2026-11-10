@@ -15,6 +15,8 @@ import com.travel.insurance.visitor.dto.VisitorResponse;
 import com.travel.insurance.visitor.dto.VisitorStatusUpdate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -284,6 +286,49 @@ class VisitorServiceImplTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("365");
         verify(visitorRepository, never()).save(any());
+    }
+
+    private VisitorRequest requestWithNationality(String nationality) {
+        return new VisitorRequest(
+                request.policyId(), request.fullName(), request.passportNumber(), request.dateOfBirth(),
+                request.gender(), nationality, request.address(), request.email(),
+                request.phoneNumber(), request.dateIn(), request.dateOut(), request.maritalStatus(),
+                request.reasonForTravel(), request.facePhotoUrl(), null, null, null,
+                null, null, null, null, null, null);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"KEN", "UGA", "TZA", "RWA", "BDI", "SSD", "COD", "uga", " KEN "})
+    void createRejectsExemptNationalities(String nationality) {
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+
+        assertThatThrownBy(() -> visitorService.create(requestWithNationality(nationality)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("exempt");
+        verify(visitorRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"COG", "DEU", "ZAF"})
+    void createAcceptsNonExemptNationalities(String nationality) {
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+        when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        visitorService.create(requestWithNationality(nationality));
+
+        verify(visitorRepository).save(any(Visitor.class));
+    }
+
+    @Test
+    void updateRejectsExemptNationality() {
+        UUID id = UUID.randomUUID();
+        Visitor existing = visitorMapper.toEntity(request);
+        when(visitorRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
+
+        assertThatThrownBy(() -> visitorService.update(id, requestWithNationality("KEN")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("exempt");
     }
 
     @Test
