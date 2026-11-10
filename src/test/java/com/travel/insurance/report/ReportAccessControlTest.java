@@ -46,6 +46,7 @@ class ReportAccessControlTest {
     void kenyaReCanReachDashboardEndpoints() throws Exception {
         // No controllers are mapped in this slice (404); security just must not block (403).
         for (String path : new String[]{"/api/v1/visitors/distribution-by-insurer",
+                "/api/v1/visitors/distribution-by-country",
                 "/api/v1/visitors/distribution-by-age-group",
                 "/api/v1/visitors/distribution-by-insurer-and-age-group",
                 "/api/v1/insurers"}) {

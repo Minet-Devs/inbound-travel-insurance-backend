@@ -82,6 +82,7 @@ public class SecurityConfig {
                     // distributions and the insurer list (onboarded-insurers count) only, nothing else.
                     auth.requestMatchers(HttpMethod.GET, "/api/v1/reports/**",
                             "/api/v1/visitors/distribution-by-insurer",
+                            "/api/v1/visitors/distribution-by-country",
                             "/api/v1/visitors/distribution-by-age-group",
                             "/api/v1/visitors/distribution-by-insurer-and-age-group").authenticated();
                     auth.anyRequest().access((authentication, context) -> new AuthorizationDecision(

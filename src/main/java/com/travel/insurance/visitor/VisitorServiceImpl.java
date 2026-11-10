@@ -8,6 +8,7 @@ import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
+import com.travel.insurance.visitor.dto.CountryVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -38,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 
 @Service
@@ -143,6 +145,40 @@ public class VisitorServiceImpl implements VisitorService {
         return insurerRepository.findAll().stream()
                 .map(insurer -> new InsurerVisitorCount(
                         insurer.getId(), insurer.getName(), totals.getOrDefault(insurer.getId(), 0L)))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CountryVisitorCount> countByCountry(String country, Integer month, Integer year) {
+        if (month == null && year != null) {
+            throw new IllegalArgumentException("year requires month");
+        }
+        List<String> nationalities;
+        if (month == null) {
+            nationalities = visitorRepository.findAllNationalities();
+        } else {
+            if (month < 1 || month > 12) {
+                throw new IllegalArgumentException("month must be between 1 and 12");
+            }
+            YearMonth target = YearMonth.of(year != null ? year : Year.now(ZoneOffset.UTC).getValue(), month);
+            nationalities = visitorRepository.findNationalitiesCreatedBetween(
+                    target.atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC),
+                    target.plusMonths(1).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC));
+        }
+        String filter = country == null || country.isBlank() ? null : country.trim().toUpperCase(Locale.ROOT);
+        Map<String, Long> totals = new TreeMap<>();
+        for (String nationality : nationalities) {
+            String code = nationality.trim().toUpperCase(Locale.ROOT);
+            if (filter == null || filter.equals(code)) {
+                totals.merge(code, 1L, Long::sum);
+            }
+        }
+        if (filter != null) {
+            totals.putIfAbsent(filter, 0L);
+        }
+        return totals.entrySet().stream()
+                .map(entry -> new CountryVisitorCount(entry.getKey(), entry.getValue()))
                 .toList();
     }
 

@@ -761,6 +761,14 @@ Policy
   Optional `month` (1-12) and `year` (defaults to the current year; requires `month`) query
   params restrict the count to visitors registered (`createdDate`, UTC) in that month
   (`countVisitorsGroupedByInsurerCreatedBetween`); invalid values → 400.
+  `GET /api/v1/visitors/distribution-by-country` (dashboard) returns
+  `[{country, totalVisitors}]` — all visitors regardless of status, grouped by `nationality`
+  (ISO alpha-3, trimmed and upper-cased), ordered by country code. Optional `country`
+  (case-insensitive) narrows it to one nationality, returning a zero row when it has no
+  visitors; optional `month`/`year` behave as on `distribution-by-insurer`. `nationality` is
+  encrypted at rest, so `VisitorServiceImpl.countByCountry` loads decrypted nationalities
+  (`VisitorRepository.findAllNationalities` / `findNationalitiesCreatedBetween`) and counts in
+  memory. Reachable by `KENYA_RE` like the other distributions.
   `GET /api/v1/visitors/distribution-by-age-group` (dashboard) returns
   `[{ageGroup, totalVisitors}]` — all visitors regardless of status, always four
   entries in order: `0-2` (age 0 to under 3), `3-17` (3 to under 18), `18+`, `Unknown`
