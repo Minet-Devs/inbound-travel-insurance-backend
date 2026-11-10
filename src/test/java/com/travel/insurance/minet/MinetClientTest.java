@@ -96,10 +96,14 @@ class MinetClientTest {
 
     private final MinetClaimRequest claimRequest = new MinetClaimRequest(
             "AGA KHAN HOSPITAL NAIROBI", "MSP-1001", "Medical Expenses", "7777", "2026-11-06", "Outpatient",
-            "NOINJ", "No Injury", "2026-11-06", new java.math.BigDecimal("100000"), "INV030212983", "2026-11-06",
-            new java.math.BigDecimal("100000"), "Grouped Service", "Grouped Department",
+            "NOINJ", "No Injury", "2026-11-06", new java.math.BigDecimal("100000"),
             new java.math.BigDecimal("769.88"), new java.math.BigDecimal("0.008"),
-            "2eadeb78-4028-465a-b3c4-33e51215a09e");
+            "2eadeb78-4028-465a-b3c4-33e51215a09e",
+            java.util.List.of(
+                    new MinetClaimRequest.Invoice("INV030212983", "2026-11-06", new java.math.BigDecimal("60000"), "KES",
+                            "Grouped Service", "Grouped Department"),
+                    new MinetClaimRequest.Invoice("INV030212984", "2026-11-07", new java.math.BigDecimal("40000"), "KES",
+                            "Grouped Service", "Grouped Department")));
 
     @Test
     void postsClaimWithSchemePublicIdQueryAndBearerToken() {
@@ -115,10 +119,15 @@ class MinetClientTest {
                 .andExpect(jsonPath("$.amountClaimed").value(100000))
                 .andExpect(jsonPath("$.claimAmountUsd").value(769.88))
                 .andExpect(jsonPath("$.exchangeRate").value(0.008))
-                .andExpect(jsonPath("$.service").value("Grouped Service"))
-                .andExpect(jsonPath("$.department").value("Grouped Department"))
+                .andExpect(jsonPath("$.service").doesNotExist())
+                .andExpect(jsonPath("$.invoices[0].service").value("Grouped Service"))
+                .andExpect(jsonPath("$.invoices[1].department").value("Grouped Department"))
                 .andExpect(jsonPath("$.inboundClaimReference").value("2eadeb78-4028-465a-b3c4-33e51215a09e"))
-                .andRespond(withSuccess());
+                .andExpect(jsonPath("$.invoices.length()").value(2))
+                .andExpect(jsonPath("$.invoices[0].invoiceNumber").value("INV030212983"))
+                .andExpect(jsonPath("$.invoices[1].invoiceAmount").value(40000))
+                .andExpect(jsonPath("$.invoices[1].currency").value("KES"))
+                .andRespond(withSuccess("{\"success\":true,\"claimId\":\"c1\",\"claimNumber\":\"CLM-1\"}", MediaType.APPLICATION_JSON));
 
         client.sendClaim(claimRequest);
 
@@ -135,5 +144,28 @@ class MinetClientTest {
                 .isInstanceOf(MinetClientException.class)
                 .hasMessageContaining("Minet claim sync failed")
                 .hasMessageContaining("500");
+    }
+
+    @Test
+    void failsWhenClaimResponseBodyHasSuccessFalseEvenWith200() {
+        server.expect(requestTo(TOKEN_URL))
+                .andRespond(withSuccess("{\"access_token\":\"tok123\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(CLAIMS_URL + "?schemePublicId=" + SCHEME_ID))
+                .andRespond(withSuccess("{\"rowNumber\":0,\"passportNumber\":\"7777\",\"success\":false,"
+                        + "\"claimId\":null,\"message\":\"Unexpected error: null\"}", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.sendClaim(claimRequest))
+                .isInstanceOf(MinetClientException.class)
+                .hasMessageContaining("Unexpected error: null");
+    }
+
+    @Test
+    void failsWhenClaimResponseBodyIsEmpty() {
+        server.expect(requestTo(TOKEN_URL))
+                .andRespond(withSuccess("{\"access_token\":\"tok123\"}", MediaType.APPLICATION_JSON));
+        server.expect(requestTo(CLAIMS_URL + "?schemePublicId=" + SCHEME_ID)).andRespond(withSuccess());
+
+        assertThatThrownBy(() -> client.sendClaim(claimRequest))
+                .isInstanceOf(MinetClientException.class);
     }
 }
