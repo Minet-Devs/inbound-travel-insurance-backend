@@ -296,7 +296,9 @@ com.travel.insurance/
 │   │                                       # claim_invoices tables persist IDs only
 │   ├── ClaimStatus.java                    # Enum: OPEN, SUBMITTED, UNDER_REVIEW,
 │   │                                       #       APPROVED, PARTIALLY_APPROVED,
-│   │                                       #       REJECTED, PAID
+│   │                                       #       REJECTED, PAID, plus the Minet-driven AWAITING_MORE_INFORMATION,
+│   │                                       #       AWAITING_PAYMENT_APPROVAL, AWAITING_CLIENT_TO_PAY, PARTIALLY_PAID,
+│   │                                       #       CLOSED, INVALID, FINANCE_REJECTED, TIME_BARRED
 │   ├── ClaimMapper.java
 │   └── 📁 dto/
 │       ├── ClaimRequest.java               # insurerId NOT accepted — derived server-side
@@ -2006,6 +2008,18 @@ Every claim created by converting a pre-authorization is pushed to Minet's inbou
 - **Resend:** `POST /api/v1/claims/{id}/minet-sync` (`ADMIN` only, `@PreAuthorize`) sends the claim
   again (allowed when already sent) and returns `200 { claimId, sentToMinet }`. Errors: unknown claim `404`;
   no provider / no Minet provider id `409`; Minet failure `502`.
+- **Status webhook:** `POST /api/v1/webhooks/minet/claim-status` (`ADMIN` role via the normal Bearer JWT,
+  `@PreAuthorize`) receives Minet's status events (`MinetClaimStatusUpdateRequest`: `eventId`,
+  `inboundClaimReference`, `claimId`, `claimNumber`, `previousStatus`, `status`, `changedAt`, `comments[]`; unknown
+  JSON properties ignored). The claim is the one whose id equals `inboundClaimReference` (`404` if unknown, `400` if
+  missing or not a UUID). `ClaimService.applyMinetStatusUpdate` then: sets `claims.status` when `status` maps to a
+  `ClaimStatus` (`ClaimStatus.fromMinet` ignores case, underscores and spaces, so `Awaiting_More_Information` and
+  `FinanceRejected` both work; an unmodelled status is logged and leaves `status` unchanged); sets
+  `claims.status_changed_at` from `changedAt`; and overwrites `claims.status_comments` with the comments joined by
+  newlines (latest update wins, no history). All three columns are optional/nullable and also returned on
+  `ClaimResponse` (`statusChangedAt`, `statusComments`). Retries/out-of-order: an event whose `eventId` equals the
+  claim's `minet_last_event_id`, or whose `changedAt` is older than `status_changed_at`, is ignored; the response is
+  `200 { claimId, applied }` with `applied=false`.
 
 ## OTP (Point-of-Service Verification)
 

@@ -493,6 +493,44 @@ public class ClaimServiceImpl implements ClaimService {
     }
 
     @Override
+    @Transactional
+    public boolean applyMinetStatusUpdate(
+            UUID id, String eventId, String status, Instant changedAt, List<String> comments) {
+        Claim claim = getEntity(id);
+        if (eventId != null && eventId.equals(claim.getMinetLastEventId())) {
+            log.info("Minet event {} already applied to claim {}; ignoring", eventId, id);
+            return false;
+        }
+        if (changedAt != null && claim.getStatusChangedAt() != null && changedAt.isBefore(claim.getStatusChangedAt())) {
+            log.info("Minet event {} for claim {} is older than the last update; ignoring", eventId, id);
+            return false;
+        }
+        if (status != null && !status.isBlank()) {
+            Optional<ClaimStatus> mapped = ClaimStatus.fromMinet(status);
+            if (mapped.isPresent()) {
+                claim.setStatus(mapped.get());
+            } else {
+                log.warn("Minet sent unknown status '{}' for claim {}; status left unchanged", status, id);
+            }
+        }
+        if (changedAt != null) {
+            claim.setStatusChangedAt(changedAt);
+        }
+        if (comments != null) {
+            String joined = comments.stream().filter(c -> c != null && !c.isBlank())
+                    .collect(Collectors.joining("\n"));
+            if (!joined.isEmpty()) {
+                claim.setStatusComments(joined);
+            }
+        }
+        if (eventId != null) {
+            claim.setMinetLastEventId(eventId);
+        }
+        claimRepository.save(claim);
+        return true;
+    }
+
+    @Override
     public ClaimResponse markPaid(UUID id) {
         Claim claim = getEntity(id);
         if (claim.getStatus() != ClaimStatus.APPROVED && claim.getStatus() != ClaimStatus.PARTIALLY_APPROVED) {
@@ -876,7 +914,9 @@ public class ClaimServiceImpl implements ClaimService {
                 claim.getCreatedDate(),
                 claim.getUpdatedDate(),
                 claim.getVisitType(),
-                claim.isSentToMinet()
+                claim.isSentToMinet(),
+                claim.getStatusChangedAt(),
+                claim.getStatusComments()
         );
     }
 

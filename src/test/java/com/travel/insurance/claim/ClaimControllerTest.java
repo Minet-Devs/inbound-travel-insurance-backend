@@ -77,7 +77,7 @@ class ClaimControllerTest {
                 new BigDecimal("0.0077"), "USD", LocalDateTime.now(), null, "Hospital stay",
                 "Paracetamol 500mg twice daily",
                 List.of(), List.of(), List.of(),
-                Set.of(documentId), null, ClaimStatus.SUBMITTED, Instant.now(), Instant.now(), VisitType.OUTPATIENT, false);
+                Set.of(documentId), null, ClaimStatus.SUBMITTED, Instant.now(), Instant.now(), VisitType.OUTPATIENT, false, null, null);
     }
 
     private ClaimRequest sampleRequest() {
