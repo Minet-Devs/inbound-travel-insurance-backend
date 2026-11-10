@@ -43,6 +43,8 @@ public record ClaimResponse(
         Instant createdDate,
         Instant updatedDate,
         VisitType visitType,
-        boolean sentToMinet
+        boolean sentToMinet,
+        Instant statusChangedAt,
+        String statusComments
 ) {
 }

@@ -18,7 +18,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({MinetController.class, MinetClaimController.class})
+@WebMvcTest({MinetController.class, MinetClaimController.class, MinetClaimStatusController.class})
 @Import(SecurityConfig.class)
 class MinetAccessControlTest {
 
@@ -33,6 +33,9 @@ class MinetAccessControlTest {
 
     @MockBean
     private MinetClaimSyncService minetClaimSyncService;
+
+    @MockBean
+    private com.travel.insurance.claim.ClaimService claimService;
 
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
@@ -79,6 +82,24 @@ class MinetAccessControlTest {
     @WithMockUser(roles = "CONTACT_CENTER")
     void nonAdminCannotResendClaim() throws Exception {
         mockMvc.perform(post("/api/v1/claims/{id}/minet-sync", UUID.randomUUID()).with(csrf()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminCanPostClaimStatusWebhook() throws Exception {
+        mockMvc.perform(post("/api/v1/webhooks/minet/claim-status").with(csrf())
+                        .contentType("application/json")
+                        .content("{\"inboundClaimReference\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "CONTACT_CENTER")
+    void nonAdminCannotPostClaimStatusWebhook() throws Exception {
+        mockMvc.perform(post("/api/v1/webhooks/minet/claim-status").with(csrf())
+                        .contentType("application/json")
+                        .content("{\"inboundClaimReference\":\"" + UUID.randomUUID() + "\"}"))
                 .andExpect(status().isForbidden());
     }
 }

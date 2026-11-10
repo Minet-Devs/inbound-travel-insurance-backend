@@ -1174,6 +1174,106 @@ class ClaimServiceImplTest {
                 new PreauthorizationConvertedToClaimEvent(saved.getId(), preauthId));
     }
 
+    private Claim claimWithId(UUID claimId) {
+        Claim claim = new Claim();
+        claim.setId(claimId);
+        when(claimRepository.findById(claimId)).thenReturn(Optional.of(claim));
+        return claim;
+    }
+
+    @Test
+    void minetStatusUpdateSetsStatusChangedAtAndComments() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimWithId(claimId);
+        Instant changedAt = Instant.parse("2026-11-10T09:15:00Z");
+
+        boolean applied = claimService.applyMinetStatusUpdate(
+                claimId, "evt-1", "Awaiting_More_Information", changedAt, List.of("first", "second"));
+
+        assertThat(applied).isTrue();
+        assertThat(claim.getStatus()).isEqualTo(ClaimStatus.AWAITING_MORE_INFORMATION);
+        assertThat(claim.getStatusChangedAt()).isEqualTo(changedAt);
+        assertThat(claim.getStatusComments()).isEqualTo("first\nsecond");
+        assertThat(claim.getMinetLastEventId()).isEqualTo("evt-1");
+        verify(claimRepository).save(claim);
+    }
+
+    @Test
+    void minetStatusUpdateAcceptsApprovedAndFinanceRejectedSpellings() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimWithId(claimId);
+
+        claimService.applyMinetStatusUpdate(claimId, "e1", "Approved", null, null);
+        assertThat(claim.getStatus()).isEqualTo(ClaimStatus.APPROVED);
+        claimService.applyMinetStatusUpdate(claimId, "e2", "FinanceRejected", null, null);
+        assertThat(claim.getStatus()).isEqualTo(ClaimStatus.FINANCE_REJECTED);
+    }
+
+    @Test
+    void minetStatusUpdateWithUnknownStatusKeepsStatusButStoresTheRest() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimWithId(claimId);
+        claim.setStatus(ClaimStatus.SUBMITTED);
+
+        boolean applied = claimService.applyMinetStatusUpdate(
+                claimId, "e1", "Some_New_Status", Instant.parse("2026-11-10T09:15:00Z"), List.of("note"));
+
+        assertThat(applied).isTrue();
+        assertThat(claim.getStatus()).isEqualTo(ClaimStatus.SUBMITTED);
+        assertThat(claim.getStatusComments()).isEqualTo("note");
+    }
+
+    @Test
+    void minetStatusUpdateWithAllFieldsMissingStillSucceeds() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimWithId(claimId);
+        claim.setStatus(ClaimStatus.OPEN);
+
+        assertThat(claimService.applyMinetStatusUpdate(claimId, null, null, null, null)).isTrue();
+
+        assertThat(claim.getStatus()).isEqualTo(ClaimStatus.OPEN);
+        assertThat(claim.getStatusChangedAt()).isNull();
+        assertThat(claim.getStatusComments()).isNull();
+    }
+
+    @Test
+    void minetStatusUpdateIgnoresRepeatedEventId() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimWithId(claimId);
+        claim.setMinetLastEventId("evt-1");
+        claim.setStatus(ClaimStatus.SUBMITTED);
+
+        boolean applied = claimService.applyMinetStatusUpdate(claimId, "evt-1", "Approved", null, List.of("x"));
+
+        assertThat(applied).isFalse();
+        assertThat(claim.getStatus()).isEqualTo(ClaimStatus.SUBMITTED);
+        verify(claimRepository, never()).save(any(Claim.class));
+    }
+
+    @Test
+    void minetStatusUpdateIgnoresOlderChangedAt() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = claimWithId(claimId);
+        claim.setStatusChangedAt(Instant.parse("2026-11-10T10:00:00Z"));
+        claim.setStatus(ClaimStatus.APPROVED);
+
+        boolean applied = claimService.applyMinetStatusUpdate(
+                claimId, "evt-2", "Rejected", Instant.parse("2026-11-10T09:00:00Z"), List.of("late"));
+
+        assertThat(applied).isFalse();
+        assertThat(claim.getStatus()).isEqualTo(ClaimStatus.APPROVED);
+        verify(claimRepository, never()).save(any(Claim.class));
+    }
+
+    @Test
+    void minetStatusUpdateForUnknownClaimThrowsNotFound() {
+        UUID claimId = UUID.randomUUID();
+        when(claimRepository.findById(claimId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> claimService.applyMinetStatusUpdate(claimId, "e", "Approved", null, null))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
     @Test
     void markSentToMinetSetsTheFlag() {
         UUID claimId = UUID.randomUUID();

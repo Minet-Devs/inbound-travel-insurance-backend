@@ -19,6 +19,7 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
@@ -113,4 +114,15 @@ public class Claim extends BaseEntity {
     /** True once the claim has been sent to Minet (set by the pre-auth conversion listener or the resend API). */
     @Column(nullable = false)
     private boolean sentToMinet = false;
+
+    /** When Minet last changed the claim's status (webhook {@code changedAt}); optional. */
+    private Instant statusChangedAt;
+
+    /** Comments from the latest Minet status update, one per line; optional. */
+    @Column(columnDefinition = "text")
+    private String statusComments;
+
+    /** {@code eventId} of the latest processed Minet webhook event, used to ignore retries; optional. */
+    @Column(length = 100)
+    private String minetLastEventId;
 }
