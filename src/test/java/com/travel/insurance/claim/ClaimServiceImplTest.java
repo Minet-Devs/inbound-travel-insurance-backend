@@ -8,7 +8,10 @@ import com.travel.insurance.claim.dto.ClaimDashboardSummary;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimExportRow;
 import com.travel.insurance.claim.dto.ClaimRequest;
+import com.travel.insurance.claim.dto.ClaimListSummary;
 import com.travel.insurance.claim.dto.ClaimResponse;
+import com.travel.insurance.claim.dto.ClaimSearchCriteria;
+import com.travel.insurance.claim.dto.ConvertInvoiceRequest;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
 import com.travel.insurance.claim.dto.InsurerClaimDistribution;
 import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
@@ -53,6 +56,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -61,7 +65,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -72,7 +78,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -644,6 +652,104 @@ class ClaimServiceImplTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void searchQueriesBySpecificationForAdmin() {
+        authenticateAs(null, "ADMIN");
+        Pageable pageable = PageRequest.of(0, 10);
+        Claim claim = claimMapper.toEntity(baseRequest());
+        claim.setId(UUID.randomUUID());
+        when(claimRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(new PageImpl<>(List.of(claim)));
+        when(invoiceService.listByClaimId(any())).thenReturn(List.of());
+
+        Page<ClaimResponse> result = claimService.search(ClaimSearchCriteria.none(), pageable);
+
+        assertThat(result.getContent()).extracting(ClaimResponse::id).containsExactly(claim.getId());
+        verify(claimRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void searchReturnsEmptyForProviderUserWithoutServiceProvider() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.empty());
+
+        Page<ClaimResponse> result = claimService.search(ClaimSearchCriteria.none(), PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).isEmpty();
+        verifyNoInteractions(claimRepository);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void searchResolvesFreeTextThroughOwningServices() {
+        authenticateAs(null, "ADMIN");
+        Pageable pageable = PageRequest.of(0, 10);
+        when(invoiceService.findClaimIdsByInvoiceNumber("A123")).thenReturn(List.of());
+        when(visitorService.findIdByPassportNumber("A123")).thenReturn(Optional.of(visitorId));
+        when(icd11CodeService.search(eq("A123"), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
+        when(claimRepository.findAll(any(Specification.class), eq(pageable))).thenReturn(new PageImpl<>(List.of()));
+
+        claimService.search(new ClaimSearchCriteria(null, "  A123 ", null, null, null, null, null, null,
+                null, null, null, null), pageable);
+
+        verify(invoiceService).findClaimIdsByInvoiceNumber("A123");
+        verify(visitorService).findIdByPassportNumber("A123");
+        verify(icd11CodeService).search(eq("A123"), any(Pageable.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void summaryCountsEveryStatusAndKpis() {
+        authenticateAs(null, "ADMIN");
+        Map<ClaimStatus, Long> counts = new EnumMap<>(ClaimStatus.class);
+        counts.put(ClaimStatus.SUBMITTED, 2L);
+        counts.put(ClaimStatus.UNDER_REVIEW, 1L);
+        counts.put(ClaimStatus.PAID, 4L);
+        when(claimRepository.countByStatus(any(Specification.class))).thenReturn(counts);
+        when(claimRepository.sumClaimedAmountBase(any(Specification.class))).thenReturn(new BigDecimal("812.40"));
+        when(claimRepository.count(any(Specification.class))).thenReturn(1L, 5L);
+
+        ClaimListSummary summary = claimService.summary(new ClaimSearchCriteria(ClaimStatus.PAID, null, null, null,
+                null, null, null, null, null, null, null, null));
+
+        assertThat(summary.total()).isEqualTo(7);
+        assertThat(summary.countsByStatus()).containsOnlyKeys(ClaimStatus.values());
+        assertThat(summary.countsByStatus().get(ClaimStatus.APPROVED)).isZero();
+        assertThat(summary.countsByStatus().get(ClaimStatus.PAID)).isEqualTo(4);
+        assertThat(summary.awaitingDecision()).isEqualTo(3);
+        assertThat(summary.totalValueBase()).isEqualByComparingTo("812.40");
+        assertThat(summary.needsAttention()).isEqualTo(1);
+        assertThat(summary.notSentToMinet()).isEqualTo(5);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void summarySkipsAggregatesWhenNothingMatches() {
+        authenticateAs(null, "ADMIN");
+        when(claimRepository.countByStatus(any(Specification.class))).thenReturn(Map.of());
+
+        ClaimListSummary summary = claimService.summary(ClaimSearchCriteria.none());
+
+        assertThat(summary.total()).isZero();
+        assertThat(summary.totalValueBase()).isEqualByComparingTo("0");
+        verify(claimRepository, never()).sumClaimedAmountBase(any());
+        verify(claimRepository, never()).count(any(Specification.class));
+    }
+
+    @Test
+    void summaryIsEmptyForInsurerUserWithoutInsurer() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.empty());
+
+        ClaimListSummary summary = claimService.summary(ClaimSearchCriteria.none());
+
+        assertThat(summary.total()).isZero();
+        assertThat(summary.countsByStatus()).containsOnlyKeys(ClaimStatus.values());
+        verifyNoInteractions(claimRepository);
+    }
+
+    @Test
     void listReturnsAllClaimsForAdmin() {
         authenticateAs(null, "ADMIN");
         Pageable pageable = PageRequest.of(0, 10);
@@ -938,8 +1044,74 @@ class ClaimServiceImplTest {
                 new BigDecimal(amount).divide(new BigDecimal("2")), new BigDecimal(amount), LocalDate.of(2026, 10, 1));
     }
 
+    private ConvertInvoiceRequest convertInvoice(String invoiceNumber, InvoiceItemRequest... lines) {
+        return new ConvertInvoiceRequest(invoiceNumber, LocalDate.of(2026, 10, 2), List.of(lines));
+    }
+
     private ConvertPreauthorizationRequest convertRequest(String invoiceNumber, InvoiceItemRequest... lines) {
-        return new ConvertPreauthorizationRequest(invoiceNumber, LocalDate.of(2026, 10, 2), List.of(lines), null);
+        return new ConvertPreauthorizationRequest(List.of(convertInvoice(invoiceNumber, lines)), null);
+    }
+
+    @Test
+    void createFromPreauthorizationRaisesOneInvoicePerRequestedInvoice() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.APPROVED, false, List.of()));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        claimService.createFromPreauthorization(preauthId, new ConvertPreauthorizationRequest(List.of(
+                convertInvoice("INV-90", invoiceLine(null, "20000.00"), invoiceLine(null, "5000.00")),
+                new ConvertInvoiceRequest(" INV-91 ", LocalDate.of(2026, 10, 5),
+                        List.of(invoiceLine(null, "25000.00")))), null));
+
+        ArgumentCaptor<Claim> claimCaptor = ArgumentCaptor.forClass(Claim.class);
+        verify(claimRepository).save(claimCaptor.capture());
+        assertThat(claimCaptor.getValue().getClaimedAmount()).isEqualByComparingTo("50000.00");
+
+        ArgumentCaptor<InvoiceRequest> invoiceCaptor = ArgumentCaptor.forClass(InvoiceRequest.class);
+        verify(invoiceService, times(2)).create(invoiceCaptor.capture());
+        List<InvoiceRequest> invoices = invoiceCaptor.getAllValues();
+        assertThat(invoices).extracting(InvoiceRequest::invoiceNumber).containsExactly("INV-90", "INV-91");
+        assertThat(invoices.get(0).totalAmount()).isEqualByComparingTo("25000.00");
+        assertThat(invoices.get(0).invoiceItems()).hasSize(2);
+        assertThat(invoices.get(1).totalAmount()).isEqualByComparingTo("25000.00");
+        assertThat(invoices.get(1).issueDate()).isEqualTo(LocalDate.of(2026, 10, 5));
+        assertThat(invoices).allSatisfy(invoice -> {
+            assertThat(invoice.currency()).isEqualTo("KES");
+            assertThat(invoice.invoiceItems()).extracting(InvoiceItemRequest::medicalServiceId)
+                    .containsOnly(medicalServiceId);
+        });
+        verify(preauthorizationService).markPreAuthorizationConvertedToClaim(preauthId);
+    }
+
+    @Test
+    void createFromPreauthorizationRejectsCombinedInvoiceTotalAboveApprovedAmount() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.APPROVED, false, List.of()));
+
+        assertThatThrownBy(() -> claimService.createFromPreauthorization(preauthId,
+                new ConvertPreauthorizationRequest(List.of(
+                        convertInvoice("INV-92", invoiceLine(null, "30000.00")),
+                        convertInvoice("INV-93", invoiceLine(null, "20000.02"))), null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("exceeds the pre-authorized amount");
+        verify(claimRepository, never()).save(any());
+        verify(invoiceService, never()).create(any());
+    }
+
+    @Test
+    void createFromPreauthorizationRejectsDuplicateInvoiceNumbers() {
+        when(preauthorizationService.getById(preauthId)).thenReturn(
+                preauthResponse(PreauthorizationStatus.APPROVED, false, List.of()));
+
+        assertThatThrownBy(() -> claimService.createFromPreauthorization(preauthId,
+                new ConvertPreauthorizationRequest(List.of(
+                        convertInvoice("INV-94", invoiceLine(null, "100.00")),
+                        convertInvoice(" inv-94 ", invoiceLine(null, "100.00"))), null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Duplicate invoice number");
+        verify(claimRepository, never()).save(any());
+        verify(invoiceService, never()).create(any());
     }
 
     @Test
@@ -950,8 +1122,8 @@ class ClaimServiceImplTest {
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ClaimResponse response = claimService.createFromPreauthorization(preauthId,
-                new ConvertPreauthorizationRequest("INV-81", null,
-                        List.of(invoiceLine(null, "1000.00")), VisitType.OUTPATIENT));
+                new ConvertPreauthorizationRequest(List.of(new ConvertInvoiceRequest("INV-81", null,
+                        List.of(invoiceLine(null, "1000.00")))), VisitType.OUTPATIENT));
 
         ArgumentCaptor<Claim> claimCaptor = ArgumentCaptor.forClass(Claim.class);
         verify(claimRepository).save(claimCaptor.capture());

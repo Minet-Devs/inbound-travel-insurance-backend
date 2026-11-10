@@ -26,6 +26,9 @@ public interface VisitorService {
 
     VisitorResponse getByPassportNumber(String passportNumber);
 
+    /** Exact passport match via the blind index; empty when no visitor has it. */
+    Optional<UUID> findIdByPassportNumber(String passportNumber);
+
     Page<VisitorResponse> list(UUID insurerId, Pageable pageable);
 
     List<VisitorResponse> listForExport(UUID insurerId, VisitorStatus status,

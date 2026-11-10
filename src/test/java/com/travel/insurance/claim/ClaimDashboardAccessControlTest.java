@@ -53,9 +53,10 @@ class ClaimDashboardAccessControlTest {
     @Test
     @WithMockUser(roles = "KENYA_RE")
     void kenyaReCannotReadOtherClaimEndpoints() throws Exception {
-        when(claimService.list(any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
+        when(claimService.search(any(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
 
         mockMvc.perform(get("/api/v1/claims")).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/claims/summary")).andExpect(status().isForbidden());
     }
 
     @Test
