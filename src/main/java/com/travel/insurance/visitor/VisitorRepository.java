@@ -5,6 +5,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
@@ -31,6 +32,12 @@ public interface VisitorRepository extends JpaRepository<Visitor, UUID>, JpaSpec
     @Query("select v.insurerId as insurerId, count(v) as total from Visitor v "
             + "where v.insurerId is not null group by v.insurerId")
     List<InsurerVisitorTotal> countVisitorsGroupedByInsurer();
+
+    @Query("select v.insurerId as insurerId, count(v) as total from Visitor v "
+            + "where v.insurerId is not null and v.createdDate >= :from and v.createdDate < :to "
+            + "group by v.insurerId")
+    List<InsurerVisitorTotal> countVisitorsGroupedByInsurerCreatedBetween(
+            @Param("from") Instant from, @Param("to") Instant to);
 
     interface InsurerVisitorTotal {
         UUID getInsurerId();

@@ -758,6 +758,9 @@ Policy
   one entry per insurer (zero-visitor insurers included; visitors with a null
   `insurerId` skipped). Backed by `VisitorService.countByInsurer`
   (`VisitorRepository.countVisitorsGroupedByInsurer` + `InsurerRepository.findAll`).
+  Optional `month` (1-12) and `year` (defaults to the current year; requires `month`) query
+  params restrict the count to visitors registered (`createdDate`, UTC) in that month
+  (`countVisitorsGroupedByInsurerCreatedBetween`); invalid values → 400.
   `GET /api/v1/visitors/distribution-by-age-group` (dashboard) returns
   `[{ageGroup, totalVisitors}]` — all visitors regardless of status, always four
   entries in order: `0-2` (age 0 to under 3), `3-17` (3 to under 18), `18+`, `Unknown`

@@ -27,6 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Year;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -119,10 +122,24 @@ public class VisitorServiceImpl implements VisitorService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<InsurerVisitorCount> countByInsurer() {
+    public List<InsurerVisitorCount> countByInsurer(Integer month, Integer year) {
+        if (month == null && year != null) {
+            throw new IllegalArgumentException("year requires month");
+        }
+        List<VisitorRepository.InsurerVisitorTotal> rows;
+        if (month == null) {
+            rows = visitorRepository.countVisitorsGroupedByInsurer();
+        } else {
+            if (month < 1 || month > 12) {
+                throw new IllegalArgumentException("month must be between 1 and 12");
+            }
+            YearMonth target = YearMonth.of(year != null ? year : Year.now(ZoneOffset.UTC).getValue(), month);
+            rows = visitorRepository.countVisitorsGroupedByInsurerCreatedBetween(
+                    target.atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC),
+                    target.plusMonths(1).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC));
+        }
         Map<UUID, Long> totals = new HashMap<>();
-        visitorRepository.countVisitorsGroupedByInsurer()
-                .forEach(row -> totals.put(row.getInsurerId(), row.getTotal()));
+        rows.forEach(row -> totals.put(row.getInsurerId(), row.getTotal()));
         return insurerRepository.findAll().stream()
                 .map(insurer -> new InsurerVisitorCount(
                         insurer.getId(), insurer.getName(), totals.getOrDefault(insurer.getId(), 0L)))
