@@ -34,8 +34,12 @@ public interface VisitorService {
     List<VisitorResponse> listForExport(UUID insurerId, VisitorStatus status,
                                         LocalDate dateFrom, LocalDate dateTo);
 
-    /** Total visitors (any status) per insurer; every insurer is listed, including those with zero. */
-    List<InsurerVisitorCount> countByInsurer();
+    /**
+     * Total visitors (any status) per insurer; every insurer is listed, including those with zero.
+     * With a {@code month} (1-12) only visitors registered in that month are counted, in
+     * {@code year} (defaults to the current year); a {@code year} without a {@code month} is rejected.
+     */
+    List<InsurerVisitorCount> countByInsurer(Integer month, Integer year);
 
     /**
      * Total visitors (any status) per age group, by age today: "0-2" (0 to under 3),

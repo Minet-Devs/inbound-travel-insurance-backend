@@ -239,7 +239,7 @@ class VisitorControllerTest {
     @WithMockUser
     void distributionByInsurerReturnsCounts() throws Exception {
         UUID insurerId = UUID.randomUUID();
-        when(visitorService.countByInsurer())
+        when(visitorService.countByInsurer(null, null))
                 .thenReturn(List.of(new InsurerVisitorCount(insurerId, "Minet Insurance", 12)));
 
         mockMvc.perform(get("/api/v1/visitors/distribution-by-insurer"))
@@ -247,6 +247,19 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$[0].insurerId").value(insurerId.toString()))
                 .andExpect(jsonPath("$[0].insurerName").value("Minet Insurance"))
                 .andExpect(jsonPath("$[0].totalVisitors").value(12));
+    }
+
+    @Test
+    @WithMockUser
+    void distributionByInsurerPassesMonthAndYear() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(visitorService.countByInsurer(3, 2026))
+                .thenReturn(List.of(new InsurerVisitorCount(insurerId, "Minet Insurance", 4)));
+
+        mockMvc.perform(get("/api/v1/visitors/distribution-by-insurer")
+                        .param("month", "3").param("year", "2026"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].totalVisitors").value(4));
     }
 
     @Test

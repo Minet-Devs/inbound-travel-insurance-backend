@@ -688,6 +688,32 @@ class VisitorServiceImplTest {
     }
 
     @Test
+    void countByInsurerForMonthFiltersOnRegistrationMonth() {
+        Insurer insurer = new Insurer();
+        insurer.setId(insurerId);
+        insurer.setName("Minet Insurance");
+        VisitorRepository.InsurerVisitorTotal row = new VisitorRepository.InsurerVisitorTotal() {
+            public UUID getInsurerId() { return insurerId; }
+            public long getTotal() { return 3; }
+        };
+        when(visitorRepository.countVisitorsGroupedByInsurerCreatedBetween(
+                Instant.parse("2026-02-01T00:00:00Z"), Instant.parse("2026-03-01T00:00:00Z")))
+                .thenReturn(List.of(row));
+        when(insurerRepository.findAll()).thenReturn(List.of(insurer));
+
+        assertThat(visitorService.countByInsurer(2, 2026))
+                .containsExactly(new InsurerVisitorCount(insurerId, "Minet Insurance", 3));
+    }
+
+    @Test
+    void countByInsurerRejectsInvalidMonthOrYearWithoutMonth() {
+        assertThatThrownBy(() -> visitorService.countByInsurer(13, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> visitorService.countByInsurer(null, 2026))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void countByInsurerIncludesInsurersWithZeroVisitors() {
         UUID emptyInsurerId = UUID.randomUUID();
         Insurer withVisitors = new Insurer();
@@ -703,7 +729,7 @@ class VisitorServiceImplTest {
         when(visitorRepository.countVisitorsGroupedByInsurer()).thenReturn(List.of(row));
         when(insurerRepository.findAll()).thenReturn(List.of(withVisitors, empty));
 
-        List<InsurerVisitorCount> result = visitorService.countByInsurer();
+        List<InsurerVisitorCount> result = visitorService.countByInsurer(null, null);
 
         assertThat(result).containsExactly(
                 new InsurerVisitorCount(insurerId, "Minet Insurance", 7),

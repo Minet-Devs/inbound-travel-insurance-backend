@@ -67,8 +67,10 @@ public class VisitorController {
     }
 
     @GetMapping("/distribution-by-insurer")
-    public ResponseEntity<List<InsurerVisitorCount>> distributionByInsurer() {
-        return ResponseEntity.ok(visitorService.countByInsurer());
+    public ResponseEntity<List<InsurerVisitorCount>> distributionByInsurer(
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(visitorService.countByInsurer(month, year));
     }
 
     @GetMapping("/distribution-by-age-group")
