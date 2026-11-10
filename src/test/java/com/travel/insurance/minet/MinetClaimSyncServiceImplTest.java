@@ -123,9 +123,10 @@ class MinetClaimSyncServiceImplTest {
         assertThat(sent.diagnosisDescription()).isEqualTo("No Injury");
         assertThat(sent.visitDate()).isEqualTo("2026-11-06");
         assertThat(sent.amountClaimed()).isEqualByComparingTo("100000.00");
-        assertThat(sent.invoiceNumber()).isEqualTo("INV030212983");
-        assertThat(sent.invoiceDate()).isEqualTo("2026-11-07");
-        assertThat(sent.invoiceAmount()).isEqualByComparingTo("100000.00");
+        assertThat(sent.invoices()).hasSize(1);
+        assertThat(sent.invoices().get(0).invoiceNumber()).isEqualTo("INV030212983");
+        assertThat(sent.invoices().get(0).invoiceDate()).isEqualTo("2026-11-07");
+        assertThat(sent.invoices().get(0).invoiceAmount()).isEqualByComparingTo("100000.00");
         assertThat(sent.service()).isEqualTo("Grouped Service");
         assertThat(sent.department()).isEqualTo("Grouped Department");
         assertThat(sent.claimAmountUsd()).isEqualByComparingTo("769.88");
@@ -145,9 +146,6 @@ class MinetClaimSyncServiceImplTest {
 
         ArgumentCaptor<MinetClaimRequest> captor = ArgumentCaptor.forClass(MinetClaimRequest.class);
         verify(minetClient).sendClaim(captor.capture());
-        assertThat(captor.getValue().invoiceNumber()).isEqualTo("INV-1; INV-2");
-        assertThat(captor.getValue().invoiceAmount()).isEqualByComparingTo("100000.50");
-        assertThat(captor.getValue().invoiceDate()).isEqualTo("2026-11-06");
         assertThat(captor.getValue().visitDate()).isEqualTo("2026-11-06");
         assertThat(captor.getValue().invoices()).extracting(MinetClaimRequest.Invoice::invoiceNumber)
                 .containsExactly("INV-1", "INV-2");
