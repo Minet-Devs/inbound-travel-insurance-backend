@@ -88,8 +88,6 @@ public class MinetClaimSyncServiceImpl implements MinetClaimSyncService {
                 joined(diagnoses.stream().map(Icd11CodeResponse::title)),
                 visitDate.toString(),
                 claim.getClaimedAmount(),
-                GROUPED_SERVICE,
-                GROUPED_DEPARTMENT,
                 claim.getClaimedAmountBase(),
                 claim.getExchangeRate(),
                 claim.getId().toString(),
@@ -97,7 +95,9 @@ public class MinetClaimSyncServiceImpl implements MinetClaimSyncService {
                         i.invoiceNumber(),
                         i.issueDate() != null ? i.issueDate().toString() : claimDate.toString(),
                         i.totalAmount(),
-                        i.currency())).toList());
+                        i.currency(),
+                        GROUPED_SERVICE,
+                        GROUPED_DEPARTMENT)).toList());
     }
 
     private Icd11CodeResponse diagnosis(UUID id) {

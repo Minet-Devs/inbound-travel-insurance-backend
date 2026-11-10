@@ -127,8 +127,8 @@ class MinetClaimSyncServiceImplTest {
         assertThat(sent.invoices().get(0).invoiceNumber()).isEqualTo("INV030212983");
         assertThat(sent.invoices().get(0).invoiceDate()).isEqualTo("2026-11-07");
         assertThat(sent.invoices().get(0).invoiceAmount()).isEqualByComparingTo("100000.00");
-        assertThat(sent.service()).isEqualTo("Grouped Service");
-        assertThat(sent.department()).isEqualTo("Grouped Department");
+        assertThat(sent.invoices().get(0).service()).isEqualTo("Grouped Service");
+        assertThat(sent.invoices().get(0).department()).isEqualTo("Grouped Department");
         assertThat(sent.claimAmountUsd()).isEqualByComparingTo("769.88");
         assertThat(sent.exchangeRate()).isEqualByComparingTo("0.008");
         assertThat(sent.inboundClaimReference()).isEqualTo(claimId.toString());

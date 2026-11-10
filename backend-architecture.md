@@ -1038,7 +1038,8 @@ Policy
   Minet's response **body** decides success: `sent_to_minet` is set only when it contains `"success": true`
   (an HTTP 200 with `success: false` is a failure; its `message` is surfaced in the error).
   The Minet claim payload carries invoices only as an `invoices` array (one `{invoiceNumber, invoiceDate, invoiceAmount, currency}`
-  per invoice, even for a single invoice); there are no flat invoice fields.
+  per invoice, even for a single invoice) and each entry also carries `service: "Grouped Service"` and
+  `department: "Grouped Department"`; there are no flat invoice, service or department fields.
   Existing invoices can only be attached to a claim whose
   status is `OPEN` via `PUT /api/v1/claims/{id}/invoice` (`AttachInvoiceRequest`); attaching
   transitions the claim to `SUBMITTED` and syncs both the `claim_invoices` join table
@@ -1991,7 +1992,7 @@ Every claim created by converting a pre-authorization is pushed to Minet's inbou
 | `visitDate` | earliest invoice-item `serviceDate`, else the claim date |
 | `amountClaimed` | `claimedAmount` (claim currency) |
 | `invoiceNumber` / `invoiceDate` / `invoiceAmount` | invoice numbers joined with `; ` / earliest `issueDate` (else claim date) / sum of invoice `totalAmount` |
-| `service` / `department` | the literals `Grouped Service` / `Grouped Department` |
+| `invoices[].service` / `invoices[].department` | the literals `Grouped Service` / `Grouped Department`, on every invoice entry |
 | `claimAmountUsd` / `exchangeRate` | `claimedAmountBase` / `exchangeRate` |
 | `inboundClaimReference` | the claim id |
 
