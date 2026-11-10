@@ -96,8 +96,8 @@ class MinetClientTest {
 
     private final MinetClaimRequest claimRequest = new MinetClaimRequest(
             "AGA KHAN HOSPITAL NAIROBI", "MSP-1001", "Medical Expenses", "7777", "2026-11-06", "Outpatient",
-            "NOINJ", "No Injury", "2026-11-06", new java.math.BigDecimal("100000"), "INV030212983", "2026-11-06",
-            new java.math.BigDecimal("100000"), "Grouped Service", "Grouped Department",
+            "NOINJ", "No Injury", "2026-11-06", new java.math.BigDecimal("100000"),
+            "Grouped Service", "Grouped Department",
             new java.math.BigDecimal("769.88"), new java.math.BigDecimal("0.008"),
             "2eadeb78-4028-465a-b3c4-33e51215a09e",
             java.util.List.of(
