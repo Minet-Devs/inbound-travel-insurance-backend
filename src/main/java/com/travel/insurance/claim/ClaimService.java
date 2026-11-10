@@ -14,6 +14,7 @@ import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -35,6 +36,12 @@ public interface ClaimService {
 
     /** Flags the claim as sent to Minet ({@code sent_to_minet = true}). */
     void markSentToMinet(UUID id);
+
+    /**
+     * Applies a status update pushed by Minet to the claim with this id. Returns {@code false} (and changes
+     * nothing) when the event was already processed or is older than the last applied update.
+     */
+    boolean applyMinetStatusUpdate(UUID id, String eventId, String status, Instant changedAt, List<String> comments);
 
     Page<ClaimResponse> list(Pageable pageable);
 
