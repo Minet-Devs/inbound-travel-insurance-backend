@@ -2,6 +2,7 @@ package com.travel.insurance.visitor;
 
 import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
+import com.travel.insurance.visitor.dto.CountryVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -40,6 +41,14 @@ public interface VisitorService {
      * {@code year} (defaults to the current year); a {@code year} without a {@code month} is rejected.
      */
     List<InsurerVisitorCount> countByInsurer(Integer month, Integer year);
+
+    /**
+     * Total visitors (any status) per nationality (ISO alpha-3, upper-cased), ordered by country code.
+     * With a {@code country} only that nationality is returned (case-insensitive; a zero row when it has
+     * no visitors). {@code month}/{@code year} restrict to visitors registered in that month, as in
+     * {@link #countByInsurer}.
+     */
+    List<CountryVisitorCount> countByCountry(String country, Integer month, Integer year);
 
     /**
      * Total visitors (any status) per age group, by age today: "0-2" (0 to under 3),

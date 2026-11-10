@@ -45,6 +45,13 @@ public interface VisitorRepository extends JpaRepository<Visitor, UUID>, JpaSpec
         long getTotal();
     }
 
+    // Nationality is encrypted at rest, so it cannot be grouped in SQL; callers count in memory.
+    @Query("select v.nationality from Visitor v")
+    List<String> findAllNationalities();
+
+    @Query("select v.nationality from Visitor v where v.createdDate >= :from and v.createdDate < :to")
+    List<String> findNationalitiesCreatedBetween(@Param("from") Instant from, @Param("to") Instant to);
+
     @Query("select v.age as age, count(v) as total from Visitor v "
             + "group by v.age")
     List<AgeVisitorTotal> countVisitorsGroupedByAge();

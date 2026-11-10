@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
+import com.travel.insurance.visitor.dto.CountryVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -260,6 +261,31 @@ class VisitorControllerTest {
                         .param("month", "3").param("year", "2026"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].totalVisitors").value(4));
+    }
+
+    @Test
+    @WithMockUser
+    void distributionByCountryPassesFiltersAndReturnsCounts() throws Exception {
+        when(visitorService.countByCountry("USA", 3, 2026))
+                .thenReturn(List.of(new CountryVisitorCount("USA", 5)));
+
+        mockMvc.perform(get("/api/v1/visitors/distribution-by-country")
+                        .param("country", "USA").param("month", "3").param("year", "2026"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].country").value("USA"))
+                .andExpect(jsonPath("$[0].totalVisitors").value(5));
+    }
+
+    @Test
+    @WithMockUser
+    void distributionByCountryWithoutParamsReturnsAllCountries() throws Exception {
+        when(visitorService.countByCountry(null, null, null)).thenReturn(List.of(
+                new CountryVisitorCount("GBR", 2), new CountryVisitorCount("USA", 5)));
+
+        mockMvc.perform(get("/api/v1/visitors/distribution-by-country"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[1].country").value("USA"));
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.travel.insurance.visitor;
 
 import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
+import com.travel.insurance.visitor.dto.CountryVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorDetailResponse;
@@ -71,6 +72,14 @@ public class VisitorController {
             @RequestParam(required = false) Integer month,
             @RequestParam(required = false) Integer year) {
         return ResponseEntity.ok(visitorService.countByInsurer(month, year));
+    }
+
+    @GetMapping("/distribution-by-country")
+    public ResponseEntity<List<CountryVisitorCount>> distributionByCountry(
+            @RequestParam(required = false) String country,
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(visitorService.countByCountry(country, month, year));
     }
 
     @GetMapping("/distribution-by-age-group")

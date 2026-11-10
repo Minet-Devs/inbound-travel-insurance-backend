@@ -8,6 +8,7 @@ import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
+import com.travel.insurance.visitor.dto.CountryVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -734,6 +735,42 @@ class VisitorServiceImplTest {
         assertThat(result).containsExactly(
                 new InsurerVisitorCount(insurerId, "Minet Insurance", 7),
                 new InsurerVisitorCount(emptyInsurerId, "Empty Insurance", 0));
+    }
+
+    @Test
+    void countByCountryGroupsNormalizedNationalities() {
+        when(visitorRepository.findAllNationalities()).thenReturn(List.of("USA", "usa", " GBR ", "USA"));
+
+        assertThat(visitorService.countByCountry(null, null, null)).containsExactly(
+                new CountryVisitorCount("GBR", 1), new CountryVisitorCount("USA", 3));
+    }
+
+    @Test
+    void countByCountryFiltersCaseInsensitivelyAndReturnsZeroRowWhenAbsent() {
+        when(visitorRepository.findAllNationalities()).thenReturn(List.of("USA", "GBR"));
+
+        assertThat(visitorService.countByCountry("usa", null, null))
+                .containsExactly(new CountryVisitorCount("USA", 1));
+        assertThat(visitorService.countByCountry("FRA", null, null))
+                .containsExactly(new CountryVisitorCount("FRA", 0));
+    }
+
+    @Test
+    void countByCountryForMonthFiltersOnRegistrationMonth() {
+        when(visitorRepository.findNationalitiesCreatedBetween(
+                Instant.parse("2026-02-01T00:00:00Z"), Instant.parse("2026-03-01T00:00:00Z")))
+                .thenReturn(List.of("USA", "USA"));
+
+        assertThat(visitorService.countByCountry("USA", 2, 2026))
+                .containsExactly(new CountryVisitorCount("USA", 2));
+    }
+
+    @Test
+    void countByCountryRejectsInvalidMonthOrYearWithoutMonth() {
+        assertThatThrownBy(() -> visitorService.countByCountry("USA", 13, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> visitorService.countByCountry("USA", null, 2026))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private static VisitorRepository.AgeVisitorTotal ageTotal(Integer age, long total) {
