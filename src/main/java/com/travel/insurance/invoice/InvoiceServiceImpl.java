@@ -59,6 +59,15 @@ public class InvoiceServiceImpl implements InvoiceService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<UUID> findClaimIdsByInvoiceNumber(String invoiceNumber) {
+        if (invoiceNumber == null || invoiceNumber.isBlank()) {
+            return List.of();
+        }
+        return invoiceRepository.findClaimIdsByInvoiceNumberContaining(invoiceNumber.trim());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<InvoiceResponse> listByClaimId(UUID claimId) {
         return invoiceRepository.findAllByClaimId(claimId).stream().map(this::toResponse).toList();
     }

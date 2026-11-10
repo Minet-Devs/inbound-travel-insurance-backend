@@ -3,8 +3,10 @@ package com.travel.insurance.claim;
 import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimDashboardSummary;
+import com.travel.insurance.claim.dto.ClaimListSummary;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
+import com.travel.insurance.claim.dto.ClaimSearchCriteria;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
 import com.travel.insurance.claim.dto.ClaimExportRow;
 import com.travel.insurance.claim.dto.InsurerClaimDistribution;
@@ -13,6 +15,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -48,9 +52,9 @@ public class ClaimController {
         return ResponseEntity.status(HttpStatus.CREATED).body(claimService.create(request));
     }
 
-    /** Claim + invoice built from an approved pre-authorization; the caller only supplies the invoice number. */
+    /** Claim + invoices built from an approved pre-authorization; the caller supplies each invoice's number and lines. */
     @PostMapping("/from-preauthorization/{preauthorizationId}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'CONTACT_CENTER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CONTACT_CENTER', 'PROVIDER_USER')")
     public ResponseEntity<ClaimResponse> createFromPreauthorization(
             @PathVariable UUID preauthorizationId, @Valid @RequestBody ConvertPreauthorizationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -108,9 +112,18 @@ public class ClaimController {
         return ResponseEntity.ok(claimService.getById(id));
     }
 
+    /** Filters are optional query params, see {@link ClaimSearchCriteria}; newest first unless {@code sort} is given. */
     @GetMapping
-    public ResponseEntity<Page<ClaimResponse>> list(Pageable pageable) {
-        return ResponseEntity.ok(claimService.list(pageable));
+    public ResponseEntity<Page<ClaimResponse>> list(
+            ClaimSearchCriteria criteria,
+            @PageableDefault(sort = "createdDate", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(claimService.search(criteria, pageable));
+    }
+
+    /** Status-tab counts and KPIs for the list, over the same filters minus {@code status}. */
+    @GetMapping("/summary")
+    public ResponseEntity<ClaimListSummary> summary(ClaimSearchCriteria criteria) {
+        return ResponseEntity.ok(claimService.summary(criteria));
     }
 
     @PostMapping("/{id}/decision")

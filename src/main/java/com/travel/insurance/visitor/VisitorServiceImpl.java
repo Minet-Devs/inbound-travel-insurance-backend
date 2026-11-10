@@ -89,6 +89,16 @@ public class VisitorServiceImpl implements VisitorService {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<UUID> findIdByPassportNumber(String passportNumber) {
+        if (passportNumber == null || passportNumber.isBlank()) {
+            return Optional.empty();
+        }
+        return visitorRepository.findByPassportNumberHash(blindIndexService.hmac(passportNumber.trim()))
+                .map(Visitor::getId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public VisitorResponse getByPassportNumber(String passportNumber) {
         return visitorRepository.findByPassportNumberHash(blindIndexService.hmac(passportNumber))
                 .map(visitorMapper::toResponse)

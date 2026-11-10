@@ -4,8 +4,10 @@ import com.travel.insurance.common.domain.VisitType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.claim.dto.ClaimDashboardSummary;
+import com.travel.insurance.claim.dto.ClaimListSummary;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
+import com.travel.insurance.claim.dto.ClaimSearchCriteria;
 import com.travel.insurance.claim.dto.InsurerClaimDistribution;
 import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
 import org.junit.jupiter.api.Test;
@@ -14,6 +16,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -22,11 +25,15 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -129,12 +136,80 @@ class ClaimControllerTest {
     @Test
     @WithMockUser(roles = "ADMIN")
     void listReturnsClaims() throws Exception {
-        when(claimService.list(any()))
+        when(claimService.search(any(), any()))
                 .thenReturn(new PageImpl<>(List.of(sampleClaim()), PageRequest.of(0, 10), 1));
 
         mockMvc.perform(get("/api/v1/claims"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].visitorId").value(visitorId.toString()));
+
+        verify(claimService).search(eq(ClaimSearchCriteria.none()),
+                argThat(pageable -> pageable.getSort().equals(Sort.by(Sort.Direction.DESC, "createdDate"))));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listBindsEveryFilterFromQueryParams() throws Exception {
+        UUID benefitA = UUID.randomUUID();
+        UUID benefitB = UUID.randomUUID();
+        UUID providerId = UUID.randomUUID();
+        UUID insurer = UUID.randomUUID();
+        when(claimService.search(any(), any())).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/claims")
+                        .param("status", "UNDER_REVIEW")
+                        .param("q", "INV-77")
+                        .param("dateFrom", "2026-10-01")
+                        .param("dateTo", "2026-10-31")
+                        .param("benefitIds", benefitA.toString(), benefitB.toString())
+                        .param("serviceProviderIds", providerId.toString())
+                        .param("providerUnlinked", "true")
+                        .param("insurerIds", insurer.toString())
+                        .param("minAmountBase", "10.5")
+                        .param("maxAmountBase", "500")
+                        .param("sentToMinet", "false")
+                        .param("flags", "NO_PREAUTH,OUTSIDE_STAY")
+                        .param("sort", "claimedAmountBase,asc"))
+                .andExpect(status().isOk());
+
+        verify(claimService).search(
+                eq(new ClaimSearchCriteria(ClaimStatus.UNDER_REVIEW, "INV-77", LocalDate.of(2026, 10, 1),
+                        LocalDate.of(2026, 10, 31), List.of(benefitA, benefitB), List.of(providerId), true,
+                        List.of(insurer), new BigDecimal("10.5"), new BigDecimal("500"), false,
+                        List.of(ClaimAttentionFlag.NO_PREAUTH, ClaimAttentionFlag.OUTSIDE_STAY))),
+                argThat(pageable -> pageable.getSort().equals(Sort.by(Sort.Direction.ASC, "claimedAmountBase"))));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listRejectsUnknownFlag() throws Exception {
+        mockMvc.perform(get("/api/v1/claims").param("flags", "LATE"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void summaryReturnsCountsAndKpis() throws Exception {
+        Map<ClaimStatus, Long> counts = new EnumMap<>(ClaimStatus.class);
+        for (ClaimStatus status : ClaimStatus.values()) {
+            counts.put(status, 0L);
+        }
+        counts.put(ClaimStatus.SUBMITTED, 3L);
+        when(claimService.summary(any())).thenReturn(
+                new ClaimListSummary(3, counts, 3, new BigDecimal("120.50"), 1, 2));
+
+        mockMvc.perform(get("/api/v1/claims/summary").param("status", "PAID").param("q", "A123"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(3))
+                .andExpect(jsonPath("$.countsByStatus.SUBMITTED").value(3))
+                .andExpect(jsonPath("$.countsByStatus.PAID").value(0))
+                .andExpect(jsonPath("$.awaitingDecision").value(3))
+                .andExpect(jsonPath("$.totalValueBase").value(120.50))
+                .andExpect(jsonPath("$.needsAttention").value(1))
+                .andExpect(jsonPath("$.notSentToMinet").value(2));
+
+        verify(claimService).summary(argThat(criteria -> criteria.status() == ClaimStatus.PAID
+                && "A123".equals(criteria.q())));
     }
 
     @Test

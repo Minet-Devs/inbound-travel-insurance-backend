@@ -19,6 +19,9 @@ public interface InvoiceService {
 
     List<InvoiceResponse> listByClaimId(UUID claimId);
 
+    /** Distinct claim ids of invoices whose number contains {@code invoiceNumber}, ignoring case. */
+    List<UUID> findClaimIdsByInvoiceNumber(String invoiceNumber);
+
     Page<InvoiceResponse> list(UUID claimId, Pageable pageable);
 
     InvoiceResponse update(UUID id, InvoiceRequest request);

@@ -30,7 +30,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(SecurityConfig.class)
 class ClaimConversionAccessControlTest {
 
-    private static final String BODY = "{\"invoiceNumber\":\"INV-001\",\"issueDate\":\"2026-10-02\"}";
+    private static final String INVOICE = "{\"invoiceNumber\":\"INV-001\",\"issueDate\":\"2026-10-02\","
+            + "\"invoiceItems\":[{\"description\":\"Consultation\",\"quantity\":1,\"unitPrice\":500,\"amount\":500}]}";
+    private static final String BODY = "{\"invoices\":[" + INVOICE + "]}";
 
     @Autowired
     private MockMvc mockMvc;
@@ -52,7 +54,7 @@ class ClaimConversionAccessControlTest {
         mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(BODY.replace("{\"invoiceNumber\"", "{\"visitType\":\"OUTPATIENT\",\"invoiceNumber\"")))
+                        .content(BODY.replace("{\"invoices\"", "{\"visitType\":\"OUTPATIENT\",\"invoices\"")))
                 .andExpect(status().isCreated());
 
         verify(claimService).createFromPreauthorization(eq(preauthorizationId),
@@ -65,7 +67,7 @@ class ClaimConversionAccessControlTest {
         mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(BODY.replace("{\"invoiceNumber\"", "{\"visitType\":\"DAYCASE\",\"invoiceNumber\"")))
+                        .content(BODY.replace("{\"invoices\"", "{\"visitType\":\"DAYCASE\",\"invoices\"")))
                 .andExpect(status().isBadRequest());
     }
 
@@ -91,7 +93,17 @@ class ClaimConversionAccessControlTest {
 
     @Test
     @WithMockUser(roles = "PROVIDER_USER")
-    void providerUserCannotConvertPreauthorization() throws Exception {
+    void providerUserCanConvertPreauthorization() throws Exception {
+        mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    @WithMockUser(roles = "INSURER_USER")
+    void insurerUserCannotConvertPreauthorization() throws Exception {
         mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -101,11 +113,46 @@ class ClaimConversionAccessControlTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
+    void conversionAcceptsMultipleInvoices() throws Exception {
+        String second = INVOICE.replace("INV-001", "INV-002");
+        mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invoices\":[" + INVOICE + "," + second + "]}"))
+                .andExpect(status().isCreated());
+
+        verify(claimService).createFromPreauthorization(eq(preauthorizationId),
+                argThat(request -> request.invoices().size() == 2
+                        && request.invoices().get(1).invoiceNumber().equals("INV-002")));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void conversionRequiresAtLeastOneInvoice() throws Exception {
+        mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invoices\":[]}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void conversionRequiresInvoiceItems() throws Exception {
+        mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"invoices\":[{\"invoiceNumber\":\"INV-002\",\"invoiceItems\":[]}]}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
     void conversionRequiresInvoiceNumber() throws Exception {
         mockMvc.perform(post("/api/v1/claims/from-preauthorization/{id}", preauthorizationId)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"invoiceNumber\":\"  \"}"))
+                        .content(BODY.replace("INV-001", "  ")))
                 .andExpect(status().isBadRequest());
     }
 
