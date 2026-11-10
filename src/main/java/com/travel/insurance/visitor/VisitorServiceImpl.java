@@ -31,8 +31,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -42,6 +44,14 @@ public class VisitorServiceImpl implements VisitorService {
 
     private static final int MIN_COVER_DAYS = 1;
     private static final int MAX_COVER_DAYS = 365;
+
+    /**
+     * Kenyan and EAC partner-state nationals are exempt from the inbound policy. Nationality arrives as
+     * an ISO 3166-1 alpha-3 code: KEN, UGA, TZA, RWA, BDI, SSD and COD (DR Congo; COG is the
+     * Republic of the Congo and is not exempt).
+     */
+    private static final Set<String> EXEMPT_NATIONALITIES = Set.of(
+            "KEN", "UGA", "TZA", "RWA", "BDI", "SSD", "COD");
 
     private final VisitorRepository visitorRepository;
     private final VisitorMapper visitorMapper;
@@ -55,6 +65,7 @@ public class VisitorServiceImpl implements VisitorService {
     public VisitorResponse create(VisitorRequest request) {
         Policy policy = policyService.getEntityById(request.policyId());
         validateCoverPeriod(request);
+        validateNationalityNotExempt(request);
         Insurer insurer = requireInsurerWithQuota(policy);
         String passportNumberHash = blindIndexService.hmac(request.passportNumber());
         if (visitorRepository.existsByPassportNumberHash(passportNumberHash)) {
@@ -197,6 +208,7 @@ public class VisitorServiceImpl implements VisitorService {
         Visitor visitor = getEntityById(id);
         Policy policy = policyService.getEntityById(request.policyId());
         validateCoverPeriod(request);
+        validateNationalityNotExempt(request);
         String passportNumberHash = blindIndexService.hmac(request.passportNumber());
         if (visitorRepository.existsByPassportNumberHashAndIdNot(passportNumberHash, id)) {
             throw new IllegalStateException(
@@ -289,6 +301,14 @@ public class VisitorServiceImpl implements VisitorService {
             visitor.setExitTimestamp(entryExitUpdate.exitTimestamp());
         }
         return visitorMapper.toResponse(visitor);
+    }
+
+    private void validateNationalityNotExempt(VisitorRequest request) {
+        String normalized = request.nationality().trim().toUpperCase(Locale.ROOT);
+        if (EXEMPT_NATIONALITIES.contains(normalized)) {
+            throw new IllegalArgumentException(
+                    "Citizens of Kenya and EAC partner states are exempt from purchasing the inbound policy");
+        }
     }
 
     private void validateCoverPeriod(VisitorRequest request) {
