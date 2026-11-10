@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -50,6 +52,27 @@ class ServiceProviderControllerTest {
         return new ServiceProviderResponse(providerId, "Nairobi Hospital", "contact@nairobihospital.example",
                 "+254700000000", "Argwings Kodhek Rd", "Nairobi", null, new BigDecimal("36.821946"),
                 new BigDecimal("-1.292066"), Instant.now(), Instant.now());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listPassesNameFilterToService() throws Exception {
+        when(serviceProviderService.list(eq("nairobi"), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(sampleResponse())));
+
+        mockMvc.perform(get("/api/v1/service-providers").param("name", "nairobi"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].name").value("Nairobi Hospital"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listWithoutNameDoesNotFilter() throws Exception {
+        when(serviceProviderService.list(eq(null), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
+
+        mockMvc.perform(get("/api/v1/service-providers"))
+                .andExpect(status().isOk());
+        verify(serviceProviderService).list(eq(null), any(Pageable.class));
     }
 
     @Test
