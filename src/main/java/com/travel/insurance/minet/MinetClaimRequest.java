@@ -15,17 +15,14 @@ public record MinetClaimRequest(
         String diagnosisDescription,
         String visitDate,
         BigDecimal amountClaimed,
-        String invoiceNumber,
-        String invoiceDate,
-        BigDecimal invoiceAmount,
-        String service,
-        String department,
         BigDecimal claimAmountUsd,
         BigDecimal exchangeRate,
         String inboundClaimReference,
         List<Invoice> invoices) {
 
-    /** One invoice of the claim. The flat invoice fields above remain the combined summary. */
-    public record Invoice(String invoiceNumber, String invoiceDate, BigDecimal invoiceAmount, String currency) {
+    /** One invoice of the claim. Sent as an array even when the claim has a single invoice. */
+    public record Invoice(
+            String invoiceNumber, String invoiceDate, BigDecimal invoiceAmount, String currency,
+            String service, String department) {
     }
 }

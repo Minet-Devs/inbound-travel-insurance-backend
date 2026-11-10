@@ -17,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Comparator;
@@ -78,10 +77,6 @@ public class MinetClaimSyncServiceImpl implements MinetClaimSyncService {
         LocalDate visitDate = invoices.stream().flatMap(i -> i.invoiceItems().stream())
                 .map(InvoiceItemResponse::serviceDate).filter(Objects::nonNull)
                 .min(Comparator.naturalOrder()).orElse(claimDate);
-        LocalDate invoiceDate = invoices.stream().map(InvoiceResponse::issueDate).filter(Objects::nonNull)
-                .min(Comparator.naturalOrder()).orElse(claimDate);
-        BigDecimal invoiceAmount = invoices.stream().map(InvoiceResponse::totalAmount).filter(Objects::nonNull)
-                .reduce(BigDecimal::add).orElse(null);
         return new MinetClaimRequest(
                 provider.name(),
                 provider.minetServiceProviderId(),
@@ -93,11 +88,6 @@ public class MinetClaimSyncServiceImpl implements MinetClaimSyncService {
                 joined(diagnoses.stream().map(Icd11CodeResponse::title)),
                 visitDate.toString(),
                 claim.getClaimedAmount(),
-                joined(invoices.stream().map(InvoiceResponse::invoiceNumber)),
-                invoiceDate.toString(),
-                invoiceAmount,
-                GROUPED_SERVICE,
-                GROUPED_DEPARTMENT,
                 claim.getClaimedAmountBase(),
                 claim.getExchangeRate(),
                 claim.getId().toString(),
@@ -105,7 +95,9 @@ public class MinetClaimSyncServiceImpl implements MinetClaimSyncService {
                         i.invoiceNumber(),
                         i.issueDate() != null ? i.issueDate().toString() : claimDate.toString(),
                         i.totalAmount(),
-                        i.currency())).toList());
+                        i.currency(),
+                        GROUPED_SERVICE,
+                        GROUPED_DEPARTMENT)).toList());
     }
 
     private Icd11CodeResponse diagnosis(UUID id) {
