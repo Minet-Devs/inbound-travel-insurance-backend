@@ -99,7 +99,10 @@ class MinetClientTest {
             "NOINJ", "No Injury", "2026-11-06", new java.math.BigDecimal("100000"), "INV030212983", "2026-11-06",
             new java.math.BigDecimal("100000"), "Grouped Service", "Grouped Department",
             new java.math.BigDecimal("769.88"), new java.math.BigDecimal("0.008"),
-            "2eadeb78-4028-465a-b3c4-33e51215a09e");
+            "2eadeb78-4028-465a-b3c4-33e51215a09e",
+            java.util.List.of(
+                    new MinetClaimRequest.Invoice("INV030212983", "2026-11-06", new java.math.BigDecimal("60000"), "KES"),
+                    new MinetClaimRequest.Invoice("INV030212984", "2026-11-07", new java.math.BigDecimal("40000"), "KES")));
 
     @Test
     void postsClaimWithSchemePublicIdQueryAndBearerToken() {
@@ -118,6 +121,10 @@ class MinetClientTest {
                 .andExpect(jsonPath("$.service").value("Grouped Service"))
                 .andExpect(jsonPath("$.department").value("Grouped Department"))
                 .andExpect(jsonPath("$.inboundClaimReference").value("2eadeb78-4028-465a-b3c4-33e51215a09e"))
+                .andExpect(jsonPath("$.invoices.length()").value(2))
+                .andExpect(jsonPath("$.invoices[0].invoiceNumber").value("INV030212983"))
+                .andExpect(jsonPath("$.invoices[1].invoiceAmount").value(40000))
+                .andExpect(jsonPath("$.invoices[1].currency").value("KES"))
                 .andRespond(withSuccess("{\"success\":true,\"claimId\":\"c1\",\"claimNumber\":\"CLM-1\"}", MediaType.APPLICATION_JSON));
 
         client.sendClaim(claimRequest);

@@ -100,7 +100,12 @@ public class MinetClaimSyncServiceImpl implements MinetClaimSyncService {
                 GROUPED_DEPARTMENT,
                 claim.getClaimedAmountBase(),
                 claim.getExchangeRate(),
-                claim.getId().toString());
+                claim.getId().toString(),
+                invoices.stream().map(i -> new MinetClaimRequest.Invoice(
+                        i.invoiceNumber(),
+                        i.issueDate() != null ? i.issueDate().toString() : claimDate.toString(),
+                        i.totalAmount(),
+                        i.currency())).toList());
     }
 
     private Icd11CodeResponse diagnosis(UUID id) {
