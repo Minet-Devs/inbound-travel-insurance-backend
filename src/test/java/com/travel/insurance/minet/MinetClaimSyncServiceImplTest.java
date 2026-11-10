@@ -149,6 +149,10 @@ class MinetClaimSyncServiceImplTest {
         assertThat(captor.getValue().invoiceAmount()).isEqualByComparingTo("100000.50");
         assertThat(captor.getValue().invoiceDate()).isEqualTo("2026-11-06");
         assertThat(captor.getValue().visitDate()).isEqualTo("2026-11-06");
+        assertThat(captor.getValue().invoices()).extracting(MinetClaimRequest.Invoice::invoiceNumber)
+                .containsExactly("INV-1", "INV-2");
+        assertThat(captor.getValue().invoices().get(1).invoiceAmount()).isEqualByComparingTo("40000.50");
+        assertThat(captor.getValue().invoices().get(0).invoiceDate()).isEqualTo("2026-11-06");
     }
 
     @Test
