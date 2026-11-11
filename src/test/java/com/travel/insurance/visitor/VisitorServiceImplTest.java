@@ -299,7 +299,7 @@ class VisitorServiceImplTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"KEN", "UGA", "TZA", "RWA", "BDI", "SSD", "SOM", "COD", "uga", " KEN "})
+    @ValueSource(strings = {"KEN", "UGA", "TZA", "RWA", "BDI", "SSD", "COD", "uga", " KEN "})
     void createRejectsExemptNationalities(String nationality) {
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
 
@@ -310,7 +310,7 @@ class VisitorServiceImplTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"COG", "DEU", "ZAF"})
+    @ValueSource(strings = {"COG", "DEU", "ZAF", "SOM"})
     void createAcceptsNonExemptNationalities(String nationality) {
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
         when(visitorRepository.save(any(Visitor.class))).thenAnswer(invocation -> invocation.getArgument(0));
