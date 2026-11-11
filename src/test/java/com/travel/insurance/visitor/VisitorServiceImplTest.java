@@ -299,7 +299,7 @@ class VisitorServiceImplTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"KEN", "UGA", "TZA", "RWA", "BDI", "SSD", "COD", "uga", " KEN "})
+    @ValueSource(strings = {"KEN", "UGA", "TZA", "RWA", "BDI", "SSD", "SOM", "COD", "uga", " KEN "})
     void createRejectsExemptNationalities(String nationality) {
         when(policyService.getEntityById(policyId)).thenReturn(samplePolicy());
 

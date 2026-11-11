@@ -52,11 +52,11 @@ public class VisitorServiceImpl implements VisitorService {
 
     /**
      * Kenyan and EAC partner-state nationals are exempt from the inbound policy. Nationality arrives as
-     * an ISO 3166-1 alpha-3 code: KEN, UGA, TZA, RWA, BDI, SSD and COD (DR Congo; COG is the
+     * an ISO 3166-1 alpha-3 code: KEN, UGA, TZA, RWA, BDI, SSD, SOM and COD (DR Congo; COG is the
      * Republic of the Congo and is not exempt).
      */
     private static final Set<String> EXEMPT_NATIONALITIES = Set.of(
-            "KEN", "UGA", "TZA", "RWA", "BDI", "SSD", "COD");
+            "KEN", "UGA", "TZA", "RWA", "BDI", "SSD", "SOM", "COD");
 
     private final VisitorRepository visitorRepository;
     private final VisitorMapper visitorMapper;
