@@ -23,6 +23,9 @@ public interface VisitorService {
 
     VisitorResponse getById(UUID id);
 
+    /** ISO 3166-1 alpha-3 codes of nationalities exempt from the inbound policy, sorted. */
+    List<String> getExemptNationalities();
+
     List<VisitorResponse> listByPolicyId(UUID policyId);
 
     VisitorResponse getByPassportNumber(String passportNumber);

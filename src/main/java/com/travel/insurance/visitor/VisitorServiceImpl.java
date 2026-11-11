@@ -356,6 +356,11 @@ public class VisitorServiceImpl implements VisitorService {
         return visitorMapper.toResponse(visitor);
     }
 
+    @Override
+    public List<String> getExemptNationalities() {
+        return EXEMPT_NATIONALITIES.stream().sorted().toList();
+    }
+
     private void validateNationalityNotExempt(VisitorRequest request) {
         String normalized = request.nationality().trim().toUpperCase(Locale.ROOT);
         if (EXEMPT_NATIONALITIES.contains(normalized)) {

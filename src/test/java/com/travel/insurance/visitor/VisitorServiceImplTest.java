@@ -309,6 +309,12 @@ class VisitorServiceImplTest {
         verify(visitorRepository, never()).save(any());
     }
 
+    @Test
+    void getExemptNationalitiesReturnsSortedCodes() {
+        assertThat(visitorService.getExemptNationalities())
+                .containsExactly("BDI", "COD", "KEN", "RWA", "SSD", "TZA", "UGA");
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"COG", "DEU", "ZAF", "SOM"})
     void createAcceptsNonExemptNationalities(String nationality) {
