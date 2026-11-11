@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -95,6 +96,15 @@ public class Icd11CodeServiceImpl implements Icd11CodeService {
         return icd11CodeRepository.findById(id)
                 .map(icd11CodeMapper::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Icd11Code", id));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Icd11CodeResponse> getByIds(Collection<UUID> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return icd11CodeRepository.findAllById(ids).stream().map(icd11CodeMapper::toResponse).toList();
     }
 
     @Override

@@ -119,6 +119,29 @@ public interface ClaimRepository extends JpaRepository<Claim, UUID>, JpaSpecific
                                                  @Param("dateFrom") Instant dateFrom,
                                                  @Param("dateTo") Instant dateTo);
 
+    @Query("SELECT d AS diagnosisId, COUNT(c) AS claimCount FROM Claim c JOIN c.diagnosisIds d "
+            + "WHERE (:insurerId IS NULL OR c.insurerId = :insurerId) "
+            + "AND (:serviceProviderId IS NULL OR c.serviceProviderId = :serviceProviderId) "
+            + "AND c.createdDate >= COALESCE(:dateFrom, c.createdDate) "
+            + "AND c.createdDate <= COALESCE(:dateTo, c.createdDate) "
+            + "GROUP BY d")
+    List<ClaimDiagnosisTotal> countByDiagnosis(@Param("insurerId") UUID insurerId,
+                                               @Param("serviceProviderId") UUID serviceProviderId,
+                                               @Param("dateFrom") Instant dateFrom,
+                                               @Param("dateTo") Instant dateTo);
+
+    @Query("SELECT c.visitorId AS visitorId, d AS diagnosisId, COUNT(c) AS claimCount "
+            + "FROM Claim c JOIN c.diagnosisIds d "
+            + "WHERE (:insurerId IS NULL OR c.insurerId = :insurerId) "
+            + "AND (:serviceProviderId IS NULL OR c.serviceProviderId = :serviceProviderId) "
+            + "AND c.createdDate >= COALESCE(:dateFrom, c.createdDate) "
+            + "AND c.createdDate <= COALESCE(:dateTo, c.createdDate) "
+            + "GROUP BY c.visitorId, d")
+    List<ClaimDiagnosisTotal> countByVisitorAndDiagnosis(@Param("insurerId") UUID insurerId,
+                                                         @Param("serviceProviderId") UUID serviceProviderId,
+                                                         @Param("dateFrom") Instant dateFrom,
+                                                         @Param("dateTo") Instant dateTo);
+
     @Query("SELECT c.serviceProviderId AS groupId, COUNT(c) AS claimCount, "
             + "COALESCE(SUM(c.approvedAmountBase), 0) AS approvedAmountUsd "
             + "FROM Claim c WHERE c.status = COALESCE(:status, c.status) "

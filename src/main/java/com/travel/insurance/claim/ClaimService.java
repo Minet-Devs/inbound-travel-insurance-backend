@@ -4,6 +4,8 @@ import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimListSummary;
 import com.travel.insurance.claim.dto.ClaimSearchCriteria;
 import com.travel.insurance.claim.dto.ClaimDashboardSummary;
+import com.travel.insurance.claim.dto.CountryDiagnosisDistribution;
+import com.travel.insurance.claim.dto.DiagnosisDistribution;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimExportRow;
 import com.travel.insurance.claim.dto.ClaimRequest;
@@ -58,6 +60,18 @@ public interface ClaimService {
     List<ClaimExportRow> listForExport(ClaimStatus status, UUID insurerId, LocalDate dateFrom, LocalDate dateTo);
 
     ClaimDashboardSummary dashboardSummary(ClaimStatus status, LocalDate dateFrom, LocalDate dateTo);
+
+    /**
+     * Claim count and percentage share per diagnosis (ICD-11), most frequent first, over the optional
+     * {@code createdDate} range. A claim with several diagnoses counts once under each.
+     */
+    List<DiagnosisDistribution> diagnosisDistribution(LocalDate dateFrom, LocalDate dateTo);
+
+    /**
+     * Same as {@link #diagnosisDistribution} grouped by visitor nationality (ISO alpha-3, upper-cased), ordered
+     * by country code; percentages are relative to each country.
+     */
+    List<CountryDiagnosisDistribution> diagnosisDistributionByCountry(LocalDate dateFrom, LocalDate dateTo);
 
     List<InsurerClaimDistribution> distributionByInsurer(ClaimStatus status, LocalDate dateFrom, LocalDate dateTo);
 

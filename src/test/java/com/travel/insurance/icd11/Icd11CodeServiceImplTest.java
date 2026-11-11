@@ -169,6 +169,19 @@ class Icd11CodeServiceImplTest {
     }
 
     @Test
+    void getByIdsReturnsMatchingCodesAndSkipsLookupWhenEmpty() {
+        UUID id = UUID.randomUUID();
+        Icd11Code code = new Icd11Code();
+        code.setCode("1A00");
+        code.setTitle("Cholera");
+        when(icd11CodeRepository.findAllById(List.of(id))).thenReturn(List.of(code));
+
+        assertThat(service.getByIds(List.of(id))).extracting(Icd11CodeResponse::code).containsExactly("1A00");
+        assertThat(service.getByIds(List.of())).isEmpty();
+        verify(icd11CodeRepository, never()).findAllById(List.of());
+    }
+
+    @Test
     void getByIdThrowsWhenMissing() {
         UUID id = UUID.randomUUID();
         when(icd11CodeRepository.findById(id)).thenReturn(Optional.empty());

@@ -12,6 +12,8 @@ import com.travel.insurance.claim.dto.ClaimListSummary;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ClaimSearchCriteria;
 import com.travel.insurance.claim.dto.ConvertInvoiceRequest;
+import com.travel.insurance.claim.dto.CountryDiagnosisDistribution;
+import com.travel.insurance.claim.dto.DiagnosisDistribution;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
 import com.travel.insurance.claim.dto.InsurerClaimDistribution;
 import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
@@ -1424,6 +1426,84 @@ class ClaimServiceImplTest {
         claimService.decide(id, new ClaimDecisionRequest(ClaimStatus.REJECTED, null, "no cover"));
 
         assertThat(claim.getApprovedAmountBase()).isEqualByComparingTo("0.00");
+    }
+
+    private ClaimDiagnosisTotal diagnosisTotal(UUID visitorId, UUID diagnosisId, long count) {
+        return new ClaimDiagnosisTotal() {
+            @Override
+            public UUID getVisitorId() {
+                return visitorId;
+            }
+
+            @Override
+            public UUID getDiagnosisId() {
+                return diagnosisId;
+            }
+
+            @Override
+            public long getClaimCount() {
+                return count;
+            }
+        };
+    }
+
+    @Test
+    void diagnosisDistributionOrdersByCountAndComputesPercentages() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        when(claimRepository.countByDiagnosis(null, null, null, null)).thenReturn(List.of(
+                diagnosisTotal(null, diagnosisId1, 1), diagnosisTotal(null, diagnosisId2, 2)));
+        when(icd11CodeService.getByIds(any())).thenReturn(List.of(
+                new Icd11CodeResponse(diagnosisId1, "B54", "Malaria", Instant.now(), Instant.now()),
+                new Icd11CodeResponse(diagnosisId2, "1A00", "Cholera", Instant.now(), Instant.now())));
+
+        List<DiagnosisDistribution> result = claimService.diagnosisDistribution(null, null);
+
+        assertThat(result).extracting(DiagnosisDistribution::code).containsExactly("1A00", "B54");
+        assertThat(result).extracting(DiagnosisDistribution::claimCount).containsExactly(2L, 1L);
+        assertThat(result.get(0).percentage()).isEqualByComparingTo("66.67");
+        assertThat(result.get(1).percentage()).isEqualByComparingTo("33.33");
+        assertThat(result.get(0).title()).isEqualTo("Cholera");
+    }
+
+    @Test
+    void diagnosisDistributionIsEmptyWhenScopeCannotBeResolved() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "INSURER_USER");
+        when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.empty());
+
+        assertThat(claimService.diagnosisDistribution(null, null)).isEmpty();
+        assertThat(claimService.diagnosisDistributionByCountry(null, null)).isEmpty();
+        verify(claimRepository, never()).countByDiagnosis(any(), any(), any(), any());
+        verify(claimRepository, never()).countByVisitorAndDiagnosis(any(), any(), any(), any());
+    }
+
+    @Test
+    void diagnosisDistributionByCountryRollsVisitorsUpToNationalities() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        UUID otherVisitorId = UUID.randomUUID();
+        UUID noNationalityVisitorId = UUID.randomUUID();
+        when(claimRepository.countByVisitorAndDiagnosis(null, null, null, null)).thenReturn(List.of(
+                diagnosisTotal(visitorId, diagnosisId1, 2),
+                diagnosisTotal(otherVisitorId, diagnosisId1, 1),
+                diagnosisTotal(otherVisitorId, diagnosisId2, 1),
+                diagnosisTotal(noNationalityVisitorId, diagnosisId2, 3),
+                diagnosisTotal(null, diagnosisId2, 1)));
+        when(visitorService.nationalitiesByIds(any())).thenReturn(Map.of(
+                visitorId, " usa", otherVisitorId, "USA", noNationalityVisitorId, " "));
+        when(icd11CodeService.getByIds(any())).thenReturn(List.of(
+                new Icd11CodeResponse(diagnosisId1, "B54", "Malaria", Instant.now(), Instant.now()),
+                new Icd11CodeResponse(diagnosisId2, "1A00", "Cholera", Instant.now(), Instant.now())));
+
+        List<CountryDiagnosisDistribution> result = claimService.diagnosisDistributionByCountry(null, null);
+
+        assertThat(result).extracting(CountryDiagnosisDistribution::country).containsExactly("UNKNOWN", "USA");
+        assertThat(result.get(0).totalDiagnoses()).isEqualTo(4);
+        assertThat(result.get(0).diagnoses()).hasSize(1);
+        CountryDiagnosisDistribution usa = result.get(1);
+        assertThat(usa.totalDiagnoses()).isEqualTo(4);
+        assertThat(usa.diagnoses()).extracting(DiagnosisDistribution::code).containsExactly("B54", "1A00");
+        assertThat(usa.diagnoses()).extracting(DiagnosisDistribution::claimCount).containsExactly(3L, 1L);
+        assertThat(usa.diagnoses().get(0).percentage()).isEqualByComparingTo("75.00");
     }
 
     private ClaimDashboardTotal dashboardTotal(UUID groupId, long count, String usd) {
