@@ -732,7 +732,7 @@ Policy
   range — `IllegalArgumentException` (→ 400) either way. It likewise rejects
   (create and update, `IllegalArgumentException` → 400) a visitor whose `nationality`
   (an ISO 3166-1 alpha-3 code, matched case-insensitively) is `KEN` or an EAC
-  partner state (`UGA`, `TZA`, `RWA`, `BDI`, `SSD`, `SOM`, `COD`), since those citizens
+  partner state (`UGA`, `TZA`, `RWA`, `BDI`, `SSD`, `COD`), since those citizens
   are exempt from the inbound policy. `COG` (Republic of the Congo) is not exempt. `Visitor.getPolicyExpiryDate()`
   is a derived, non-persisted (`@Transient`) property — always `dateIn` plus
   365 days, computed on read rather than stored, so it can never drift from
