@@ -290,6 +290,18 @@ class VisitorControllerTest {
 
     @Test
     @WithMockUser
+    void exemptNationalitiesReturnsCodes() throws Exception {
+        when(visitorService.getExemptNationalities()).thenReturn(List.of("BDI", "KEN"));
+
+        mockMvc.perform(get("/api/v1/visitors/exempt-nationalities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0]").value("BDI"))
+                .andExpect(jsonPath("$[1]").value("KEN"));
+    }
+
+    @Test
+    @WithMockUser
     void distributionByAgeGroupReturnsCounts() throws Exception {
         when(visitorService.countByAgeGroup()).thenReturn(List.of(
                 new AgeGroupVisitorCount("0-2", 1),

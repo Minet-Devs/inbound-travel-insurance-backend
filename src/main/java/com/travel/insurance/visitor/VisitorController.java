@@ -43,6 +43,11 @@ public class VisitorController {
         return ResponseEntity.status(HttpStatus.CREATED).body(visitorService.create(request));
     }
 
+    @GetMapping("/exempt-nationalities")
+    public ResponseEntity<List<String>> getExemptNationalities() {
+        return ResponseEntity.ok(visitorService.getExemptNationalities());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<VisitorDetailResponse> getById(@PathVariable UUID id) {
         return ResponseEntity.ok(toDetail(visitorService.getById(id)));

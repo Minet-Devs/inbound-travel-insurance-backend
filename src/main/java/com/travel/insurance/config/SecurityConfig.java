@@ -42,6 +42,7 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/v1/auth/**", "/api/v1/mobile/auth/**", "/error",
                             "/api/v1/ussd/**", "/ussd/**").permitAll();
                     auth.requestMatchers("/api/v1/webhooks/biometric-verification").permitAll();
+                    auth.requestMatchers(HttpMethod.GET, "/api/v1/visitors/exempt-nationalities").permitAll();
                     if (!environment.acceptsProfiles(Profiles.of("prod"))) {
                         auth.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
                     }

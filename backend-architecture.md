@@ -755,6 +755,9 @@ Policy
   separate border events. This endpoint is separate from the general
   `update`/`create` flow since these values are typically recorded later,
   by a border-control integration rather than at KYC onboarding.
+  `GET /api/v1/visitors/exempt-nationalities` (public, no auth) returns the exempt
+  codes as a sorted plain list (`["BDI","COD","KEN",...]`), read from the same
+  `EXEMPT_NATIONALITIES` constant the create/update check uses.
   `GET /api/v1/visitors/distribution-by-insurer` (dashboard) returns
   `[{insurerId, insurerName, totalVisitors}]` — all visitors regardless of status,
   one entry per insurer (zero-visitor insurers included; visitors with a null
