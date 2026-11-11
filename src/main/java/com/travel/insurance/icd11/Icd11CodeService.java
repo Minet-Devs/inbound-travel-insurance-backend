@@ -6,6 +6,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 public interface Icd11CodeService {
@@ -21,4 +23,7 @@ public interface Icd11CodeService {
     Icd11CodeResponse getById(UUID id);
 
     Icd11Code getEntityById(UUID id);
+
+    /** Codes for the given ids; unknown ids are simply absent from the result. */
+    List<Icd11CodeResponse> getByIds(Collection<UUID> ids);
 }

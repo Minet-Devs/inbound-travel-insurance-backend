@@ -3,6 +3,8 @@ package com.travel.insurance.claim;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDashboardSummary;
+import com.travel.insurance.claim.dto.CountryDiagnosisDistribution;
+import com.travel.insurance.claim.dto.DiagnosisDistribution;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimExportRow;
 import com.travel.insurance.claim.dto.ClaimListSummary;
@@ -76,6 +78,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -102,6 +105,7 @@ public class ClaimServiceImpl implements ClaimService {
             ClaimStatus.UNDER_REVIEW);
 
     private static final String UNKNOWN_LABEL = "Unknown";
+    private static final String UNKNOWN_COUNTRY = "UNKNOWN";
 
     private final ClaimRepository claimRepository;
     private final ClaimMapper claimMapper;
@@ -572,6 +576,76 @@ public class ClaimServiceImpl implements ClaimService {
         ClaimDashboardTotal total = claimRepository.summarize(status, scope.insurerId(), scope.serviceProviderId(),
                 startOf(dateFrom), endOf(dateTo));
         return new ClaimDashboardSummary(total.getClaimCount(), total.getApprovedAmountUsd());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DiagnosisDistribution> diagnosisDistribution(LocalDate dateFrom, LocalDate dateTo) {
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return List.of();
+        }
+        Map<UUID, Long> counts = new HashMap<>();
+        for (ClaimDiagnosisTotal row : claimRepository.countByDiagnosis(scope.insurerId(),
+                scope.serviceProviderId(), startOf(dateFrom), endOf(dateTo))) {
+            counts.merge(row.getDiagnosisId(), row.getClaimCount(), Long::sum);
+        }
+        return toDiagnosisDistribution(counts, icd11CodesById(counts.keySet()));
+    }
+
+    /**
+     * Nationality is encrypted at rest, so claims are counted per visitor and diagnosis in SQL and rolled up to
+     * countries in memory. A claim without a visitor lands under {@code UNKNOWN}.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<CountryDiagnosisDistribution> diagnosisDistributionByCountry(LocalDate dateFrom, LocalDate dateTo) {
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return List.of();
+        }
+        List<ClaimDiagnosisTotal> totals = claimRepository.countByVisitorAndDiagnosis(scope.insurerId(),
+                scope.serviceProviderId(), startOf(dateFrom), endOf(dateTo));
+        Map<UUID, String> nationalities = visitorService.nationalitiesByIds(totals.stream()
+                .map(ClaimDiagnosisTotal::getVisitorId).filter(Objects::nonNull).distinct().toList());
+        Map<String, Map<UUID, Long>> countsByCountry = new TreeMap<>();
+        Set<UUID> diagnosisIds = new HashSet<>();
+        for (ClaimDiagnosisTotal total : totals) {
+            String nationality = total.getVisitorId() == null ? null : nationalities.get(total.getVisitorId());
+            String country = nationality == null || nationality.isBlank()
+                    ? UNKNOWN_COUNTRY : nationality.trim().toUpperCase(Locale.ROOT);
+            countsByCountry.computeIfAbsent(country, k -> new HashMap<>())
+                    .merge(total.getDiagnosisId(), total.getClaimCount(), Long::sum);
+            diagnosisIds.add(total.getDiagnosisId());
+        }
+        Map<UUID, Icd11CodeResponse> codes = icd11CodesById(diagnosisIds);
+        return countsByCountry.entrySet().stream()
+                .map(e -> new CountryDiagnosisDistribution(e.getKey(),
+                        e.getValue().values().stream().mapToLong(Long::longValue).sum(),
+                        toDiagnosisDistribution(e.getValue(), codes)))
+                .toList();
+    }
+
+    private Map<UUID, Icd11CodeResponse> icd11CodesById(Collection<UUID> ids) {
+        return icd11CodeService.getByIds(ids).stream()
+                .collect(Collectors.toMap(Icd11CodeResponse::id, Function.identity()));
+    }
+
+    /** Most frequent first (ties by code); percentages are relative to the sum of {@code counts}. */
+    private static List<DiagnosisDistribution> toDiagnosisDistribution(
+            Map<UUID, Long> counts, Map<UUID, Icd11CodeResponse> codes) {
+        long total = counts.values().stream().mapToLong(Long::longValue).sum();
+        return counts.entrySet().stream()
+                .map(e -> {
+                    Icd11CodeResponse code = codes.get(e.getKey());
+                    return new DiagnosisDistribution(e.getKey(), code != null ? code.code() : null,
+                            code != null ? code.title() : UNKNOWN_LABEL, e.getValue(),
+                            BigDecimal.valueOf(e.getValue() * 100).divide(BigDecimal.valueOf(total), 2,
+                                    RoundingMode.HALF_UP));
+                })
+                .sorted(Comparator.comparingLong(DiagnosisDistribution::claimCount).reversed()
+                        .thenComparing(DiagnosisDistribution::code, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
     }
 
     /**

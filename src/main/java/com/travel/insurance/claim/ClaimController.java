@@ -3,6 +3,8 @@ package com.travel.insurance.claim;
 import com.travel.insurance.claim.dto.AttachInvoiceRequest;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimDashboardSummary;
+import com.travel.insurance.claim.dto.CountryDiagnosisDistribution;
+import com.travel.insurance.claim.dto.DiagnosisDistribution;
 import com.travel.insurance.claim.dto.ClaimListSummary;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
@@ -88,6 +90,20 @@ public class ClaimController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
         return ResponseEntity.ok(claimService.dashboardSummary(status, dateFrom, dateTo));
+    }
+
+    @GetMapping("/dashboard/diagnoses")
+    public ResponseEntity<List<DiagnosisDistribution>> diagnosisDistribution(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ResponseEntity.ok(claimService.diagnosisDistribution(dateFrom, dateTo));
+    }
+
+    @GetMapping("/dashboard/diagnoses/by-country")
+    public ResponseEntity<List<CountryDiagnosisDistribution>> diagnosisDistributionByCountry(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ResponseEntity.ok(claimService.diagnosisDistributionByCountry(dateFrom, dateTo));
     }
 
     @GetMapping("/dashboard/by-insurer")

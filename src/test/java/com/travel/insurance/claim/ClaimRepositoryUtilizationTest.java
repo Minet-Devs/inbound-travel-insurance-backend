@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 @DataJpaTest
 @Import({JpaAuditingConfig.class, EnvEncryptionKeyProvider.class, FieldEncryptionService.class,
@@ -51,5 +52,33 @@ class ClaimRepositoryUtilizationTest {
 
         assertThat(totals).hasSize(1);
         assertThat(totals.getFirst().totalClaimed()).isEqualByComparingTo("150.00");
+    }
+
+    @Test
+    void countsClaimsPerDiagnosisAndPerVisitorAndDiagnosis() {
+        UUID visitorA = UUID.randomUUID();
+        UUID visitorB = UUID.randomUUID();
+        UUID malaria = UUID.randomUUID();
+        UUID cholera = UUID.randomUUID();
+        Claim first = claim(visitorA, UUID.randomUUID(), "100.00", "1.00");
+        first.setDiagnosisIds(Set.of(malaria, cholera));
+        Claim second = claim(visitorB, UUID.randomUUID(), "100.00", "1.00");
+        second.setDiagnosisIds(Set.of(malaria));
+        claimRepository.save(first);
+        claimRepository.save(second);
+        claimRepository.save(claim(visitorA, UUID.randomUUID(), "100.00", "1.00"));
+        claimRepository.flush();
+
+        List<ClaimDiagnosisTotal> byDiagnosis = claimRepository.countByDiagnosis(null, null, null, null);
+        List<ClaimDiagnosisTotal> byVisitor = claimRepository.countByVisitorAndDiagnosis(null, null, null, null);
+
+        assertThat(byDiagnosis).extracting(ClaimDiagnosisTotal::getDiagnosisId, ClaimDiagnosisTotal::getClaimCount)
+                .containsExactlyInAnyOrder(tuple(malaria, 2L),
+                        tuple(cholera, 1L));
+        assertThat(byVisitor).extracting(ClaimDiagnosisTotal::getVisitorId, ClaimDiagnosisTotal::getDiagnosisId,
+                        ClaimDiagnosisTotal::getClaimCount)
+                .containsExactlyInAnyOrder(tuple(visitorA, malaria, 1L),
+                        tuple(visitorA, cholera, 1L),
+                        tuple(visitorB, malaria, 1L));
     }
 }

@@ -8,6 +8,8 @@ import com.travel.insurance.claim.dto.ClaimListSummary;
 import com.travel.insurance.claim.dto.ClaimRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ClaimSearchCriteria;
+import com.travel.insurance.claim.dto.CountryDiagnosisDistribution;
+import com.travel.insurance.claim.dto.DiagnosisDistribution;
 import com.travel.insurance.claim.dto.InsurerClaimDistribution;
 import com.travel.insurance.claim.dto.ServiceProviderClaimDistribution;
 import org.junit.jupiter.api.Test;
@@ -280,6 +282,47 @@ class ClaimControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalClaims").value(12))
                 .andExpect(jsonPath("$.totalApprovedAmountUsd").value(3456.78));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void dashboardDiagnosesReturnsDistribution() throws Exception {
+        UUID diagnosisId = UUID.randomUUID();
+        when(claimService.diagnosisDistribution(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)))
+                .thenReturn(List.of(new DiagnosisDistribution(diagnosisId, "B54", "Malaria", 3,
+                        new BigDecimal("60.00"))));
+
+        mockMvc.perform(get("/api/v1/claims/dashboard/diagnoses")
+                        .param("dateFrom", "2026-10-01")
+                        .param("dateTo", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].diagnosisId").value(diagnosisId.toString()))
+                .andExpect(jsonPath("$[0].code").value("B54"))
+                .andExpect(jsonPath("$[0].claimCount").value(3))
+                .andExpect(jsonPath("$[0].percentage").value(60.00));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void dashboardDiagnosesByCountryReturnsGroupedDistribution() throws Exception {
+        when(claimService.diagnosisDistributionByCountry(null, null)).thenReturn(List.of(
+                new CountryDiagnosisDistribution("USA", 4, List.of(
+                        new DiagnosisDistribution(UUID.randomUUID(), "B54", "Malaria", 3,
+                                new BigDecimal("75.00"))))));
+
+        mockMvc.perform(get("/api/v1/claims/dashboard/diagnoses/by-country"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].country").value("USA"))
+                .andExpect(jsonPath("$[0].totalDiagnoses").value(4))
+                .andExpect(jsonPath("$[0].diagnoses[0].title").value("Malaria"))
+                .andExpect(jsonPath("$[0].diagnoses[0].percentage").value(75.00));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void dashboardDiagnosesRejectsInvalidDate() throws Exception {
+        mockMvc.perform(get("/api/v1/claims/dashboard/diagnoses").param("dateFrom", "not-a-date"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

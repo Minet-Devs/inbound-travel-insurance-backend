@@ -1110,6 +1110,17 @@ Policy
     optional `limit` (≥ 1, else 400) returns only the top providers by `claimCount`
     (ties broken by `approvedAmountUsd`), e.g. `limit=10` for "Claims by Service Provider";
     in that mode providers with no claims and the `Unknown` row are dropped
+  - `GET /api/v1/claims/dashboard/diagnoses` (only `dateFrom`/`dateTo`, no `status`) →
+    `[ { diagnosisId, code, title, claimCount, percentage } ]` per ICD-11 diagnosis, most frequent first
+    (ties by code); `percentage` (0-100, 2 dp) is the share of all diagnosis occurrences. A claim with several
+    diagnoses counts once under each, so counts can exceed `totalClaims`. Only diagnoses with at least one claim
+    are listed; an id with no ICD-11 row gets `title` `Unknown` and a `null` code.
+  - `GET /api/v1/claims/dashboard/diagnoses/by-country` (same filters) →
+    `[ { country, totalDiagnoses, diagnoses: [ <same rows as above, percentage relative to the country> ] } ]`
+    per visitor nationality (ISO alpha-3, upper-cased; `UNKNOWN` when the visitor is missing or has none),
+    ordered by country code. Nationality is encrypted at rest, so
+    `ClaimRepository.countByVisitorAndDiagnosis` groups per visitor and diagnosis in SQL and the service rolls up
+    to countries in memory via `VisitorService.nationalitiesByIds`; titles come from `Icd11CodeService.getByIds`.
 
   The USD total is `COALESCE(SUM(approvedAmountBase), 0)` over the filtered claims
   (undecided claims count towards `totalClaims` but add `0`). Distributions list every
