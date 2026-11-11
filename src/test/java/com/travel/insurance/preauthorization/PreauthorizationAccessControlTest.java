@@ -118,8 +118,10 @@ class PreauthorizationAccessControlTest {
                 .thenReturn(new PreauthorizationDashboardSummary(0, 0, 0, 0));
         when(preauthorizationService.distributionByInsurer(any(), any())).thenReturn(List.of());
         when(preauthorizationService.topServiceProviders(any(), any(), any())).thenReturn(List.of());
+        when(preauthorizationService.totalsByCountry(any(), any(), any())).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/preauthorizations/dashboard/summary")).andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/by-country")).andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/preauthorizations/dashboard/by-insurer")).andExpect(status().isOk());
         mockMvc.perform(get("/api/v1/preauthorizations/dashboard/top-service-providers"))
                 .andExpect(status().isOk());

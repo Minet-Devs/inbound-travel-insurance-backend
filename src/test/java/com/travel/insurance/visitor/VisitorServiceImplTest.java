@@ -779,6 +779,19 @@ class VisitorServiceImplTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void nationalitiesByIdsMapsVisitorIdsToNationalityAndSkipsLookupWhenEmpty() {
+        Visitor visitor = new Visitor();
+        visitor.setId(UUID.randomUUID());
+        visitor.setNationality("USA");
+        when(visitorRepository.findAllById(List.of(visitor.getId()))).thenReturn(List.of(visitor));
+
+        assertThat(visitorService.nationalitiesByIds(List.of(visitor.getId())))
+                .containsExactlyEntriesOf(java.util.Map.of(visitor.getId(), "USA"));
+        assertThat(visitorService.nationalitiesByIds(List.of())).isEmpty();
+        verify(visitorRepository, never()).findAllById(List.of());
+    }
+
     private static VisitorRepository.AgeVisitorTotal ageTotal(Integer age, long total) {
         return new VisitorRepository.AgeVisitorTotal() {
             public Integer getAge() { return age; }

@@ -4,6 +4,7 @@ import java.util.Set;
 import java.time.ZoneOffset;
 import com.travel.insurance.preauthorization.dto.ServiceProviderPreauthorizationDistribution;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
+import com.travel.insurance.preauthorization.dto.CountryPreauthorizationTotal;
 import com.travel.insurance.preauthorization.dto.InsurerPreauthorizationDistribution;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import org.mockito.ArgumentCaptor;
@@ -372,6 +373,60 @@ class PreauthorizationServiceImplTest {
         assertThatThrownBy(() -> preauthorizationService.topServiceProviders(null, null, 0))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("limit");
+    }
+
+    private record VisitorTotalRow(UUID visitorId, long count, BigDecimal requested, BigDecimal approved)
+            implements PreauthorizationVisitorTotal {
+        public UUID getVisitorId() {
+            return visitorId;
+        }
+
+        public long getPreauthorizationCount() {
+            return count;
+        }
+
+        public BigDecimal getRequestedAmount() {
+            return requested;
+        }
+
+        public BigDecimal getApprovedAmount() {
+            return approved;
+        }
+    }
+
+    @Test
+    void totalsByCountryRollsVisitorsUpToNormalizedNationalitiesAndPassesFilters() {
+        UUID visitorA = UUID.randomUUID();
+        UUID visitorB = UUID.randomUUID();
+        UUID visitorC = UUID.randomUUID();
+        LocalDate from = LocalDate.of(2026, 10, 1);
+        LocalDate to = LocalDate.of(2026, 10, 31);
+        when(preauthorizationRepository.summarizeByVisitor(PreauthorizationStatus.APPROVED, null, null,
+                from.atStartOfDay().toInstant(ZoneOffset.UTC), to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)))
+                .thenReturn(List.of(
+                        new VisitorTotalRow(visitorA, 2, new BigDecimal("300.00"), new BigDecimal("250.00")),
+                        new VisitorTotalRow(visitorB, 1, new BigDecimal("100.00"), new BigDecimal("100.00")),
+                        new VisitorTotalRow(visitorC, 4, new BigDecimal("900.00"), new BigDecimal("800.00"))));
+        when(visitorService.nationalitiesByIds(any())).thenReturn(java.util.Map.of(
+                visitorA, "USA", visitorB, " usa ", visitorC, "GBR"));
+
+        List<CountryPreauthorizationTotal> result =
+                preauthorizationService.totalsByCountry(PreauthorizationStatus.APPROVED, from, to);
+
+        assertThat(result).containsExactly(
+                new CountryPreauthorizationTotal("GBR", 4, new BigDecimal("900.00"), new BigDecimal("800.00")),
+                new CountryPreauthorizationTotal("USA", 3, new BigDecimal("400.00"), new BigDecimal("350.00")));
+    }
+
+    @Test
+    void totalsByCountryGroupsVisitorsWithoutNationalityUnderUnknown() {
+        UUID visitorId = UUID.randomUUID();
+        when(preauthorizationRepository.summarizeByVisitor(null, null, null, null, null)).thenReturn(List.of(
+                new VisitorTotalRow(visitorId, 1, new BigDecimal("50.00"), BigDecimal.ZERO)));
+        when(visitorService.nationalitiesByIds(any())).thenReturn(java.util.Map.of());
+
+        assertThat(preauthorizationService.totalsByCountry(null, null, null)).containsExactly(
+                new CountryPreauthorizationTotal("UNKNOWN", 1, new BigDecimal("50.00"), BigDecimal.ZERO));
     }
 
     private InsurerResponse insurerResponse(UUID id, String name) {

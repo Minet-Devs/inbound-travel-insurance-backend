@@ -17,6 +17,7 @@ import com.travel.insurance.policy.Policy;
 import com.travel.insurance.policy.PolicyService;
 import com.travel.insurance.policy.PolicyStatus;
 import com.travel.insurance.insurer.dto.InsurerResponse;
+import com.travel.insurance.preauthorization.dto.CountryPreauthorizationTotal;
 import com.travel.insurance.preauthorization.dto.InsurerPreauthorizationDistribution;
 import com.travel.insurance.preauthorization.dto.OfflineApproval;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
@@ -48,9 +49,11 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 
 @Slf4j
@@ -316,6 +319,35 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
                 .map(total -> new ServiceProviderPreauthorizationDistribution(total.getGroupId(),
                         names.get(total.getGroupId()), total.getPreauthorizationCount(), total.getApprovedAmount()))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CountryPreauthorizationTotal> totalsByCountry(
+            PreauthorizationStatus status, LocalDate dateFrom, LocalDate dateTo) {
+        DashboardScope scope = resolveDashboardScope();
+        if (scope.empty()) {
+            return List.of();
+        }
+        List<PreauthorizationVisitorTotal> totals = preauthorizationRepository.summarizeByVisitor(
+                status, scope.insurerId(), scope.serviceProviderId(), startOf(dateFrom), endOf(dateTo));
+        // Nationality is encrypted at rest, so visitors are rolled up to countries in memory.
+        Map<UUID, String> nationalities = visitorService.nationalitiesByIds(
+                totals.stream().map(PreauthorizationVisitorTotal::getVisitorId).toList());
+        Map<String, CountryPreauthorizationTotal> byCountry = new TreeMap<>();
+        for (PreauthorizationVisitorTotal total : totals) {
+            String nationality = nationalities.get(total.getVisitorId());
+            String country = nationality == null || nationality.isBlank()
+                    ? "UNKNOWN" : nationality.trim().toUpperCase(Locale.ROOT);
+            byCountry.merge(country,
+                    new CountryPreauthorizationTotal(country, total.getPreauthorizationCount(),
+                            total.getRequestedAmount(), total.getApprovedAmount()),
+                    (a, b) -> new CountryPreauthorizationTotal(country,
+                            a.preauthorizationCount() + b.preauthorizationCount(),
+                            a.requestedAmount().add(b.requestedAmount()),
+                            a.approvedAmount().add(b.approvedAmount())));
+        }
+        return List.copyOf(byCountry.values());
     }
 
     @Override

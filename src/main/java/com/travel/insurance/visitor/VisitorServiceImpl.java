@@ -33,6 +33,7 @@ import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -180,6 +181,19 @@ public class VisitorServiceImpl implements VisitorService {
         return totals.entrySet().stream()
                 .map(entry -> new CountryVisitorCount(entry.getKey(), entry.getValue()))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, String> nationalitiesByIds(Collection<UUID> visitorIds) {
+        if (visitorIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> nationalities = new HashMap<>();
+        for (Visitor visitor : visitorRepository.findAllById(visitorIds)) {
+            nationalities.put(visitor.getId(), visitor.getNationality());
+        }
+        return nationalities;
     }
 
     @Override

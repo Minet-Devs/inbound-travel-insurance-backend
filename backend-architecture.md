@@ -905,6 +905,12 @@ Policy
   - `/top-service-providers` → `ServiceProviderPreauthorizationDistribution` (same fields, by provider),
     top `limit` (default 10, must be ≥ 1) by count with ties broken by approved amount; providers with none
     are dropped.
+  - `/by-country` → `CountryPreauthorizationTotal` `{country, preauthorizationCount, requestedAmount,
+    approvedAmount}` per visitor nationality (ISO alpha-3, upper-cased; `UNKNOWN` when the visitor has none),
+    ordered by country code; only countries with at least one pre-authorization are listed. Also takes an
+    optional `status` (default: every status). Amounts are in the stored (KES) currency. Nationality is
+    encrypted at rest, so `PreauthorizationRepository.summarizeByVisitor` groups per visitor in SQL and the
+    service rolls up to countries in memory via `VisitorService.nationalitiesByIds`.
 - A **Preauthorization** is raised by a `PROVIDER_USER` before rendering a
   service and is decided by an `INSURER_USER` (or a admin agent). A
   `CONTACT_CENTER` user may also both raise (`POST /api/v1/preauthorizations`)
