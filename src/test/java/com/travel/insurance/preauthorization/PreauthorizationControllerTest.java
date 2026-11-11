@@ -1,6 +1,7 @@
 package com.travel.insurance.preauthorization;
 
 import com.travel.insurance.preauthorization.dto.ServiceProviderPreauthorizationDistribution;
+import com.travel.insurance.preauthorization.dto.CountryPreauthorizationTotal;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
 import com.travel.insurance.preauthorization.dto.InsurerPreauthorizationDistribution;
 import com.travel.insurance.preauthorization.dto.PreauthorizationUploadRowStatus;
@@ -32,6 +33,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -125,6 +127,23 @@ class PreauthorizationControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].serviceProviderName").value("Aga Khan"))
                 .andExpect(jsonPath("$[0].preauthorizationCount").value(3));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void totalsByCountryReturnsPerCountryTotalsAndPassesFilters() throws Exception {
+        when(preauthorizationService.totalsByCountry(any(), any(), any())).thenReturn(List.of(
+                new CountryPreauthorizationTotal("USA", 3, new BigDecimal("400.00"), new BigDecimal("350.00"))));
+
+        mockMvc.perform(get("/api/v1/preauthorizations/dashboard/by-country")
+                        .param("status", "APPROVED").param("dateFrom", "2026-10-01").param("dateTo", "2026-10-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].country").value("USA"))
+                .andExpect(jsonPath("$[0].preauthorizationCount").value(3))
+                .andExpect(jsonPath("$[0].requestedAmount").value(400.00))
+                .andExpect(jsonPath("$[0].approvedAmount").value(350.00));
+        verify(preauthorizationService).totalsByCountry(PreauthorizationStatus.APPROVED,
+                java.time.LocalDate.of(2026, 10, 1), java.time.LocalDate.of(2026, 10, 31));
     }
 
     @Test

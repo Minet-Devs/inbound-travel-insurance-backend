@@ -65,6 +65,20 @@ public interface PreauthorizationRepository extends JpaRepository<Preauthorizati
             @Param("dateFrom") Instant dateFrom,
             @Param("dateTo") Instant dateTo);
 
+    @Query("SELECT p.visitorId AS visitorId, COUNT(p) AS preauthorizationCount, "
+            + "COALESCE(SUM(p.requestedAmount), 0) AS requestedAmount, "
+            + "COALESCE(SUM(p.approvedAmount), 0) AS approvedAmount "
+            + "FROM Preauthorization p WHERE (:insurerId IS NULL OR p.insurerId = :insurerId) "
+            + "AND (:serviceProviderId IS NULL OR p.serviceProviderId = :serviceProviderId) "
+            + "AND p.createdDate >= COALESCE(:dateFrom, p.createdDate) "
+            + "AND p.createdDate <= COALESCE(:dateTo, p.createdDate) "
+            + "AND (:status IS NULL OR p.status = :status) GROUP BY p.visitorId")
+    List<PreauthorizationVisitorTotal> summarizeByVisitor(@Param("status") PreauthorizationStatus status,
+                                                          @Param("insurerId") UUID insurerId,
+                                                          @Param("serviceProviderId") UUID serviceProviderId,
+                                                          @Param("dateFrom") Instant dateFrom,
+                                                          @Param("dateTo") Instant dateTo);
+
     Page<Preauthorization> findAllByServiceProviderIdAndInsurerId(
             UUID serviceProviderId, UUID insurerId, Pageable pageable);
 }

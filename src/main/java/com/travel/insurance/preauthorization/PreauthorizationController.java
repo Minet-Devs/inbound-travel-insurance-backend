@@ -1,5 +1,6 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.preauthorization.dto.CountryPreauthorizationTotal;
 import com.travel.insurance.preauthorization.dto.InsurerPreauthorizationDistribution;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
 import com.travel.insurance.preauthorization.dto.ServiceProviderPreauthorizationDistribution;
@@ -75,6 +76,14 @@ public class PreauthorizationController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @RequestParam(required = false) Integer limit) {
         return ResponseEntity.ok(preauthorizationService.topServiceProviders(dateFrom, dateTo, limit));
+    }
+
+    @GetMapping("/dashboard/by-country")
+    public ResponseEntity<List<CountryPreauthorizationTotal>> totalsByCountry(
+            @RequestParam(required = false) PreauthorizationStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ResponseEntity.ok(preauthorizationService.totalsByCountry(status, dateFrom, dateTo));
     }
 
     @GetMapping("/{id}")

@@ -1,5 +1,6 @@
 package com.travel.insurance.preauthorization;
 
+import com.travel.insurance.preauthorization.dto.CountryPreauthorizationTotal;
 import com.travel.insurance.preauthorization.dto.InsurerPreauthorizationDistribution;
 import com.travel.insurance.preauthorization.dto.OfflineApproval;
 import com.travel.insurance.preauthorization.dto.PreauthorizationDashboardSummary;
@@ -52,6 +53,14 @@ public interface PreauthorizationService {
      */
     List<ServiceProviderPreauthorizationDistribution> topServiceProviders(
             LocalDate dateFrom, LocalDate dateTo, Integer limit);
+
+    /**
+     * Pre-authorizations per visitor nationality (ISO alpha-3, upper-cased), ordered by country code: count plus
+     * requested and approved amount sums. Optional {@code status} (default every status) and
+     * {@code createdDate} range. Only countries with at least one pre-authorization are listed.
+     */
+    List<CountryPreauthorizationTotal> totalsByCountry(PreauthorizationStatus status, LocalDate dateFrom,
+                                                       LocalDate dateTo);
 
     void delete(UUID id);
 
