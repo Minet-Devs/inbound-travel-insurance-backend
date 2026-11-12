@@ -2,7 +2,6 @@ package com.travel.insurance.document;
 
 import com.travel.insurance.claim.Claim;
 import com.travel.insurance.claim.ClaimService;
-import com.travel.insurance.claim.ClaimStatus;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.util.AuthenticatedUser;
 import com.travel.insurance.common.util.SecurityUtils;
@@ -146,7 +145,7 @@ public class DocumentServiceImpl implements DocumentService {
             case CLAIM -> {
                 Claim claim = claimService.getEntityById(id);
                 yield new Owner(type, id, claim.getServiceProviderId(),
-                        claim.getStatus() == ClaimStatus.OPEN || claim.getStatus() == ClaimStatus.SUBMITTED);
+                        claim.getStatus().isEditable());
             }
             case PREAUTHORIZATION -> {
                 Preauthorization preauth = preauthorizationService.getEntityById(id);

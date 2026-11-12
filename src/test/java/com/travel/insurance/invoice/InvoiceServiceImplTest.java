@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -42,6 +43,9 @@ class InvoiceServiceImplTest {
     @Mock
     private CurrencyConversionService currencyConversionService;
 
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
+
     private final InvoiceMapper invoiceMapper = new InvoiceMapper();
 
     private InvoiceServiceImpl invoiceService;
@@ -55,7 +59,8 @@ class InvoiceServiceImplTest {
     @BeforeEach
     void setUp() {
         invoiceService = new InvoiceServiceImpl(
-                invoiceRepository, invoiceMapper, medicalServiceService, currencyConversionService);
+                invoiceRepository, invoiceMapper, medicalServiceService, currencyConversionService,
+                applicationEventPublisher);
         claimId = UUID.randomUUID();
         medicalServiceId = UUID.randomUUID();
         request = new InvoiceRequest(
@@ -258,6 +263,56 @@ class InvoiceServiceImplTest {
         invoiceService.delete(id);
 
         verify(invoiceRepository).delete(invoice);
+        verify(applicationEventPublisher).publishEvent(new InvoiceChangedEvent(claimId));
+    }
+
+    @Test
+    void createPublishesInvoiceChangedForItsClaim() {
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        invoiceService.create(request);
+
+        verify(applicationEventPublisher).publishEvent(new InvoiceChangedEvent(claimId));
+    }
+
+    @Test
+    void createWithoutClaimPublishesNothing() {
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        invoiceService.create(new InvoiceRequest(null, "INV-X", null, "KES", new BigDecimal("10.00"), List.of()));
+
+        verify(applicationEventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void updatePublishesForOldAndNewClaimWhenInvoiceMoves() {
+        UUID id = UUID.randomUUID();
+        UUID otherClaimId = UUID.randomUUID();
+        when(invoiceRepository.findById(id)).thenReturn(Optional.of(invoiceMapper.toEntity(request)));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        invoiceService.update(id, new InvoiceRequest(otherClaimId, "INV-2026-001", null, "KES",
+                new BigDecimal("25000.00"), List.of()));
+
+        verify(applicationEventPublisher).publishEvent(new InvoiceChangedEvent(claimId));
+        verify(applicationEventPublisher).publishEvent(new InvoiceChangedEvent(otherClaimId));
+    }
+
+    @Test
+    void updateIsRolledBackWhenClaimRejectsTheChange() {
+        UUID id = UUID.randomUUID();
+        when(invoiceRepository.findById(id)).thenReturn(Optional.of(invoiceMapper.toEntity(request)));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        org.mockito.Mockito.doThrow(new IllegalStateException("Claim can no longer be edited in status PAID"))
+                .when(applicationEventPublisher).publishEvent(new InvoiceChangedEvent(claimId));
+
+        assertThatThrownBy(() -> invoiceService.update(id, request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("PAID");
     }
 
     @Test
