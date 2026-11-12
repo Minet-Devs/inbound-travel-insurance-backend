@@ -1,5 +1,9 @@
 package com.travel.insurance.claim;
 
+import com.travel.insurance.claim.dto.ClaimUpdateRequest;
+import com.travel.insurance.invoice.InvoiceChangedEvent;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import com.travel.insurance.common.domain.VisitType;
 import com.travel.insurance.benefit.BenefitService;
 import com.travel.insurance.benefit.dto.BenefitResponse;
@@ -941,33 +945,240 @@ class ClaimServiceImplTest {
         verify(invoiceService).attachToClaim(invoiceId, claimId);
     }
 
-    @Test
-    void updateRecomputesBaseAmounts() {
-        UUID id = UUID.randomUUID();
+    private Claim editableClaim(UUID id, ClaimStatus status) {
         Claim claim = claimMapper.toEntity(baseRequest());
         claim.setId(id);
-        claim.setStatus(ClaimStatus.OPEN);
+        claim.setStatus(status);
+        return claim;
+    }
+
+    private ClaimUpdateRequest updateRequest() {
+        return new ClaimUpdateRequest("Corrected notes", "Amoxicillin 500mg",
+                Set.of(diagnosisId2), Set.of(procedureId1), VisitType.INPATIENT, null);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ClaimStatus.class, names = {"OPEN", "AWAITING_MORE_INFORMATION", "SUBMITTED"})
+    void updateReplacesClinicalDetailsWhileEditable(ClaimStatus status) {
+        UUID id = UUID.randomUUID();
+        Claim claim = editableClaim(id, status);
         when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
-        when(policyService.getEntityById(policyId)).thenReturn(policyCoveredBy(insurerId));
-        when(benefitService.getEntityById(benefitId)).thenReturn(null);
-        when(visitorService.getEntityById(visitorId)).thenReturn(visitorOnPolicy());
-        when(insurerService.exists(insurerId)).thenReturn(true);
-        when(invoiceService.getEntityById(invoiceId)).thenReturn(invoiceWithBaseTotal("45000.00"));
-        when(icd11CodeService.getEntityById(diagnosisId1)).thenReturn(null);
         when(icd11CodeService.getEntityById(diagnosisId2)).thenReturn(null);
         when(procedureService.getById(procedureId1)).thenReturn(procedureResponse(procedureId1));
-        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
         when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(insurerService.getById(insurerId)).thenReturn(insurerResponse());
-        when(invoiceService.listByClaimId(id)).thenReturn(List.of(invoiceResponse()));
 
-        ClaimResponse response = claimService.update(id, fullRequest());
+        ClaimResponse response = claimService.update(id, updateRequest());
 
-        assertThat(response.claimedAmountBase()).isEqualByComparingTo("45000.00");
-        assertThat(response.exchangeRate()).isEqualByComparingTo("0.0077");
-        assertThat(response.invoices()).extracting(InvoiceResponse::invoiceNumber)
-                .containsExactly("INV-2026-001");
+        assertThat(claim.getDescription()).isEqualTo("Corrected notes");
+        assertThat(claim.getPrescription()).isEqualTo("Amoxicillin 500mg");
+        assertThat(claim.getDiagnosisIds()).containsExactly(diagnosisId2);
+        assertThat(claim.getProcedureIds()).containsExactly(procedureId1);
+        assertThat(claim.getVisitType()).isEqualTo(VisitType.INPATIENT);
+        assertThat(response.claimedAmount()).isEqualByComparingTo("50000.00");
+        assertThat(response.status()).isEqualTo(status);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ClaimStatus.class, names = {"UNDER_REVIEW", "APPROVED", "REJECTED", "PAID", "CLOSED"})
+    void updateRejectsLockedClaim(ClaimStatus status) {
+        UUID id = UUID.randomUUID();
+        when(claimRepository.findById(id)).thenReturn(Optional.of(editableClaim(id, status)));
+
+        assertThatThrownBy(() -> claimService.update(id, updateRequest()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(status.name());
+        verify(claimRepository, never()).save(any());
+    }
+
+    @Test
+    void updateRequiresAtLeastOneDiagnosis() {
+        UUID id = UUID.randomUUID();
+        when(claimRepository.findById(id)).thenReturn(Optional.of(editableClaim(id, ClaimStatus.OPEN)));
+
+        assertThatThrownBy(() -> claimService.update(id,
+                new ClaimUpdateRequest(null, null, Set.of(), null, null, null)))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(claimRepository, never()).save(any());
+    }
+
+    @Test
+    void updateRejectsProviderEditingAnotherProvidersClaim() {
+        UUID id = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+        Claim claim = editableClaim(id, ClaimStatus.OPEN);
+        claim.setServiceProviderId(UUID.randomUUID());
+        authenticateAs(orgId, "PROVIDER_USER");
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(serviceProviderService.findIdByOrganizationId(orgId)).thenReturn(Optional.of(UUID.randomUUID()));
+
+        assertThatThrownBy(() -> claimService.update(id, updateRequest()))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        verify(claimRepository, never()).save(any());
+    }
+
+    private ClaimUpdateRequest moveTo(UUID providerId) {
+        return new ClaimUpdateRequest(null, null, Set.of(diagnosisId1), Set.of(), null, providerId);
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"ADMIN", "CONTACT_CENTER"})
+    void updateLetsAdminAndContactCentreChangeProvider(String role) {
+        UUID id = UUID.randomUUID();
+        UUID newProviderId = UUID.randomUUID();
+        Claim claim = editableClaim(id, ClaimStatus.SUBMITTED);
+        claim.setServiceProviderId(UUID.randomUUID());
+        authenticateAs(null, role);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(serviceProviderService.exists(newProviderId)).thenReturn(true);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        claimService.update(id, moveTo(newProviderId));
+
+        assertThat(claim.getServiceProviderId()).isEqualTo(newProviderId);
+        verify(preauthorizationService, never()).reassignServiceProvider(any(), any());
+    }
+
+    @Test
+    void changingProviderAlsoMovesTheLinkedPreauthorization() {
+        UUID id = UUID.randomUUID();
+        UUID newProviderId = UUID.randomUUID();
+        UUID linkedPreauthId = UUID.randomUUID();
+        Claim claim = editableClaim(id, ClaimStatus.OPEN);
+        claim.setServiceProviderId(UUID.randomUUID());
+        claim.setPreauthorizationId(linkedPreauthId);
+        authenticateAs(null, "ADMIN");
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(serviceProviderService.exists(newProviderId)).thenReturn(true);
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        claimService.update(id, moveTo(newProviderId));
+
+        verify(preauthorizationService).reassignServiceProvider(linkedPreauthId, newProviderId);
+    }
+
+    @Test
+    void unchangedProviderLeavesLinkedPreauthorizationAlone() {
+        UUID id = UUID.randomUUID();
+        UUID providerId = UUID.randomUUID();
+        Claim claim = editableClaim(id, ClaimStatus.OPEN);
+        claim.setServiceProviderId(providerId);
+        claim.setPreauthorizationId(UUID.randomUUID());
+        authenticateAs(null, "ADMIN");
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        claimService.update(id, moveTo(providerId));
+
+        verify(preauthorizationService, never()).reassignServiceProvider(any(), any());
+    }
+
+    @Test
+    void updateRejectsProviderUserChangingProvider() {
+        UUID id = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+        UUID ownProviderId = UUID.randomUUID();
+        Claim claim = editableClaim(id, ClaimStatus.OPEN);
+        claim.setServiceProviderId(ownProviderId);
+        authenticateAs(orgId, "PROVIDER_USER");
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(serviceProviderService.findIdByOrganizationId(orgId)).thenReturn(Optional.of(ownProviderId));
+
+        assertThatThrownBy(() -> claimService.update(id, moveTo(UUID.randomUUID())))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        assertThat(claim.getServiceProviderId()).isEqualTo(ownProviderId);
+        verify(claimRepository, never()).save(any());
+    }
+
+    @Test
+    void updateKeepsProviderWhenProviderUserResendsTheirOwn() {
+        UUID id = UUID.randomUUID();
+        UUID orgId = UUID.randomUUID();
+        UUID ownProviderId = UUID.randomUUID();
+        Claim claim = editableClaim(id, ClaimStatus.OPEN);
+        claim.setServiceProviderId(ownProviderId);
+        authenticateAs(orgId, "PROVIDER_USER");
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(serviceProviderService.findIdByOrganizationId(orgId)).thenReturn(Optional.of(ownProviderId));
+        when(claimRepository.save(any(Claim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        claimService.update(id, moveTo(ownProviderId));
+
+        assertThat(claim.getServiceProviderId()).isEqualTo(ownProviderId);
+    }
+
+    @Test
+    void updateRejectsUnknownProvider() {
+        UUID id = UUID.randomUUID();
+        UUID unknownProviderId = UUID.randomUUID();
+        authenticateAs(null, "ADMIN");
+        when(claimRepository.findById(id)).thenReturn(Optional.of(editableClaim(id, ClaimStatus.OPEN)));
+        when(serviceProviderService.exists(unknownProviderId)).thenReturn(false);
+
+        assertThatThrownBy(() -> claimService.update(id, moveTo(unknownProviderId)))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(claimRepository, never()).save(any());
+    }
+
+    private InvoiceResponse invoiceOf(String currency, String total, String baseTotal) {
+        return new InvoiceResponse(UUID.randomUUID(), null, "INV-" + total, null, currency,
+                new BigDecimal(total), KES_TO_USD, "USD", new BigDecimal(baseTotal),
+                LocalDateTime.now(), null, Instant.now(), Instant.now());
+    }
+
+    @Test
+    void invoiceChangeSetsClaimedAmountToSumOfInvoices() {
+        UUID id = UUID.randomUUID();
+        Claim claim = editableClaim(id, ClaimStatus.AWAITING_MORE_INFORMATION);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of(
+                invoiceOf("KES", "30000.00", "231.00"),
+                invoiceOf("KES", "12500.00", "96.25")));
+
+        claimService.onInvoiceChanged(new InvoiceChangedEvent(id));
+
+        assertThat(claim.getClaimedAmount()).isEqualByComparingTo("42500.00");
+        assertThat(claim.getClaimedAmountBase()).isEqualByComparingTo("327.25");
         verify(claimRepository).save(claim);
+    }
+
+    @Test
+    void invoiceChangeConvertsInvoicesInAnotherCurrencyViaBase() {
+        UUID id = UUID.randomUUID();
+        Claim claim = editableClaim(id, ClaimStatus.OPEN);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of(
+                invoiceOf("KES", "10000.00", "77.00"),
+                invoiceOf("USD", "77.00", "77.00")));
+
+        claimService.onInvoiceChanged(new InvoiceChangedEvent(id));
+
+        assertThat(claim.getClaimedAmount()).isEqualByComparingTo("20000.00");
+        assertThat(claim.getClaimedAmountBase()).isEqualByComparingTo("154.00");
+    }
+
+    @Test
+    void invoiceChangeKeepsAmountWhenClaimHasNoInvoicesLeft() {
+        UUID id = UUID.randomUUID();
+        Claim claim = editableClaim(id, ClaimStatus.OPEN);
+        when(claimRepository.findById(id)).thenReturn(Optional.of(claim));
+        when(invoiceService.listByClaimId(id)).thenReturn(List.of());
+
+        claimService.onInvoiceChanged(new InvoiceChangedEvent(id));
+
+        assertThat(claim.getClaimedAmount()).isEqualByComparingTo("50000.00");
+    }
+
+    @Test
+    void invoiceChangeOnLockedClaimIsRejected() {
+        UUID id = UUID.randomUUID();
+        when(claimRepository.findById(id)).thenReturn(Optional.of(editableClaim(id, ClaimStatus.UNDER_REVIEW)));
+
+        assertThatThrownBy(() -> claimService.onInvoiceChanged(new InvoiceChangedEvent(id)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("UNDER_REVIEW");
+        verify(claimRepository, never()).save(any());
     }
 
     @Test

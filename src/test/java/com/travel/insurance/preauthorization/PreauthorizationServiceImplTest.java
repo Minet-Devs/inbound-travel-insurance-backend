@@ -220,6 +220,39 @@ class PreauthorizationServiceImplTest {
                 r.decisionReason(), r.decidedBy(), decidedAt, convertedToClaim, treatmentDate, dischargeDate);
     }
 
+    @Test
+    void reassignServiceProviderMovesPreauthorization() {
+        Preauthorization preauthorization = pendingPreauthorization();
+        UUID id = UUID.randomUUID();
+        UUID newProviderId = UUID.randomUUID();
+        when(preauthorizationRepository.findById(id)).thenReturn(Optional.of(preauthorization));
+
+        preauthorizationService.reassignServiceProvider(id, newProviderId);
+
+        assertThat(preauthorization.getServiceProviderId()).isEqualTo(newProviderId);
+        verify(preauthorizationRepository).save(preauthorization);
+    }
+
+    @Test
+    void reassignServiceProviderToSameProviderDoesNothing() {
+        Preauthorization preauthorization = pendingPreauthorization();
+        UUID id = UUID.randomUUID();
+        when(preauthorizationRepository.findById(id)).thenReturn(Optional.of(preauthorization));
+
+        preauthorizationService.reassignServiceProvider(id, preauthorization.getServiceProviderId());
+
+        verify(preauthorizationRepository, never()).save(any());
+    }
+
+    @Test
+    void reassignServiceProviderOfUnknownPreauthorizationIsNotFound() {
+        UUID id = UUID.randomUUID();
+        when(preauthorizationRepository.findById(id)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> preauthorizationService.reassignServiceProvider(id, UUID.randomUUID()))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
     private Preauthorization pendingPreauthorization() {
         Preauthorization preauthorization = new Preauthorization();
         preauthorization.setId(UUID.randomUUID());

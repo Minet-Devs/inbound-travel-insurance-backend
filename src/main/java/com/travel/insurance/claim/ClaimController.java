@@ -5,6 +5,7 @@ import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimDashboardSummary;
 import com.travel.insurance.claim.dto.ClaimListSummary;
 import com.travel.insurance.claim.dto.ClaimRequest;
+import com.travel.insurance.claim.dto.ClaimUpdateRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ClaimSearchCriteria;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
@@ -59,6 +60,14 @@ public class ClaimController {
             @PathVariable UUID preauthorizationId, @Valid @RequestBody ConvertPreauthorizationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(claimService.createFromPreauthorization(preauthorizationId, request));
+    }
+
+    /** Correct diagnoses, procedures, notes and visit type while the claim is Open, Awaiting info or Submitted. */
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CONTACT_CENTER', 'PROVIDER_USER')")
+    public ResponseEntity<ClaimResponse> update(
+            @PathVariable UUID id, @Valid @RequestBody ClaimUpdateRequest request) {
+        return ResponseEntity.ok(claimService.update(id, request));
     }
 
     @PutMapping("/{id}/invoice")

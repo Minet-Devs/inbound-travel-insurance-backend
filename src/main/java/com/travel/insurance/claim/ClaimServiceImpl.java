@@ -25,6 +25,8 @@ import com.travel.insurance.insurer.InsurerService;
 import com.travel.insurance.insurer.dto.InsurerResponse;
 import com.travel.insurance.invoice.Invoice;
 import com.travel.insurance.invoice.InvoiceService;
+import com.travel.insurance.invoice.InvoiceChangedEvent;
+import com.travel.insurance.claim.dto.ClaimUpdateRequest;
 import com.travel.insurance.invoice.dto.InvoiceItemRequest;
 import com.travel.insurance.invoice.dto.InvoiceItemResponse;
 import com.travel.insurance.invoice.dto.InvoiceRequest;
@@ -46,6 +48,7 @@ import com.travel.insurance.visitor.dto.VisitorResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -227,28 +230,86 @@ public class ClaimServiceImpl implements ClaimService {
     }
 
     @Override
-    public ClaimResponse update(UUID id, ClaimRequest request) {
+    public ClaimResponse update(UUID id, ClaimUpdateRequest request) {
         Claim claim = getEntity(id);
-        if (!OPEN_STATUSES.contains(claim.getStatus())) {
-            throw new IllegalStateException("Claim is not open for updates: " + claim.getStatus());
+        assertVisibleToCurrentUser(claim);
+        assertEditable(claim);
+        if (request.diagnosisIds() == null || request.diagnosisIds().isEmpty()) {
+            throw new IllegalArgumentException("diagnosisIds is required");
         }
-        UUID insurerId = validateReferences(request);
-        claimMapper.updateEntity(claim, request);
-        if (request.preauthorizationId() != null && claim.getDiagnosisIds().isEmpty()) {
-            Preauthorization preauth = preauthorizationService.getEntityById(request.preauthorizationId());
-            if (preauth.getIcd11CodeId() != null) {
-                claim.getDiagnosisIds().add(preauth.getIcd11CodeId());
+        request.diagnosisIds().forEach(icd11CodeService::getEntityById);
+        if (request.procedureIds() != null) {
+            request.procedureIds().forEach(procedureService::getById);
+        }
+        claim.setDescription(request.description());
+        claim.setPrescription(request.prescription());
+        claim.setDiagnosisIds(new HashSet<>(request.diagnosisIds()));
+        claim.setProcedureIds(request.procedureIds() == null ? new HashSet<>() : new HashSet<>(request.procedureIds()));
+        if (request.visitType() != null) {
+            claim.setVisitType(request.visitType());
+        }
+        if (request.serviceProviderId() != null
+                && !request.serviceProviderId().equals(claim.getServiceProviderId())) {
+            String role = SecurityUtils.currentUser().map(AuthenticatedUser::role).orElse(null);
+            if (!"ADMIN".equals(role) && !"CONTACT_CENTER".equals(role)) {
+                throw new AccessDeniedException("Only an admin or contact centre user can change a claim's provider");
+            }
+            if (!serviceProviderService.exists(request.serviceProviderId())) {
+                throw new ResourceNotFoundException("ServiceProvider", request.serviceProviderId());
+            }
+            claim.setServiceProviderId(request.serviceProviderId());
+            // Keep the source pre-auth with the claim so the new provider can still see it.
+            if (claim.getPreauthorizationId() != null) {
+                preauthorizationService.reassignServiceProvider(
+                        claim.getPreauthorizationId(), request.serviceProviderId());
             }
         }
-        if (claim.getDiagnosisIds().isEmpty()) {
-            throw new IllegalArgumentException("diagnosisIds is required when no preauthorization is provided");
-        }
-        if (claim.getProcedureIds().isEmpty()) {
-            throw new IllegalArgumentException("procedureIds are required");
-        }
-        claim.setInsurerId(insurerId);
-        applyBaseConversion(claim);
         return toResponse(claimRepository.save(claim));
+    }
+
+    /**
+     * Keeps the claimed amount equal to the sum of the claim's invoices. Runs inside the invoice
+     * transaction, so throwing here (claim locked) rolls the invoice change back with a 409.
+     */
+    @EventListener
+    public void onInvoiceChanged(InvoiceChangedEvent event) {
+        Claim claim = getEntity(event.claimId());
+        assertEditable(claim);
+        recalculateClaimedAmount(claim);
+        claimRepository.save(claim);
+    }
+
+    private static void assertEditable(Claim claim) {
+        if (!claim.getStatus().isEditable()) {
+            throw new IllegalStateException("Claim can no longer be edited in status " + claim.getStatus());
+        }
+    }
+
+    /**
+     * Claimed amount := sum of the claim's invoices (in the claim currency), base amount := sum of the
+     * invoices' base totals. A claim with no invoices keeps the amount it was raised with.
+     */
+    private void recalculateClaimedAmount(Claim claim) {
+        List<InvoiceResponse> invoices = invoiceService.listByClaimId(claim.getId());
+        if (invoices.isEmpty()) {
+            return;
+        }
+        applyBaseConversion(claim);
+        BigDecimal rate = claim.getExchangeRate();
+        BigDecimal claimed = BigDecimal.ZERO;
+        BigDecimal base = BigDecimal.ZERO;
+        for (InvoiceResponse invoice : invoices) {
+            BigDecimal invoiceBase = invoice.baseTotalAmount() != null ? invoice.baseTotalAmount() : BigDecimal.ZERO;
+            base = base.add(invoiceBase);
+            if (invoice.totalAmount() != null && Objects.equals(invoice.currency(), claim.getCurrency())) {
+                claimed = claimed.add(invoice.totalAmount());
+            } else if (rate != null && rate.signum() > 0) {
+                claimed = claimed.add(invoiceBase.divide(rate, 2, RoundingMode.HALF_UP));
+            }
+        }
+        claim.setClaimedAmount(claimed.setScale(2, RoundingMode.HALF_UP));
+        claim.setClaimedAmountBase(base.setScale(2, RoundingMode.HALF_UP));
+        claim.setApprovedAmountBase(toApprovedBase(claim));
     }
 
     @Override
