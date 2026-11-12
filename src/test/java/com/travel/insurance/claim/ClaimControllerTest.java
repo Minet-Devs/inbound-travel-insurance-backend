@@ -6,6 +6,7 @@ import com.travel.insurance.auth.JwtTokenProvider;
 import com.travel.insurance.claim.dto.ClaimDashboardSummary;
 import com.travel.insurance.claim.dto.ClaimListSummary;
 import com.travel.insurance.claim.dto.ClaimRequest;
+import com.travel.insurance.claim.dto.ClaimUpdateRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ClaimSearchCriteria;
 import com.travel.insurance.claim.dto.CountryDiagnosisDistribution;
@@ -240,6 +241,47 @@ class ClaimControllerTest {
                 .andExpect(jsonPath("$.id").value(claimId.toString()))
                 .andExpect(jsonPath("$.invoices").isArray())
                 .andExpect(jsonPath("$.invoiceIds").doesNotExist());
+    }
+
+    @Test
+    @WithMockUser(roles = "PROVIDER_USER")
+    void updateReplacesClinicalDetails() throws Exception {
+        UUID diagnosisId = UUID.randomUUID();
+        when(claimService.update(eq(claimId), any())).thenReturn(sampleClaim());
+
+        mockMvc.perform(put("/api/v1/claims/{id}", claimId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\":\"Corrected\",\"diagnosisIds\":[\"" + diagnosisId
+                                + "\"],\"procedureIds\":[],\"visitType\":\"INPATIENT\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(claimId.toString()));
+
+        verify(claimService).update(claimId, new ClaimUpdateRequest(
+                "Corrected", null, Set.of(diagnosisId), Set.of(), VisitType.INPATIENT, null));
+    }
+
+    @Test
+    @WithMockUser(roles = "PROVIDER_USER")
+    void updateWithoutDiagnosesIsBadRequest() throws Exception {
+        mockMvc.perform(put("/api/v1/claims/{id}", claimId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\":\"Corrected\",\"diagnosisIds\":[]}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "PROVIDER_USER")
+    void updateOfLockedClaimIsConflict() throws Exception {
+        when(claimService.update(eq(claimId), any()))
+                .thenThrow(new IllegalStateException("Claim can no longer be edited in status UNDER_REVIEW"));
+
+        mockMvc.perform(put("/api/v1/claims/{id}", claimId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"diagnosisIds\":[\"" + UUID.randomUUID() + "\"]}"))
+                .andExpect(status().isConflict());
     }
 
     @Test

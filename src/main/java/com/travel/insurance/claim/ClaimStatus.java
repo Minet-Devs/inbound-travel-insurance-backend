@@ -22,6 +22,14 @@ public enum ClaimStatus {
     TIME_BARRED;
 
     /**
+     * Statuses in which the claim's clinical details, invoices and documents may still be changed.
+     * Once review starts (or a decision is made) the claim is locked.
+     */
+    public boolean isEditable() {
+        return this == OPEN || this == AWAITING_MORE_INFORMATION || this == SUBMITTED;
+    }
+
+    /**
      * Maps a status string sent by Minet (e.g. {@code Awaiting_More_Information}, {@code FinanceRejected})
      * to a status, ignoring case, underscores and spaces. Empty when Minet sends a status we do not model.
      */

@@ -67,4 +67,10 @@ public interface PreauthorizationService {
     Preauthorization getEntityById(UUID id);
 
     void markPreAuthorizationConvertedToClaim(UUID id);
+
+    /**
+     * Moves a pre-authorization to another service provider. Called when the claim it was converted
+     * into is moved, so the pre-auth stays visible to (and reported under) the claim's provider.
+     */
+    void reassignServiceProvider(UUID id, UUID serviceProviderId);
 }
