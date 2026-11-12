@@ -391,6 +391,15 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         }
     }
 
+    @Override
+    public void reassignServiceProvider(UUID id, UUID serviceProviderId) {
+        Preauthorization preauthorization = getEntityById(id);
+        if (!java.util.Objects.equals(preauthorization.getServiceProviderId(), serviceProviderId)) {
+            preauthorization.setServiceProviderId(serviceProviderId);
+            preauthorizationRepository.save(preauthorization);
+        }
+    }
+
     private PreauthorizationResponse enrich(Preauthorization preauthorization) {
         policyService.getEntityById(preauthorization.getPolicyId());
         Visitor visitor = preauthorization.getVisitorId() != null

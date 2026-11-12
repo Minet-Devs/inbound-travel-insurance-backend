@@ -7,6 +7,7 @@ import com.travel.insurance.invoice.dto.InvoiceRequest;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.medicalservice.MedicalServiceService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -31,6 +33,7 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceMapper invoiceMapper;
     private final MedicalServiceService medicalServiceService;
     private final CurrencyConversionService currencyConversionService;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
     public InvoiceResponse create(InvoiceRequest request) {
@@ -39,7 +42,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice invoice = invoiceMapper.toEntity(request);
         invoice.setCurrency(normalizedCurrency(request.currency()));
         applyBaseConversion(invoice, rate);
-        return toResponse(invoiceRepository.save(invoice));
+        Invoice saved = invoiceRepository.save(invoice);
+        publishChanged(saved.getClaimId());
+        return toResponse(saved);
     }
 
     @Override
@@ -84,17 +89,32 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     public InvoiceResponse update(UUID id, InvoiceRequest request) {
         Invoice invoice = getEntityById(id);
+        UUID previousClaimId = invoice.getClaimId();
         validateReferences(request);
         invoiceMapper.updateEntity(invoice, request);
         BigDecimal rate = currencyConversionService.getExchangeRate(normalizedCurrency(request.currency()), BASE_CURRENCY);
         invoice.setCurrency(normalizedCurrency(request.currency()));
         applyBaseConversion(invoice, rate);
-        return toResponse(invoiceRepository.save(invoice));
+        Invoice saved = invoiceRepository.save(invoice);
+        publishChanged(previousClaimId);
+        if (!Objects.equals(previousClaimId, saved.getClaimId())) {
+            publishChanged(saved.getClaimId());
+        }
+        return toResponse(saved);
     }
 
     @Override
     public void delete(UUID id) {
-        invoiceRepository.delete(getEntityById(id));
+        Invoice invoice = getEntityById(id);
+        invoiceRepository.delete(invoice);
+        publishChanged(invoice.getClaimId());
+    }
+
+    /** Lets the owning claim re-total its amount (or veto the change when it is locked). */
+    private void publishChanged(UUID claimId) {
+        if (claimId != null) {
+            applicationEventPublisher.publishEvent(new InvoiceChangedEvent(claimId));
+        }
     }
 
     @Override

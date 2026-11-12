@@ -267,6 +267,45 @@ class DocumentServiceImplTest {
     }
 
     @Test
+    void uploaderCanDeleteOwnDocumentWhileClaimAwaitsMoreInformation() {
+        authenticateAs("PROVIDER_USER");
+        Document document = storedDocument(userId);
+        UUID id = UUID.randomUUID();
+        when(documentRepository.findById(id)).thenReturn(Optional.of(document));
+        when(claimService.getEntityById(claimId)).thenReturn(claim(ClaimStatus.AWAITING_MORE_INFORMATION));
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(providerId));
+
+        documentService.delete(id);
+
+        verify(documentRepository).delete(document);
+        verify(documentStorage).delete(document.getStorageKey());
+    }
+
+    @Test
+    void uploadIsAllowedWhileClaimAwaitsMoreInformation() {
+        authenticateAs("ADMIN");
+        when(claimService.getEntityById(claimId)).thenReturn(claim(ClaimStatus.AWAITING_MORE_INFORMATION));
+        stubInsertInsideTransaction();
+
+        DocumentResponse response = documentService.upload(
+                DocumentOwnerType.CLAIM, claimId, DocumentType.INVOICE, null, twoPdfs());
+
+        assertThat(response.id()).isNotNull();
+    }
+
+    @Test
+    void uploadIsBlockedWhileClaimIsUnderReview() {
+        authenticateAs("ADMIN");
+        when(claimService.getEntityById(claimId)).thenReturn(claim(ClaimStatus.UNDER_REVIEW));
+
+        assertThatThrownBy(() -> documentService.upload(
+                DocumentOwnerType.CLAIM, claimId, DocumentType.INVOICE, null, twoPdfs()))
+                .isInstanceOf(IllegalStateException.class);
+
+        verifyNoInteractions(documentStorage);
+    }
+
+    @Test
     void uploadForPreauthorizationAllowedOnlyWhilePending() {
         authenticateAs("ADMIN");
         UUID preauthId = UUID.randomUUID();

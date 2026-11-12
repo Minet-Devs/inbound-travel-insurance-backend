@@ -9,6 +9,7 @@ import com.travel.insurance.claim.dto.DiagnosisDistribution;
 import com.travel.insurance.claim.dto.ClaimDecisionRequest;
 import com.travel.insurance.claim.dto.ClaimExportRow;
 import com.travel.insurance.claim.dto.ClaimRequest;
+import com.travel.insurance.claim.dto.ClaimUpdateRequest;
 import com.travel.insurance.claim.dto.ClaimResponse;
 import com.travel.insurance.claim.dto.ConvertPreauthorizationRequest;
 import com.travel.insurance.claim.dto.InsurerClaimDistribution;
@@ -28,7 +29,8 @@ public interface ClaimService {
 
     ClaimResponse createFromPreauthorization(UUID preauthorizationId, ConvertPreauthorizationRequest request);
 
-    ClaimResponse update(UUID id, ClaimRequest request);
+    /** Clinical details only; allowed while the claim status is editable (see {@link ClaimStatus#isEditable()}). */
+    ClaimResponse update(UUID id, ClaimUpdateRequest request);
 
     ClaimResponse attachInvoice(UUID id, AttachInvoiceRequest request);
 

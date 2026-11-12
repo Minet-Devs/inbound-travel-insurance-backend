@@ -1070,7 +1070,30 @@ Policy
   status is `OPEN` via `PUT /api/v1/claims/{id}/invoice` (`AttachInvoiceRequest`); attaching
   transitions the claim to `SUBMITTED` and syncs both the `claim_invoices` join table
   and the `invoices.claim_id` FK on the Invoice entity. Attaching to any other status returns
-  409 Conflict (`IllegalStateException`). The claim's `insurerId` is **not** accepted
+  409 Conflict (`IllegalStateException`).
+  **Editing a claim.** A claim is editable while `ClaimStatus.isEditable()` — `OPEN`,
+  `AWAITING_MORE_INFORMATION` or `SUBMITTED`; from `UNDER_REVIEW` onwards it is locked.
+  While editable:
+  - `PUT /api/v1/claims/{id}` (`ClaimUpdateRequest`; ADMIN, CONTACT_CENTER, PROVIDER_USER —
+    provider users only on their own provider's claims) replaces `description`, `prescription`,
+    `diagnosisIds` (required, non-empty), `procedureIds` (optional) and `visitType` (kept when null).
+    Optional `serviceProviderId` moves the claim to another (existing, else 404) provider —
+    ADMIN or CONTACT_CENTER only (403 otherwise; a provider user resending their own provider
+    is a no-op); null keeps the current one. A linked pre-authorization moves with the claim
+    (`PreauthorizationService.reassignServiceProvider`, same transaction) so the new provider can
+    still read it and reports stay consistent; the link itself is unchanged.
+    Policy, visitor, benefit and amount are not editable here. Locked claim → 409.
+  - Invoices may be created, updated or deleted (`/api/v1/invoices`). `InvoiceServiceImpl`
+    publishes an in-process `InvoiceChangedEvent(claimId)` — for both the old and new claim when
+    an invoice moves — and `ClaimServiceImpl.onInvoiceChanged` handles it synchronously inside
+    the invoice transaction: it throws `IllegalStateException` (409, invoice change rolled back)
+    when the claim is locked, otherwise re-totals the claim. `claimedAmount` becomes the sum of
+    the claim's invoice `totalAmount`s (invoices in another currency converted via their base
+    total and the claim's rate), `claimedAmountBase` the sum of their `baseTotalAmount`s. No cap
+    against the pre-authorized amount is applied on edits. A claim left with no invoices keeps
+    its last amount.
+  - Documents may be uploaded/deleted (same `isEditable()` rule).
+  The claim's `insurerId` is **not** accepted
   on the request: it is derived server-side from the policy's single
   `insurerId`. `ClaimResponse` embeds the full
   `visitor`, `insurer`, `invoices`, `diagnoses` and `procedures` objects —
@@ -1637,7 +1660,8 @@ with its stack trace by `GlobalExceptionHandler.handleUnexpected` before the gen
 (never their repositories). A `PROVIDER_USER` can only reach owners of their own
 service provider, on every operation including download; out-of-scope owners
 are reported as not found. Documents can be uploaded or deleted only while a
-claim is `OPEN` or `SUBMITTED`, or a pre-authorization is `PENDING`; reads are
+claim is editable (`OPEN`, `AWAITING_MORE_INFORMATION` or `SUBMITTED`, see
+`ClaimStatus.isEditable()`), or a pre-authorization is `PENDING`; reads are
 always allowed. Delete is limited to ADMIN or the uploader, soft-deletes the
 row, and removes the blob on a best-effort basis (a failure is logged as an
 orphan). There is no separate audit table: upload, download and delete are
