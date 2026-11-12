@@ -70,6 +70,19 @@ class InvoiceControllerTest {
 
     @Test
     @WithMockUser(roles = "ADMIN")
+    void createReturnsConflictForDuplicateInvoice() throws Exception {
+        when(invoiceService.create(any(InvoiceRequest.class)))
+                .thenThrow(new IllegalStateException("Duplicate invoice: invoice number INV-2026-001"));
+
+        mockMvc.perform(post("/api/v1/invoices")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(sampleRequest())))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
     void createReturnsCreatedWithLineItems() throws Exception {
         when(invoiceService.create(any(InvoiceRequest.class))).thenReturn(sampleInvoice());
 

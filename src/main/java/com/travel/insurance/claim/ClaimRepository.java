@@ -24,6 +24,9 @@ public interface ClaimRepository extends JpaRepository<Claim, UUID>, JpaSpecific
 
     List<Claim> findAllByVisitorId(UUID visitorId);
 
+    List<Claim> findAllByServiceProviderIdAndBenefitIdAndVisitorId(UUID serviceProviderId, UUID benefitId,
+                                                                   UUID visitorId);
+
     Page<Claim> findAllByVisitorId(UUID visitorId, Pageable pageable);
 
     @Query("SELECT new com.travel.insurance.claim.ClaimUtilizationTotal(c.visitorId, c.benefitId, SUM(c.claimedAmountBase)) "

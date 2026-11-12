@@ -36,6 +36,12 @@ public interface ClaimService {
 
     ClaimResponse getById(UUID id);
 
+    /**
+     * Ids of all claims (including {@code claimId}) sharing its service provider, benefit and visitor;
+     * empty when the claim does not exist.
+     */
+    List<UUID> findIdsWithSameProviderBenefitAndVisitor(UUID claimId);
+
     Claim getEntityById(UUID id);
 
     /** Flags the claim as sent to Minet ({@code sent_to_minet = true}). */

@@ -340,6 +340,16 @@ public class ClaimServiceImpl implements ClaimService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<UUID> findIdsWithSameProviderBenefitAndVisitor(UUID claimId) {
+        return claimRepository.findById(claimId)
+                .map(claim -> claimRepository.findAllByServiceProviderIdAndBenefitIdAndVisitorId(
+                                claim.getServiceProviderId(), claim.getBenefitId(), claim.getVisitorId())
+                        .stream().map(Claim::getId).toList())
+                .orElse(List.of());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ClaimResponse getById(UUID id) {
         Claim claim = getEntity(id);
         assertVisibleToCurrentUser(claim);

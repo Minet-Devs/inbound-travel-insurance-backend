@@ -1409,6 +1409,33 @@ class ClaimServiceImplTest {
                 new PreauthorizationConvertedToClaimEvent(saved.getId(), preauthId));
     }
 
+    @Test
+    void findIdsWithSameProviderBenefitAndVisitorMatchesOnAllThree() {
+        UUID claimId = UUID.randomUUID();
+        UUID providerId = UUID.randomUUID();
+        UUID benefitId = UUID.randomUUID();
+        UUID visitorId = UUID.randomUUID();
+        Claim claim = claimWithId(claimId);
+        claim.setServiceProviderId(providerId);
+        claim.setBenefitId(benefitId);
+        claim.setVisitorId(visitorId);
+        Claim sibling = new Claim();
+        sibling.setId(UUID.randomUUID());
+        when(claimRepository.findAllByServiceProviderIdAndBenefitIdAndVisitorId(providerId, benefitId, visitorId))
+                .thenReturn(List.of(claim, sibling));
+
+        assertThat(claimService.findIdsWithSameProviderBenefitAndVisitor(claimId))
+                .containsExactly(claimId, sibling.getId());
+    }
+
+    @Test
+    void findIdsWithSameProviderBenefitAndVisitorIsEmptyForUnknownClaim() {
+        UUID claimId = UUID.randomUUID();
+        when(claimRepository.findById(claimId)).thenReturn(Optional.empty());
+
+        assertThat(claimService.findIdsWithSameProviderBenefitAndVisitor(claimId)).isEmpty();
+    }
+
     private Claim claimWithId(UUID claimId) {
         Claim claim = new Claim();
         claim.setId(claimId);
