@@ -1,13 +1,14 @@
 package com.travel.insurance.invoice;
 
+import com.travel.insurance.claim.ClaimService;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.service.CurrencyConversionService;
 import com.travel.insurance.invoice.dto.InvoiceItemRequest;
 import com.travel.insurance.invoice.dto.InvoiceRequest;
 import com.travel.insurance.invoice.dto.InvoiceResponse;
 import com.travel.insurance.medicalservice.MedicalServiceService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -22,7 +23,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class InvoiceServiceImpl implements InvoiceService {
 
@@ -34,10 +34,25 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final MedicalServiceService medicalServiceService;
     private final CurrencyConversionService currencyConversionService;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final ClaimService claimService;
+
+    public InvoiceServiceImpl(InvoiceRepository invoiceRepository, InvoiceMapper invoiceMapper,
+                              MedicalServiceService medicalServiceService,
+                              CurrencyConversionService currencyConversionService,
+                              ApplicationEventPublisher applicationEventPublisher,
+                              @Lazy ClaimService claimService) {
+        this.invoiceRepository = invoiceRepository;
+        this.invoiceMapper = invoiceMapper;
+        this.medicalServiceService = medicalServiceService;
+        this.currencyConversionService = currencyConversionService;
+        this.applicationEventPublisher = applicationEventPublisher;
+        this.claimService = claimService;
+    }
 
     @Override
     public InvoiceResponse create(InvoiceRequest request) {
         validateReferences(request);
+        rejectDuplicate(request);
         BigDecimal rate = currencyConversionService.getExchangeRate(normalizedCurrency(request.currency()), BASE_CURRENCY);
         Invoice invoice = invoiceMapper.toEntity(request);
         invoice.setCurrency(normalizedCurrency(request.currency()));
@@ -138,6 +153,22 @@ public class InvoiceServiceImpl implements InvoiceService {
                     medicalServiceService.getById(item.medicalServiceId());
                 }
             }
+        }
+    }
+
+    /**
+     * An invoice is a duplicate when another one has the same number and total on a claim with the same
+     * provider, benefit and visitor (a visitor maps 1:1 to a passport number). Skipped without an invoice number.
+     */
+    private void rejectDuplicate(InvoiceRequest request) {
+        if (request.invoiceNumber() == null || request.invoiceNumber().isBlank()) {
+            return;
+        }
+        List<UUID> comparableClaimIds = claimService.findIdsWithSameProviderBenefitAndVisitor(request.claimId());
+        if (!comparableClaimIds.isEmpty() && invoiceRepository.existsDuplicate(
+                request.invoiceNumber().trim(), request.totalAmount(), comparableClaimIds)) {
+            throw new IllegalStateException("Duplicate invoice: invoice number " + request.invoiceNumber().trim()
+                    + " with the same amount already exists for this provider, benefit and passport");
         }
     }
 

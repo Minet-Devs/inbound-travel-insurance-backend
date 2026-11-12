@@ -1083,6 +1083,12 @@ Policy
     (`PreauthorizationService.reassignServiceProvider`, same transaction) so the new provider can
     still read it and reports stay consistent; the link itself is unchanged.
     Policy, visitor, benefit and amount are not editable here. Locked claim → 409.
+  - `POST /api/v1/invoices` rejects duplicates with 409: another non-deleted invoice with the same
+    `invoiceNumber` (case-insensitive) and `totalAmount` on a claim with the same service provider,
+    benefit and visitor (one visitor per passport number). These fields live on the claim, so
+    `InvoiceServiceImpl` asks `ClaimService.findIdsWithSameProviderBenefitAndVisitor(claimId)`
+    (injected `@Lazy` — `ClaimServiceImpl` depends on `InvoiceService`) and queries
+    `InvoiceRepository.existsDuplicate`. Skipped when `invoiceNumber` is blank. Not applied on update.
   - Invoices may be created, updated or deleted (`/api/v1/invoices`). `InvoiceServiceImpl`
     publishes an in-process `InvoiceChangedEvent(claimId)` — for both the old and new claim when
     an invoice moves — and `ClaimServiceImpl.onInvoiceChanged` handles it synchronously inside

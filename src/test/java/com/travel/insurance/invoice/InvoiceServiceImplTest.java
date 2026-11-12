@@ -1,5 +1,6 @@
 package com.travel.insurance.invoice;
 
+import com.travel.insurance.claim.ClaimService;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.common.service.CurrencyConversionService;
 import com.travel.insurance.invoice.dto.InvoiceItemRequest;
@@ -46,6 +47,9 @@ class InvoiceServiceImplTest {
     @Mock
     private ApplicationEventPublisher applicationEventPublisher;
 
+    @Mock
+    private ClaimService claimService;
+
     private final InvoiceMapper invoiceMapper = new InvoiceMapper();
 
     private InvoiceServiceImpl invoiceService;
@@ -60,7 +64,7 @@ class InvoiceServiceImplTest {
     void setUp() {
         invoiceService = new InvoiceServiceImpl(
                 invoiceRepository, invoiceMapper, medicalServiceService, currencyConversionService,
-                applicationEventPublisher);
+                applicationEventPublisher, claimService);
         claimId = UUID.randomUUID();
         medicalServiceId = UUID.randomUUID();
         request = new InvoiceRequest(
@@ -77,6 +81,49 @@ class InvoiceServiceImplTest {
     private MedicalServiceResponse medicalServiceResponse() {
         return new MedicalServiceResponse(medicalServiceId, "In-patient Care", UUID.randomUUID(),
                 "Inpatient", java.time.Instant.now(), java.time.Instant.now());
+    }
+
+    @Test
+    void createRejectsDuplicateForSameProviderBenefitAndPassport() {
+        UUID otherClaimId = UUID.randomUUID();
+        List<UUID> comparableClaims = List.of(claimId, otherClaimId);
+        when(claimService.findIdsWithSameProviderBenefitAndVisitor(claimId)).thenReturn(comparableClaims);
+        when(invoiceRepository.existsDuplicate("INV-2026-001", new BigDecimal("25000.00"), comparableClaims))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> invoiceService.create(request))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Duplicate invoice")
+                .hasMessageContaining("INV-2026-001");
+
+        verify(invoiceRepository, never()).save(any(Invoice.class));
+        verify(applicationEventPublisher, never()).publishEvent(any(Object.class));
+    }
+
+    @Test
+    void createAllowsInvoiceWhenNoDuplicateExists() {
+        List<UUID> comparableClaims = List.of(claimId);
+        when(claimService.findIdsWithSameProviderBenefitAndVisitor(claimId)).thenReturn(comparableClaims);
+        when(invoiceRepository.existsDuplicate("INV-2026-001", new BigDecimal("25000.00"), comparableClaims))
+                .thenReturn(false);
+        when(currencyConversionService.getExchangeRate("KES", "USD")).thenReturn(KES_TO_USD);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        invoiceService.create(request);
+
+        verify(invoiceRepository).save(any(Invoice.class));
+    }
+
+    @Test
+    void createSkipsDuplicateCheckWithoutInvoiceNumber() {
+        when(currencyConversionService.getExchangeRate("USD", "USD")).thenReturn(BigDecimal.ONE);
+        when(invoiceRepository.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        invoiceService.create(new InvoiceRequest(
+                claimId, " ", LocalDate.of(2026, 8, 2), "USD", new BigDecimal("1000.00"), List.of()));
+
+        verify(claimService, never()).findIdsWithSameProviderBenefitAndVisitor(any());
+        verify(invoiceRepository, never()).existsDuplicate(any(), any(), any());
     }
 
     @Test
