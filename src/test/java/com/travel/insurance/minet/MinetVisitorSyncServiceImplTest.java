@@ -4,12 +4,15 @@ import com.travel.insurance.common.exception.ResourceNotFoundException;
 import com.travel.insurance.visitor.Gender;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
+import com.travel.insurance.visitor.VisitorStatus;
+import com.travel.insurance.visitor.dto.VisitorResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -97,5 +100,30 @@ class MinetVisitorSyncServiceImplTest {
         assertThatThrownBy(() -> service.syncByPassportNumber("A1234567"))
                 .isInstanceOf(MinetClientException.class);
         verify(visitorService, never()).markSentToMinet(any());
+    }
+
+    @Test
+    void getMemberByCertificateNumberReturnsMinetShape() {
+        VisitorResponse v = new VisitorResponse(visitorId, UUID.randomUUID(), UUID.randomUUID(),
+                "Anna Maria Louise Smith", "A1234567", LocalDate.of(1994, 7, 1), 32, Gender.FEMALE, "IND",
+                null, "a@example.com", "+254700000000", LocalDate.of(2026, 11, 6), null, null, null, null,
+                null, null, VisitorStatus.ACTIVE, null, null, null, null, null, null, null, null, "SP1",
+                Instant.now(), Instant.now());
+        when(visitorService.getByCertificateSerialNumber("SP1")).thenReturn(v);
+
+        MinetVisitorRequest member = service.getMemberByCertificateNumber("SP1");
+
+        assertThat(member).isEqualTo(new MinetVisitorRequest("A1234567", "Anna", "Smith", "Maria Louise",
+                "FEMALE", LocalDate.of(1994, 7, 1), LocalDate.of(2026, 11, 6), "a@example.com",
+                "+254700000000", "IND"));
+    }
+
+    @Test
+    void getMemberByCertificateNumberPropagatesNotFound() {
+        when(visitorService.getByCertificateSerialNumber("NOPE"))
+                .thenThrow(new ResourceNotFoundException("Visitor", "NOPE"));
+
+        assertThatThrownBy(() -> service.getMemberByCertificateNumber("NOPE"))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 }

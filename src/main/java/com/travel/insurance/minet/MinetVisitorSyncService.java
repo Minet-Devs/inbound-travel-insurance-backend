@@ -9,4 +9,10 @@ public interface MinetVisitorSyncService {
      * visitor has no certificate serial number yet, and {@link MinetClientException} when Minet fails.
      */
     MinetSyncResponse syncByPassportNumber(String passportNumber);
+
+    /**
+     * The member (visitor) with this certificate serial number, in the Minet member shape. Throws
+     * {@code ResourceNotFoundException} for an unknown certificate number.
+     */
+    MinetVisitorRequest getMemberByCertificateNumber(String certificateNumber);
 }

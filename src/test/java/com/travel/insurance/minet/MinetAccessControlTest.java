@@ -14,6 +14,7 @@ import java.util.UUID;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -82,6 +83,19 @@ class MinetAccessControlTest {
         mockMvc.perform(post("/api/v1/webhooks/minet/claim-status").with(csrf())
                         .contentType("application/json")
                         .content("{\"inboundClaimReference\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminCanLookUpMemberByCertificate() throws Exception {
+        mockMvc.perform(get("/api/v1/visitors/minet/certificate/ACME-2026-000123")).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "CONTACT_CENTER")
+    void nonAdminCannotLookUpMemberByCertificate() throws Exception {
+        mockMvc.perform(get("/api/v1/visitors/minet/certificate/ACME-2026-000123"))
                 .andExpect(status().isForbidden());
     }
 }

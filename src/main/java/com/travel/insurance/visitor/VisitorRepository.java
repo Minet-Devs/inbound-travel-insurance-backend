@@ -20,6 +20,8 @@ public interface VisitorRepository extends JpaRepository<Visitor, UUID>, JpaSpec
 
     Optional<Visitor> findByPassportNumberHash(String passportNumberHash);
 
+    Optional<Visitor> findByCertificateSerialNumber(String certificateSerialNumber);
+
     Optional<Visitor> findFirstByEmailHashOrderByCreatedDateDesc(String emailHash);
 
     List<Visitor> findByVisitorStatusAndActivationEmailSentAtIsNullAndCreatedDateBetween(

@@ -116,6 +116,16 @@ public class VisitorServiceImpl implements VisitorService {
 
     @Override
     @Transactional(readOnly = true)
+    public VisitorResponse getByCertificateSerialNumber(String certificateSerialNumber) {
+        String certificate = certificateSerialNumber == null ? "" : certificateSerialNumber.trim();
+        return visitorRepository.findByCertificateSerialNumber(certificate)
+                .map(visitorMapper::toResponse)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Visitor not found for certificate: " + certificate));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public VisitorResponse getByPassportNumber(String passportNumber) {
         return visitorRepository.findByPassportNumberHash(blindIndexService.hmac(passportNumber))
                 .map(visitorMapper::toResponse)
