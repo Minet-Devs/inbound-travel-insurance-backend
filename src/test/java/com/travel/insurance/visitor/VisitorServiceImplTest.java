@@ -352,6 +352,26 @@ class VisitorServiceImplTest {
     }
 
     @Test
+    void getByCertificateSerialNumberReturnsVisitorAndTrimsInput() {
+        Visitor existing = visitorMapper.toEntity(request);
+        when(visitorRepository.findByCertificateSerialNumber("ACME-2026-000123"))
+                .thenReturn(Optional.of(existing));
+
+        VisitorResponse response = visitorService.getByCertificateSerialNumber("  ACME-2026-000123 ");
+
+        assertThat(response.fullName()).isEqualTo("Jane Traveler");
+    }
+
+    @Test
+    void getByCertificateSerialNumberThrowsWhenUnknown() {
+        when(visitorRepository.findByCertificateSerialNumber("NOPE")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> visitorService.getByCertificateSerialNumber("NOPE"))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("NOPE");
+    }
+
+    @Test
     void getByPassportNumberThrowsWhenUnknown() {
         when(visitorRepository.findByPassportNumberHash(hashOf("UNKNOWN")))
                 .thenReturn(Optional.empty());

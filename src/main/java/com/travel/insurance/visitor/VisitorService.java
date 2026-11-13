@@ -32,6 +32,9 @@ public interface VisitorService {
 
     VisitorResponse getByPassportNumber(String passportNumber);
 
+    /** Looks a visitor up by certificate serial number; {@code ResourceNotFoundException} when unknown. */
+    VisitorResponse getByCertificateSerialNumber(String certificateSerialNumber);
+
     /** Exact passport match via the blind index; empty when no visitor has it. */
     Optional<UUID> findIdByPassportNumber(String passportNumber);
 
