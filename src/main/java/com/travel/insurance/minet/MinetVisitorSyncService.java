@@ -17,6 +17,12 @@ public interface MinetVisitorSyncService {
     MinetSyncResponse syncByPassportNumber(String passportNumber);
 
     /**
+     * The member (visitor) with this certificate serial number, in the Minet member shape. Throws
+     * {@code ResourceNotFoundException} for an unknown certificate number.
+     */
+    MinetVisitorRequest getMemberByCertificateNumber(String certificateNumber);
+
+    /**
      * Visitors in the Minet payload shape, one per visitor, for the Excel export. Filters are optional;
      * {@code dateFrom}/{@code dateTo} are inclusive and match the visitor's entry date.
      */

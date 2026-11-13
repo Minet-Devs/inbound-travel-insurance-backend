@@ -102,4 +102,17 @@ class MinetAccessControlTest {
                         .content("{\"inboundClaimReference\":\"" + UUID.randomUUID() + "\"}"))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminCanLookUpMemberByCertificate() throws Exception {
+        mockMvc.perform(get("/api/v1/visitors/minet/certificate/ACME-2026-000123")).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "CONTACT_CENTER")
+    void nonAdminCannotLookUpMemberByCertificate() throws Exception {
+        mockMvc.perform(get("/api/v1/visitors/minet/certificate/ACME-2026-000123"))
+                .andExpect(status().isForbidden());
+    }
 }
