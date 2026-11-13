@@ -547,6 +547,7 @@ class ClaimServiceImplTest {
         assertThat(row.benefitName()).isEqualTo("Outpatient");
         assertThat(row.passportNumber()).isEqualTo("P1234567");
         assertThat(row.visitType()).isEqualTo(VisitType.OUTPATIENT);
+        assertThat(row.status()).isNotNull();
         assertThat(row.diagnosisCodes()).isEqualTo("1A00");
         assertThat(row.diagnosisDescriptions()).isEqualTo("Cholera");
         assertThat(row.visitDate()).isEqualTo(LocalDate.of(2026, 10, 3));

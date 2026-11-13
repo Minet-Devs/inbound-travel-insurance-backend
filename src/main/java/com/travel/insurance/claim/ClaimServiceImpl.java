@@ -505,7 +505,8 @@ public class ClaimServiceImpl implements ClaimService {
                             joinDistinct(items.stream().map(InvoiceItemResponse::medicalServiceName)),
                             joinDistinct(items.stream().map(item -> department(departments, item.medicalServiceId()))),
                             claim.getClaimedAmountBase(),
-                            claim.getExchangeRate());
+                            claim.getExchangeRate(),
+                            claim.getStatus());
                 })
                 .toList();
     }
