@@ -151,6 +151,24 @@ public class VisitorServiceImpl implements VisitorService {
                     target.atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC),
                     target.plusMonths(1).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC));
         }
+        return toInsurerCounts(rows);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InsurerVisitorCount> countByInsurerBetween(LocalDate from, LocalDate to) {
+        if (from == null || to == null) {
+            throw new IllegalArgumentException("from and to are both required");
+        }
+        if (to.isBefore(from)) {
+            throw new IllegalArgumentException("to must not be before from");
+        }
+        return toInsurerCounts(visitorRepository.countVisitorsGroupedByInsurerCreatedBetween(
+                from.atStartOfDay().toInstant(ZoneOffset.UTC),
+                to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)));
+    }
+
+    private List<InsurerVisitorCount> toInsurerCounts(List<VisitorRepository.InsurerVisitorTotal> rows) {
         Map<UUID, Long> totals = new HashMap<>();
         rows.forEach(row -> totals.put(row.getInsurerId(), row.getTotal()));
         return insurerRepository.findAll().stream()

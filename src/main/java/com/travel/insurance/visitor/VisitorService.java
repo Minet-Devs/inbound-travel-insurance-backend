@@ -50,6 +50,9 @@ public interface VisitorService {
      */
     List<InsurerVisitorCount> countByInsurer(Integer month, Integer year);
 
+    /** Visitors per insurer created from {@code from} to {@code to} inclusive (UTC days). */
+    List<InsurerVisitorCount> countByInsurerBetween(LocalDate from, LocalDate to);
+
     /**
      * Total visitors (any status) per nationality (ISO alpha-3, upper-cased), ordered by country code.
      * With a {@code country} only that nationality is returned (case-insensitive; a zero row when it has
