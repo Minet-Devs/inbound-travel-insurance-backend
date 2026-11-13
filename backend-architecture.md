@@ -2032,6 +2032,11 @@ Every claim created by converting a pre-authorization is pushed to Minet's inbou
 - **Resend:** `POST /api/v1/claims/{id}/minet-sync` (`ADMIN` only, `@PreAuthorize`) sends the claim
   again (allowed when already sent) and returns `200 { claimId, sentToMinet }`. Errors: unknown claim `404`;
   no provider / no Minet provider id `409`; Minet failure `502`.
+- **Member lookup:** `GET /api/v1/visitors/minet/certificate/{certificateNumber}` (`ADMIN` only,
+  `@PreAuthorize`) returns the visitor with that `certificate_serial_number` (input trimmed, exact match) in the
+  Minet member shape: `memberNumber` (passport), `firstName`, `lastName`, `otherNames`, `gender`, `dateOfBirth`,
+  `dateJoined`, `emailAddress`, `primaryPhoneNumber`, `residenceCountry` (same mapping as the visitor sync and
+  Excel export, via `VisitorService.getByCertificateSerialNumber`). Unknown certificate `404`.
 - **Status webhook:** `POST /api/v1/webhooks/minet/claim-status` (`ADMIN` role via the normal Bearer JWT,
   `@PreAuthorize`) receives Minet's status events (`MinetClaimStatusUpdateRequest`: `eventId`,
   `inboundClaimReference`, `claimId`, `claimNumber`, `previousStatus`, `status`, `changedAt`, `comments[]`; unknown

@@ -3,6 +3,7 @@ package com.travel.insurance.minet;
 import com.travel.insurance.visitor.Visitor;
 import com.travel.insurance.visitor.VisitorService;
 import com.travel.insurance.visitor.VisitorStatus;
+import com.travel.insurance.visitor.dto.VisitorResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +27,13 @@ public class MinetVisitorSyncServiceImpl implements MinetVisitorSyncService {
         minetClient.sendVisitor(MinetVisitorSyncListener.toRequest(visitor));
         visitorService.markSentToMinet(visitor.getId());
         return new MinetSyncResponse(visitor.getId(), true);
+    }
+
+    @Override
+    public MinetVisitorRequest getMemberByCertificateNumber(String certificateNumber) {
+        VisitorResponse v = visitorService.getByCertificateSerialNumber(certificateNumber);
+        return MinetVisitorRequest.of(v.passportNumber(), v.fullName(), v.gender(), v.dateOfBirth(),
+                v.dateIn(), v.email(), v.phoneNumber(), v.nationality());
     }
 
     @Override

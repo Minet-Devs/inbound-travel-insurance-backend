@@ -33,6 +33,13 @@ public class MinetController {
         return minetVisitorSyncService.syncByPassportNumber(passportNumber);
     }
 
+    /** Returns the member with this certificate serial number in the Minet member format. */
+    @GetMapping("/minet/certificate/{certificateNumber}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public MinetVisitorRequest memberByCertificate(@PathVariable String certificateNumber) {
+        return minetVisitorSyncService.getMemberByCertificateNumber(certificateNumber);
+    }
+
     @GetMapping("/export/minet-excel")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> exportExcel(

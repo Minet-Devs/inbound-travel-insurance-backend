@@ -135,4 +135,29 @@ class MinetVisitorSyncServiceImplTest {
         assertThat(rows.get(0).memberNumber()).isEqualTo("A1");
         assertThat(rows.get(0).gender()).isNull();
     }
+
+    @Test
+    void getMemberByCertificateNumberReturnsMinetShape() {
+        VisitorResponse v = new VisitorResponse(visitorId, UUID.randomUUID(), UUID.randomUUID(),
+                "Anna Maria Louise Smith", "A1234567", LocalDate.of(1994, 7, 1), 32, Gender.FEMALE, "IND",
+                null, "a@example.com", "+254700000000", LocalDate.of(2026, 11, 6), null, null, null, null,
+                null, null, VisitorStatus.ACTIVE, null, null, null, null, null, null, null, null, "SP1",
+                Instant.now(), Instant.now());
+        when(visitorService.getByCertificateSerialNumber("SP1")).thenReturn(v);
+
+        MinetVisitorRequest member = service.getMemberByCertificateNumber("SP1");
+
+        assertThat(member).isEqualTo(new MinetVisitorRequest("A1234567", "Anna", "Smith", "Maria Louise",
+                "FEMALE", LocalDate.of(1994, 7, 1), LocalDate.of(2026, 11, 6), "a@example.com",
+                "+254700000000", "IND"));
+    }
+
+    @Test
+    void getMemberByCertificateNumberPropagatesNotFound() {
+        when(visitorService.getByCertificateSerialNumber("NOPE"))
+                .thenThrow(new com.travel.insurance.common.exception.ResourceNotFoundException("Visitor", "NOPE"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.getMemberByCertificateNumber("NOPE"))
+                .isInstanceOf(com.travel.insurance.common.exception.ResourceNotFoundException.class);
+    }
 }
