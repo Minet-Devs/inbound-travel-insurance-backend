@@ -1013,7 +1013,8 @@ Policy
   Diagnosis code / Diagnosis description (all diagnoses joined with `; `), Visit Date,
   AmountClaimed (`claimedAmount`, claim currency), Invoice Number, Invoice Date (**the claim
   date**, not the invoice `issueDate`), Invoice Amount, Service, department, claim amount USD
-  (`claimedAmountBase`), Exchange Rate (claim `exchangeRate`). All date columns are formatted
+  (`claimedAmountBase`), Exchange Rate (claim `exchangeRate`), Status (claim status name, e.g. `APPROVED`,
+  `PARTIALLY_APPROVED`, `REJECTED`, `PAID`; last column). All date columns are formatted
   `dd-MM-yyyy` (claim instants rendered in UTC, matching the date filters).
 - **Pre-auth → claim conversion**: `POST /api/v1/claims/from-preauthorization/{preauthorizationId}`
   (`ADMIN`, `CONTACT_CENTER`, `PROVIDER_USER` — a provider only for its own facility's
