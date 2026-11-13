@@ -24,7 +24,7 @@ public class ClaimExcelWriter {
     private static final String[] HEADERS = {"Provider", "Provider ID", "Benefit", "Passport No", "ClaimDate",
             "Visit Type", "Diagnosis code", "Diagnosis description", "Visit Date", "AmountClaimed",
             "Invoice Number", "Invoice Date", "Invoice Amount", "Service", "department", "claim amount USD",
-            "Exchange Rate"};
+            "Exchange Rate", "Status"};
 
     public byte[] write(List<ClaimExportRow> rows) {
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
@@ -54,6 +54,7 @@ public class ClaimExcelWriter {
                 cell(row, 14, data.departmentName());
                 number(row, 15, data.claimedAmountBase());
                 number(row, 16, data.exchangeRate());
+                cell(row, 17, data.status() == null ? null : data.status().name());
             }
             workbook.write(out);
             return out.toByteArray();
