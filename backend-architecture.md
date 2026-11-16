@@ -791,6 +791,15 @@ Policy
   `VisitorService.countByInsurerAndAgeGroup`
   (`VisitorRepository.countVisitorsGroupedByInsurerAndAge`), also from the `age`
   column.
+  `GET /api/v1/visitors/trend-by-insurer` (dashboard) returns
+  `[{periodStart, periodEnd, insurers:[{insurerId, insurerName, totalVisitors}]}]` — visitors
+  registered (`createdDate`, UTC) per insurer in consecutive buckets, oldest first, ending with
+  the current one. `period` (`WEEKLY` = last 12 Monday-based weeks, `MONTHLY` = last 12 months,
+  `YEARLY` = last 5 years; default `MONTHLY`) sets the bucket size; optional `insurerId` limits
+  it to one insurer (unknown id → 404). Every bucket lists every (selected) insurer, zero
+  counts included; null-`insurerId` visitors are skipped. Backed by
+  `VisitorService.trendByInsurer` (`VisitorRepository.findInsurerRegistrationsCreatedBetween`,
+  bucketed in memory). Reachable by `KENYA_RE`.
   `GET /api/v1/visitors` (the paged list) takes an optional `insurerId` query
   param — omitted, it returns all visitors (`VisitorRepository.findAll`);
   provided, it filters to that insurer's visitors
@@ -1269,7 +1278,7 @@ entities:
   type `REINSURER` (no `Insurer`/`ServiceProvider` is provisioned; `insurerId`/
   `serviceProviderId` are `null`). It is **read-only reporting**: `SecurityConfig`
   allows it `GET /api/v1/reports/**`, the three `GET /api/v1/visitors/distribution-by-*`
-  dashboard endpoints, the three `GET /api/v1/claims/dashboard/**` endpoints and the paged
+  dashboard endpoints, `GET /api/v1/visitors/trend-by-insurer`, the three `GET /api/v1/claims/dashboard/**` endpoints and the paged
   `GET /api/v1/insurers` only; every other endpoint that is not
   already role-restricted is closed to it via the final `anyRequest()` rule.
 - Besides the standard `sub` claim (the user id — clients should read the
