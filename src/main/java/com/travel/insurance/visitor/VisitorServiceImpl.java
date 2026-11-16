@@ -10,6 +10,8 @@ import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.CountryVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
+import com.travel.insurance.visitor.dto.InsurerVisitorTrendBucket;
+import com.travel.insurance.visitor.dto.TrendPeriod;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -32,6 +34,8 @@ import java.time.Year;
 import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
+import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -166,6 +170,75 @@ public class VisitorServiceImpl implements VisitorService {
         return toInsurerCounts(visitorRepository.countVisitorsGroupedByInsurerCreatedBetween(
                 from.atStartOfDay().toInstant(ZoneOffset.UTC),
                 to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<InsurerVisitorTrendBucket> trendByInsurer(TrendPeriod period, UUID insurerId) {
+        TrendPeriod effective = period == null ? TrendPeriod.MONTHLY : period;
+        List<Insurer> insurers = insurerRepository.findAll().stream()
+                .filter(insurer -> insurerId == null || insurer.getId().equals(insurerId))
+                .toList();
+        if (insurerId != null && insurers.isEmpty()) {
+            throw new ResourceNotFoundException("Insurer not found: " + insurerId);
+        }
+
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        List<LocalDate> starts = trendBucketStarts(effective, today);
+        LocalDate windowEnd = bucketEnd(effective, starts.get(starts.size() - 1));
+        Map<LocalDate, Map<UUID, Long>> counts = new HashMap<>();
+        visitorRepository.findInsurerRegistrationsCreatedBetween(
+                        starts.get(0).atStartOfDay().toInstant(ZoneOffset.UTC),
+                        windowEnd.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC),
+                        insurerId)
+                .forEach(row -> counts
+                        .computeIfAbsent(bucketStart(effective, row.getCreatedDate().atZone(ZoneOffset.UTC).toLocalDate()),
+                                k -> new HashMap<>())
+                        .merge(row.getInsurerId(), 1L, Long::sum));
+
+        return starts.stream()
+                .map(start -> {
+                    Map<UUID, Long> perInsurer = counts.getOrDefault(start, Map.of());
+                    return new InsurerVisitorTrendBucket(start, bucketEnd(effective, start), insurers.stream()
+                            .map(insurer -> new InsurerVisitorCount(
+                                    insurer.getId(), insurer.getName(), perInsurer.getOrDefault(insurer.getId(), 0L)))
+                            .toList());
+                })
+                .toList();
+    }
+
+    private static List<LocalDate> trendBucketStarts(TrendPeriod period, LocalDate today) {
+        LocalDate current = bucketStart(period, today);
+        int size = switch (period) {
+            case WEEKLY, MONTHLY -> 12;
+            case YEARLY -> 5;
+        };
+        List<LocalDate> starts = new ArrayList<>(size);
+        for (int i = size - 1; i >= 0; i--) {
+            starts.add(switch (period) {
+                case WEEKLY -> current.minusWeeks(i);
+                case MONTHLY -> current.minusMonths(i);
+                case YEARLY -> current.minusYears(i);
+            });
+        }
+        return starts;
+    }
+
+    /** First day (Monday, 1st of month or 1 January, UTC) of the bucket containing {@code date}. */
+    private static LocalDate bucketStart(TrendPeriod period, LocalDate date) {
+        return switch (period) {
+            case WEEKLY -> date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            case MONTHLY -> date.withDayOfMonth(1);
+            case YEARLY -> date.withDayOfYear(1);
+        };
+    }
+
+    private static LocalDate bucketEnd(TrendPeriod period, LocalDate start) {
+        return switch (period) {
+            case WEEKLY -> start.plusDays(6);
+            case MONTHLY -> start.with(TemporalAdjusters.lastDayOfMonth());
+            case YEARLY -> start.with(TemporalAdjusters.lastDayOfYear());
+        };
     }
 
     private List<InsurerVisitorCount> toInsurerCounts(List<VisitorRepository.InsurerVisitorTotal> rows) {

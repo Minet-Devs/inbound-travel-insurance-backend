@@ -6,6 +6,8 @@ import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.CountryVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
+import com.travel.insurance.visitor.dto.InsurerVisitorTrendBucket;
+import com.travel.insurance.visitor.dto.TrendPeriod;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -261,6 +263,32 @@ class VisitorControllerTest {
                         .param("month", "3").param("year", "2026"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].totalVisitors").value(4));
+    }
+
+    @Test
+    @WithMockUser
+    void trendByInsurerDefaultsToMonthlyForAllInsurers() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(visitorService.trendByInsurer(TrendPeriod.MONTHLY, null)).thenReturn(List.of(
+                new InsurerVisitorTrendBucket(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30),
+                        List.of(new InsurerVisitorCount(insurerId, "Minet Insurance", 7)))));
+
+        mockMvc.perform(get("/api/v1/visitors/trend-by-insurer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].periodStart").value("2026-11-01"))
+                .andExpect(jsonPath("$[0].insurers[0].insurerName").value("Minet Insurance"))
+                .andExpect(jsonPath("$[0].insurers[0].totalVisitors").value(7));
+    }
+
+    @Test
+    @WithMockUser
+    void trendByInsurerPassesPeriodAndInsurerId() throws Exception {
+        UUID insurerId = UUID.randomUUID();
+        when(visitorService.trendByInsurer(TrendPeriod.WEEKLY, insurerId)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/visitors/trend-by-insurer")
+                        .param("period", "WEEKLY").param("insurerId", insurerId.toString()))
+                .andExpect(status().isOk());
     }
 
     @Test

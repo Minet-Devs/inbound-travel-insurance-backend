@@ -4,6 +4,8 @@ import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.CountryVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
+import com.travel.insurance.visitor.dto.InsurerVisitorTrendBucket;
+import com.travel.insurance.visitor.dto.TrendPeriod;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -52,6 +54,13 @@ public interface VisitorService {
 
     /** Visitors per insurer created from {@code from} to {@code to} inclusive (UTC days). */
     List<InsurerVisitorCount> countByInsurerBetween(LocalDate from, LocalDate to);
+
+    /**
+     * Visitors registered per insurer in each bucket of the trailing window (12 weeks, 12 months or 5 years,
+     * oldest first, current bucket last). Every insurer appears in every bucket, zero-filled; when
+     * {@code insurerId} is given only that insurer is returned.
+     */
+    List<InsurerVisitorTrendBucket> trendByInsurer(TrendPeriod period, UUID insurerId);
 
     /**
      * Total visitors (any status) per nationality (ISO alpha-3, upper-cased), ordered by country code.
