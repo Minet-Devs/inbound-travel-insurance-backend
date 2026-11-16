@@ -10,6 +10,8 @@ import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.CountryVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
+import com.travel.insurance.visitor.dto.InsurerVisitorTrendBucket;
+import com.travel.insurance.visitor.dto.TrendPeriod;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
 import com.travel.insurance.visitor.dto.VisitorResponse;
@@ -31,6 +33,7 @@ import org.springframework.data.domain.Pageable;
 import java.time.Instant;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -884,5 +887,66 @@ class VisitorServiceImplTest {
                         new AgeGroupVisitorCount("3-17", 0),
                         new AgeGroupVisitorCount("18+", 0),
                         new AgeGroupVisitorCount("Unknown", 0)), 0));
+    }
+
+    private static VisitorRepository.InsurerRegistration registration(UUID insurer, Instant createdDate) {
+        VisitorRepository.InsurerRegistration row = org.mockito.Mockito.mock(VisitorRepository.InsurerRegistration.class);
+        when(row.getInsurerId()).thenReturn(insurer);
+        when(row.getCreatedDate()).thenReturn(createdDate);
+        return row;
+    }
+
+    @Test
+    void trendByInsurerReturnsTwelveMonthlyBucketsWithZeroFilledInsurers() {
+        UUID emptyInsurerId = UUID.randomUUID();
+        Insurer minet = new Insurer();
+        minet.setId(insurerId);
+        minet.setName("Minet Insurance");
+        Insurer empty = new Insurer();
+        empty.setId(emptyInsurerId);
+        empty.setName("Empty Insurance");
+        when(insurerRepository.findAll()).thenReturn(List.of(minet, empty));
+        Instant now = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
+        List<VisitorRepository.InsurerRegistration> rows =
+                List.of(registration(insurerId, now), registration(insurerId, now));
+        when(visitorRepository.findInsurerRegistrationsCreatedBetween(any(), any(), eq(null))).thenReturn(rows);
+
+        List<InsurerVisitorTrendBucket> result = visitorService.trendByInsurer(TrendPeriod.MONTHLY, null);
+
+        assertThat(result).hasSize(12);
+        InsurerVisitorTrendBucket last = result.get(11);
+        assertThat(last.periodStart()).isEqualTo(LocalDate.now(ZoneOffset.UTC).withDayOfMonth(1));
+        assertThat(last.insurers()).containsExactly(
+                new InsurerVisitorCount(insurerId, "Minet Insurance", 2),
+                new InsurerVisitorCount(emptyInsurerId, "Empty Insurance", 0));
+        assertThat(result.get(0).insurers()).extracting(InsurerVisitorCount::totalVisitors).containsOnly(0L);
+    }
+
+    @Test
+    void trendByInsurerYearlyReturnsFiveBuckets() {
+        when(insurerRepository.findAll()).thenReturn(List.of());
+        when(visitorRepository.findInsurerRegistrationsCreatedBetween(any(), any(), eq(null))).thenReturn(List.of());
+
+        assertThat(visitorService.trendByInsurer(TrendPeriod.YEARLY, null)).hasSize(5);
+    }
+
+    @Test
+    void trendByInsurerDefaultsToMonthlyAndWeeklyStartsOnMonday() {
+        when(insurerRepository.findAll()).thenReturn(List.of());
+        when(visitorRepository.findInsurerRegistrationsCreatedBetween(any(), any(), eq(null))).thenReturn(List.of());
+
+        assertThat(visitorService.trendByInsurer(null, null)).hasSize(12);
+        List<InsurerVisitorTrendBucket> weekly = visitorService.trendByInsurer(TrendPeriod.WEEKLY, null);
+        assertThat(weekly).hasSize(12);
+        assertThat(weekly.get(0).periodStart().getDayOfWeek()).isEqualTo(java.time.DayOfWeek.MONDAY);
+        assertThat(weekly.get(0).periodEnd()).isEqualTo(weekly.get(0).periodStart().plusDays(6));
+    }
+
+    @Test
+    void trendByInsurerUnknownInsurerThrowsNotFound() {
+        when(insurerRepository.findAll()).thenReturn(List.of());
+
+        assertThatThrownBy(() -> visitorService.trendByInsurer(TrendPeriod.MONTHLY, UUID.randomUUID()))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 }

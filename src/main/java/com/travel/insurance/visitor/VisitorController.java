@@ -4,6 +4,8 @@ import com.travel.insurance.visitor.dto.AgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.CountryVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerAgeGroupVisitorCount;
 import com.travel.insurance.visitor.dto.InsurerVisitorCount;
+import com.travel.insurance.visitor.dto.InsurerVisitorTrendBucket;
+import com.travel.insurance.visitor.dto.TrendPeriod;
 import com.travel.insurance.visitor.dto.VisitorDetailResponse;
 import com.travel.insurance.visitor.dto.VisitorEntryExitUpdate;
 import com.travel.insurance.visitor.dto.VisitorRequest;
@@ -84,6 +86,13 @@ public class VisitorController {
             return ResponseEntity.ok(visitorService.countByInsurerBetween(from, to));
         }
         return ResponseEntity.ok(visitorService.countByInsurer(month, year));
+    }
+
+    @GetMapping("/trend-by-insurer")
+    public ResponseEntity<List<InsurerVisitorTrendBucket>> trendByInsurer(
+            @RequestParam(defaultValue = "MONTHLY") TrendPeriod period,
+            @RequestParam(required = false) UUID insurerId) {
+        return ResponseEntity.ok(visitorService.trendByInsurer(period, insurerId));
     }
 
     @GetMapping("/distribution-by-country")

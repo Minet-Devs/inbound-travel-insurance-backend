@@ -41,6 +41,18 @@ public interface VisitorRepository extends JpaRepository<Visitor, UUID>, JpaSpec
     List<InsurerVisitorTotal> countVisitorsGroupedByInsurerCreatedBetween(
             @Param("from") Instant from, @Param("to") Instant to);
 
+    @Query("select v.insurerId as insurerId, v.createdDate as createdDate from Visitor v "
+            + "where v.insurerId is not null and v.createdDate >= :from and v.createdDate < :to "
+            + "and (:insurerId is null or v.insurerId = :insurerId)")
+    List<InsurerRegistration> findInsurerRegistrationsCreatedBetween(
+            @Param("from") Instant from, @Param("to") Instant to, @Param("insurerId") UUID insurerId);
+
+    interface InsurerRegistration {
+        UUID getInsurerId();
+
+        Instant getCreatedDate();
+    }
+
     interface InsurerVisitorTotal {
         UUID getInsurerId();
 
