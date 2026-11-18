@@ -22,7 +22,11 @@ public interface PreauthorizationService {
 
     PreauthorizationResponse getById(UUID id);
 
-    Page<PreauthorizationResponse> list(UUID insurerId, Pageable pageable);
+    /**
+     * Role-scoped list. {@code passportNumber}, when non-blank, narrows it to that visitor's pre-authorizations
+     * (an unknown passport yields an empty page).
+     */
+    Page<PreauthorizationResponse> list(UUID insurerId, String passportNumber, Pageable pageable);
 
     Page<PreauthorizationResponse> listByVisitor(UUID visitorId, Pageable pageable);
 

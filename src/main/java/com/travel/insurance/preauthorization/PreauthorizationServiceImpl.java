@@ -227,8 +227,15 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<PreauthorizationResponse> list(UUID insurerId, Pageable pageable) {
-        return findScoped(insurerId, pageable).map(this::enrich);
+    public Page<PreauthorizationResponse> list(UUID insurerId, String passportNumber, Pageable pageable) {
+        UUID visitorId = null;
+        if (passportNumber != null && !passportNumber.isBlank()) {
+            visitorId = visitorService.findIdByPassportNumber(passportNumber.trim()).orElse(null);
+            if (visitorId == null) {
+                return Page.empty(pageable);
+            }
+        }
+        return findScoped(insurerId, visitorId, pageable).map(this::enrich);
     }
 
     @Override
@@ -499,13 +506,20 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
         visitorService.getEntityById(visitorId);
     }
 
-    private Page<Preauthorization> findScoped(UUID insurerId, Pageable pageable) {
+    private Page<Preauthorization> findScoped(UUID insurerId, UUID visitorId, Pageable pageable) {
         AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
         if (user != null && "PROVIDER_USER".equals(user.role())) {
             UUID serviceProviderId = serviceProviderService.findIdByOrganizationId(user.organizationId())
                     .orElse(null);
             if (serviceProviderId == null) {
                 return Page.empty(pageable);
+            }
+            if (visitorId != null) {
+                return insurerId == null
+                        ? preauthorizationRepository.findAllByVisitorIdAndServiceProviderId(
+                                visitorId, serviceProviderId, pageable)
+                        : preauthorizationRepository.findAllByVisitorIdAndServiceProviderIdAndInsurerId(
+                                visitorId, serviceProviderId, insurerId, pageable);
             }
             return insurerId == null
                     ? preauthorizationRepository.findAllByServiceProviderId(serviceProviderId, pageable)
@@ -518,7 +532,14 @@ public class PreauthorizationServiceImpl implements PreauthorizationService {
             if (ownInsurerId == null) {
                 return Page.empty(pageable);
             }
-            return preauthorizationRepository.findAllByInsurerId(ownInsurerId, pageable);
+            return visitorId == null
+                    ? preauthorizationRepository.findAllByInsurerId(ownInsurerId, pageable)
+                    : preauthorizationRepository.findAllByVisitorIdAndInsurerId(visitorId, ownInsurerId, pageable);
+        }
+        if (visitorId != null) {
+            return insurerId == null
+                    ? preauthorizationRepository.findAllByVisitorId(visitorId, pageable)
+                    : preauthorizationRepository.findAllByVisitorIdAndInsurerId(visitorId, insurerId, pageable);
         }
         return insurerId == null
                 ? preauthorizationRepository.findAll(pageable)
