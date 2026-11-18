@@ -790,7 +790,9 @@ Policy
   Visitors with a null `insurerId` are skipped; null `age` goes to `Unknown`. Backed by
   `VisitorService.countByInsurerAndAgeGroup`
   (`VisitorRepository.countVisitorsGroupedByInsurerAndAge`), also from the `age`
-  column.
+  column. Optional `month`(+`year`) or inclusive `from`/`to` (ISO dates) restrict it to visitors
+  registered (`createdDate`, UTC) in that period — same params/validation as
+  `distribution-by-insurer` (`…AndAgeCreatedBetween`); no params = all visitors.
   `GET /api/v1/visitors/trend-by-insurer` (dashboard) returns
   `[{periodStart, periodEnd, insurers:[{insurerId, insurerName, totalVisitors}]}]` — visitors
   registered (`createdDate`, UTC) per insurer in consecutive buckets, oldest first, ending with

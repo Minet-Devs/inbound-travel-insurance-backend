@@ -109,8 +109,12 @@ public class VisitorController {
     }
 
     @GetMapping("/distribution-by-insurer-and-age-group")
-    public ResponseEntity<List<InsurerAgeGroupVisitorCount>> distributionByInsurerAndAgeGroup() {
-        return ResponseEntity.ok(visitorService.countByInsurerAndAgeGroup());
+    public ResponseEntity<List<InsurerAgeGroupVisitorCount>> distributionByInsurerAndAgeGroup(
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(visitorService.countByInsurerAndAgeGroup(month, year, from, to));
     }
 
     @PutMapping("/{id}")

@@ -859,6 +859,50 @@ class VisitorServiceImplTest {
     }
 
     @Test
+    void countByInsurerAndAgeGroupFiltersByInclusiveDateRange() {
+        Insurer minet = new Insurer();
+        minet.setId(insurerId);
+        minet.setName("Minet Insurance");
+        java.time.Instant from = java.time.LocalDate.of(2026, 11, 2).atStartOfDay().toInstant(java.time.ZoneOffset.UTC);
+        java.time.Instant to = java.time.LocalDate.of(2026, 11, 9).atStartOfDay().toInstant(java.time.ZoneOffset.UTC);
+        when(visitorRepository.countVisitorsGroupedByInsurerAndAgeCreatedBetween(from, to))
+                .thenReturn(List.of(insurerAgeTotal(insurerId, 30, 4)));
+        when(insurerRepository.findAll()).thenReturn(List.of(minet));
+
+        List<InsurerAgeGroupVisitorCount> result = visitorService.countByInsurerAndAgeGroup(
+                null, null, java.time.LocalDate.of(2026, 11, 2), java.time.LocalDate.of(2026, 11, 8));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().totalVisitors()).isEqualTo(4);
+        verify(visitorRepository, never()).countVisitorsGroupedByInsurerAndAge();
+    }
+
+    @Test
+    void countByInsurerAndAgeGroupFiltersByMonth() {
+        when(insurerRepository.findAll()).thenReturn(List.of());
+        java.time.Instant from = java.time.LocalDate.of(2026, 2, 1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC);
+        java.time.Instant to = java.time.LocalDate.of(2026, 3, 1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC);
+        when(visitorRepository.countVisitorsGroupedByInsurerAndAgeCreatedBetween(from, to)).thenReturn(List.of());
+
+        visitorService.countByInsurerAndAgeGroup(2, 2026, null, null);
+
+        verify(visitorRepository).countVisitorsGroupedByInsurerAndAgeCreatedBetween(from, to);
+    }
+
+    @Test
+    void countByInsurerAndAgeGroupRejectsInvalidPeriods() {
+        assertThatThrownBy(() -> visitorService.countByInsurerAndAgeGroup(13, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> visitorService.countByInsurerAndAgeGroup(null, 2026, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> visitorService.countByInsurerAndAgeGroup(null, null, java.time.LocalDate.of(2026, 1, 1), null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> visitorService.countByInsurerAndAgeGroup(
+                null, null, java.time.LocalDate.of(2026, 2, 1), java.time.LocalDate.of(2026, 1, 1)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void countByInsurerAndAgeGroupBucketsPerInsurer() {
         UUID emptyInsurerId = UUID.randomUUID();
         Insurer minet = new Insurer();
@@ -874,7 +918,7 @@ class VisitorServiceImplTest {
                 insurerAgeTotal(insurerId, null, 2)));
         when(insurerRepository.findAll()).thenReturn(List.of(minet, empty));
 
-        List<InsurerAgeGroupVisitorCount> result = visitorService.countByInsurerAndAgeGroup();
+        List<InsurerAgeGroupVisitorCount> result = visitorService.countByInsurerAndAgeGroup(null, null, null, null);
 
         assertThat(result).containsExactly(
                 new InsurerAgeGroupVisitorCount(insurerId, "Minet Insurance", List.of(

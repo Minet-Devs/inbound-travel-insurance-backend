@@ -79,9 +79,13 @@ public interface VisitorService {
 
     /**
      * Age-group breakdown (same "0-2", "3-17", "18+", "Unknown" buckets, always all four) per insurer, any
-     * visitor status. Every insurer is listed, including those with zero visitors.
+     * visitor status. Every insurer is listed, including those with zero visitors. Restricted to visitors
+     * registered (createdDate, UTC) in {@code month}/{@code year} (year defaults to the current one) or
+     * in the inclusive {@code from}..{@code to} range; with neither it covers all visitors. A range wins
+     * over a month; same validation as {@link #countByInsurer} / {@link #countByInsurerBetween}.
      */
-    List<InsurerAgeGroupVisitorCount> countByInsurerAndAgeGroup();
+    List<InsurerAgeGroupVisitorCount> countByInsurerAndAgeGroup(
+            Integer month, Integer year, LocalDate from, LocalDate to);
 
     /** Nationality (as stored) by visitor id for the given ids; unknown ids are absent from the map. */
     Map<UUID, String> nationalitiesByIds(Collection<UUID> visitorIds);
