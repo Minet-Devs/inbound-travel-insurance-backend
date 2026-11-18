@@ -1763,8 +1763,9 @@ only one email now, "RE:" no longer applies), covering emergency contacts,
 cover benefits, accredited-hospital lookup instructions, and mobile app
 download links (a clickable Google Play badge image linking to
 `https://play.google.com/store/apps/details?id=com.kenyacares.mobile`, with the
-badge hosted on Dropbox and rewritten via `LogoUrlNormalizer`; the iPhone / App
-Store link is omitted until the app is approved):
+badge hosted on Dropbox and rewritten via `LogoUrlNormalizer`, plus an inline App Store badge
+(`templates/assets/app-store-logo.png`, sent as CID `app-store-badge`) linking to
+`https://apps.apple.com/ml/app/jambo-care/id6811793985`):
 
 The activation email is not BCC'd to anyone. `EmailService` has a `send(...)` overload
 taking a BCC list; an empty list adds no BCC header.

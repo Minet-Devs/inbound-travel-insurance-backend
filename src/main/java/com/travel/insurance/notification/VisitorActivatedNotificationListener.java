@@ -82,6 +82,10 @@ public class VisitorActivatedNotificationListener {
     private static final String SIGNATURE_RESOURCE = "templates/Inbound-Travel-Health-Esignature.png";
     private static final String SIGNATURE_CONTENT_ID = "email-signature";
 
+    private static final String APP_STORE_RESOURCE = "templates/assets/app-store-logo.png";
+    private static final String APP_STORE_CONTENT_ID = "app-store-badge";
+    private static final String APP_STORE_URL = "https://apps.apple.com/ml/app/jambo-care/id6811793985";
+
     private static final String PLAY_STORE_URL =
             "https://play.google.com/store/apps/details?id=com.kenyacares.mobile";
     // Hosted on Dropbox; normalized to the direct-content host so mail clients get raw image bytes.
@@ -93,6 +97,7 @@ public class VisitorActivatedNotificationListener {
     private byte[] welcomePackPdfCache;
     private byte[] faqsPdfCache;
     private byte[] signatureImageCache;
+    private byte[] appStoreBadgeCache;
     private final Map<UUID, byte[]> brandedPolicyDocumentCache = new ConcurrentHashMap<>();
 
     // Production reads go through pgpool, which load-balances SELECTs onto async standbys. An
@@ -246,9 +251,14 @@ public class VisitorActivatedNotificationListener {
             attachments.add(new EmailAttachment(FAQS_ATTACHMENT_NAME, faqsPdf));
         }
         byte[] signatureImage = loadSignatureImage();
-        List<InlineImage> inlineImages = signatureImage == null
-                ? List.of()
-                : List.of(new InlineImage(SIGNATURE_CONTENT_ID, "image/png", signatureImage));
+        byte[] appStoreBadge = loadAppStoreBadge();
+        List<InlineImage> inlineImages = new ArrayList<>();
+        if (signatureImage != null) {
+            inlineImages.add(new InlineImage(SIGNATURE_CONTENT_ID, "image/png", signatureImage));
+        }
+        if (appStoreBadge != null) {
+            inlineImages.add(new InlineImage(APP_STORE_CONTENT_ID, "image/png", appStoreBadge));
+        }
         InsurerMailSettings mailSettings = resolveMailSettings(insurer);
         boolean sent = emailService.send(
                 mailSettings.credentials(),
@@ -257,7 +267,7 @@ public class VisitorActivatedNotificationListener {
                 List.of(),
                 List.of(),
                 "Welcome to Kenya – Your Medical Cover Is Now Active",
-                buildActivationEmailHtml(firstNameOf(visitor.getFullName()), signatureImage != null),
+                buildActivationEmailHtml(firstNameOf(visitor.getFullName()), signatureImage != null, appStoreBadge != null),
                 attachments,
                 inlineImages);
         if (!sent) {
@@ -380,7 +390,8 @@ public class VisitorActivatedNotificationListener {
 
     private static final String EMAIL_FONT_FAMILY = "Corbel, 'Segoe UI', Arial, sans-serif";
 
-    private static String buildActivationEmailHtml(String firstName, boolean includeSignatureImage) {
+    private static String buildActivationEmailHtml(String firstName, boolean includeSignatureImage,
+                                                  boolean includeAppStoreBadge) {
         return "<div style=\"font-family: " + EMAIL_FONT_FAMILY + ";\">"
                 + "<p>Dear " + firstName + ",</p>"
                 + "<p>Welcome to Kenya!</p>"
@@ -401,7 +412,14 @@ public class VisitorActivatedNotificationListener {
                 + "<a href=\"" + PLAY_STORE_URL + "\">"
                 + "<img src=\"" + PLAY_STORE_BADGE_URL.replace("&", "&amp;") + "\" "
                 + "alt=\"Get it on Google Play\" width=\"160\" border=\"0\" "
-                + "style=\"height:auto;border:0;\"></a></p>"
+                + "style=\"height:auto;border:0;\"></a>"
+                + (includeAppStoreBadge
+                        ? "&nbsp;<a href=\"" + APP_STORE_URL + "\">"
+                                + "<img src=\"cid:" + APP_STORE_CONTENT_ID + "\" "
+                                + "alt=\"Download on the App Store\" width=\"160\" border=\"0\" "
+                                + "style=\"height:auto;border:0;\"></a>"
+                        : "")
+                + "</p>"
                 + "<p><strong>How to find an accredited hospital:</strong></p>"
                 + "<ul>"
                 + "<li>Use the app and select “Find a Hospital”</li>"
@@ -470,6 +488,23 @@ public class VisitorActivatedNotificationListener {
             }
         }
         return faqsPdfCache;
+    }
+
+    /**
+     * Loads the bundled App Store badge from the classpath, cached after the
+     * first read. A load failure is logged and returns {@code null} so the
+     * email still goes out without the badge.
+     */
+    private synchronized byte[] loadAppStoreBadge() {
+        if (appStoreBadgeCache == null) {
+            try {
+                appStoreBadgeCache = new ClassPathResource(APP_STORE_RESOURCE).getInputStream().readAllBytes();
+            } catch (IOException ex) {
+                log.error("Could not load bundled App Store badge {}: {}", APP_STORE_RESOURCE, ex.getMessage(), ex);
+                return null;
+            }
+        }
+        return appStoreBadgeCache;
     }
 
     /**

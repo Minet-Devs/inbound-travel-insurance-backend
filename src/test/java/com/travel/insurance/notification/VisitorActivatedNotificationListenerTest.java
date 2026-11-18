@@ -298,11 +298,15 @@ class VisitorActivatedNotificationListenerTest {
                 attachmentsCaptor.capture(),
                 inlineImagesCaptor.capture());
         assertThat(bodyCaptor.getValue()).contains("<img src=\"cid:email-signature\"");
-        assertThat(inlineImagesCaptor.getValue()).singleElement().satisfies(image -> {
-            assertThat(image.contentId()).isEqualTo("email-signature");
+        assertThat(inlineImagesCaptor.getValue()).extracting(InlineImage::contentId)
+                .containsExactly("email-signature", "app-store-badge");
+        assertThat(inlineImagesCaptor.getValue()).allSatisfy(image -> {
             assertThat(image.contentType()).isEqualTo("image/png");
             assertThat(image.content()).isNotEmpty();
         });
+        assertThat(bodyCaptor.getValue())
+                .contains("<a href=\"https://apps.apple.com/ml/app/jambo-care/id6811793985\">")
+                .contains("<img src=\"cid:app-store-badge\"");
         assertThat(ccCaptor.getValue()).isEmpty();
         assertThat(bccCaptor.getValue()).isEmpty();
         assertThat(subjectCaptor.getValue()).isEqualTo("Welcome to Kenya – Your Medical Cover Is Now Active");
@@ -312,7 +316,6 @@ class VisitorActivatedNotificationListenerTest {
                 .contains("<img src=\"https://dl.dropboxusercontent.com/scl/fi/5vd3sslx6kqno56l2ipty/playstorelogo.png")
                 .contains("alt=\"Get it on Google Play\"")
                 .doesNotContain("iPhone")
-                .doesNotContain("App Store")
                 .doesNotContain("[Insert");
         assertThat(attachmentsCaptor.getValue())
                 .extracting(EmailAttachment::filename)
