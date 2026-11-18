@@ -31,6 +31,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -352,7 +353,7 @@ class VisitorControllerTest {
     @WithMockUser
     void distributionByInsurerAndAgeGroupReturnsNestedCounts() throws Exception {
         UUID insurerId = UUID.randomUUID();
-        when(visitorService.countByInsurerAndAgeGroup()).thenReturn(List.of(
+        when(visitorService.countByInsurerAndAgeGroup(null, null, null, null)).thenReturn(List.of(
                 new InsurerAgeGroupVisitorCount(insurerId, "Minet Insurance", List.of(
                         new AgeGroupVisitorCount("0-2", 1),
                         new AgeGroupVisitorCount("3-17", 2),
@@ -367,5 +368,19 @@ class VisitorControllerTest {
                 .andExpect(jsonPath("$[0].ageGroups[0].ageGroup").value("0-2"))
                 .andExpect(jsonPath("$[0].ageGroups[2].ageGroup").value("18+"))
                 .andExpect(jsonPath("$[0].ageGroups[2].totalVisitors").value(3));
+    }
+
+    @Test
+    @WithMockUser
+    void distributionByInsurerAndAgeGroupPassesPeriodParams() throws Exception {
+        when(visitorService.countByInsurerAndAgeGroup(null, null,
+                java.time.LocalDate.of(2026, 11, 2), java.time.LocalDate.of(2026, 11, 8))).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/visitors/distribution-by-insurer-and-age-group")
+                        .param("from", "2026-11-02").param("to", "2026-11-08"))
+                .andExpect(status().isOk());
+
+        verify(visitorService).countByInsurerAndAgeGroup(null, null,
+                java.time.LocalDate.of(2026, 11, 2), java.time.LocalDate.of(2026, 11, 8));
     }
 }

@@ -308,9 +308,34 @@ public class VisitorServiceImpl implements VisitorService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<InsurerAgeGroupVisitorCount> countByInsurerAndAgeGroup() {
+    public List<InsurerAgeGroupVisitorCount> countByInsurerAndAgeGroup(
+            Integer month, Integer year, LocalDate from, LocalDate to) {
+        List<VisitorRepository.InsurerAgeVisitorTotal> rows;
+        if (from != null || to != null) {
+            if (from == null || to == null) {
+                throw new IllegalArgumentException("from and to are both required");
+            }
+            if (to.isBefore(from)) {
+                throw new IllegalArgumentException("to must not be before from");
+            }
+            rows = visitorRepository.countVisitorsGroupedByInsurerAndAgeCreatedBetween(
+                    from.atStartOfDay().toInstant(ZoneOffset.UTC),
+                    to.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC));
+        } else if (month != null) {
+            if (month < 1 || month > 12) {
+                throw new IllegalArgumentException("month must be between 1 and 12");
+            }
+            YearMonth target = YearMonth.of(year != null ? year : Year.now(ZoneOffset.UTC).getValue(), month);
+            rows = visitorRepository.countVisitorsGroupedByInsurerAndAgeCreatedBetween(
+                    target.atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC),
+                    target.plusMonths(1).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC));
+        } else if (year != null) {
+            throw new IllegalArgumentException("year requires month");
+        } else {
+            rows = visitorRepository.countVisitorsGroupedByInsurerAndAge();
+        }
         Map<UUID, long[]> buckets = new HashMap<>();
-        visitorRepository.countVisitorsGroupedByInsurerAndAge()
+        rows
                 .forEach(row -> buckets.computeIfAbsent(row.getInsurerId(), id -> new long[4])
                         [ageBucket(row.getAge())] += row.getTotal());
         return insurerRepository.findAll().stream()

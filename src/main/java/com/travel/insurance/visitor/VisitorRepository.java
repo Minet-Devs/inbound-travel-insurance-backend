@@ -80,6 +80,12 @@ public interface VisitorRepository extends JpaRepository<Visitor, UUID>, JpaSpec
             + "where v.insurerId is not null group by v.insurerId, v.age")
     List<InsurerAgeVisitorTotal> countVisitorsGroupedByInsurerAndAge();
 
+    @Query("select v.insurerId as insurerId, v.age as age, count(v) as total from Visitor v "
+            + "where v.insurerId is not null and v.createdDate >= :from and v.createdDate < :to "
+            + "group by v.insurerId, v.age")
+    List<InsurerAgeVisitorTotal> countVisitorsGroupedByInsurerAndAgeCreatedBetween(
+            @Param("from") Instant from, @Param("to") Instant to);
+
     interface InsurerAgeVisitorTotal {
         UUID getInsurerId();
 
