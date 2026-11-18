@@ -1765,7 +1765,8 @@ download links (a clickable Google Play badge image linking to
 `https://play.google.com/store/apps/details?id=com.kenyacares.mobile`, with the
 badge hosted on Dropbox and rewritten via `LogoUrlNormalizer`, plus an inline App Store badge
 (`templates/assets/app-store-logo.png`, sent as CID `app-store-badge`) linking to
-`https://apps.apple.com/ml/app/jambo-care/id6811793985`):
+`https://apps.apple.com/ml/app/jambo-care/id6811793985`). The two badges sit side by side in a
+single-row layout table, vertically centred and normalised to the same 48px height:
 
 The activation email is not BCC'd to anyone. `EmailService` has a `send(...)` overload
 taking a BCC list; an empty list adds no BCC header.

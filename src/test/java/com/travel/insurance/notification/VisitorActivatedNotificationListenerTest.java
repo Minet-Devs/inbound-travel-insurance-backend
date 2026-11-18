@@ -306,7 +306,9 @@ class VisitorActivatedNotificationListenerTest {
         });
         assertThat(bodyCaptor.getValue())
                 .contains("<a href=\"https://apps.apple.com/ml/app/jambo-care/id6811793985\">")
-                .contains("<img src=\"cid:app-store-badge\"");
+                .contains("<img src=\"cid:app-store-badge\"")
+                .contains("<table role=\"presentation\"")
+                .contains("height=\"48\"");
         assertThat(ccCaptor.getValue()).isEmpty();
         assertThat(bccCaptor.getValue()).isEmpty();
         assertThat(subjectCaptor.getValue()).isEqualTo("Welcome to Kenya – Your Medical Cover Is Now Active");
