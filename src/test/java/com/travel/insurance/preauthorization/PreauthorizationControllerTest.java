@@ -256,10 +256,21 @@ class PreauthorizationControllerTest {
     @WithMockUser(roles = "ADMIN")
     void listFiltersByInsurerId() throws Exception {
         UUID insurerId = UUID.randomUUID();
-        when(preauthorizationService.list(eq(insurerId), any()))
+        when(preauthorizationService.list(eq(insurerId), any(), any()))
                 .thenReturn(new PageImpl<>(List.of(sampleResponse(PreauthorizationStatus.PENDING))));
 
         mockMvc.perform(get("/api/v1/preauthorizations").param("insurerId", insurerId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(preauthorizationId.toString()));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void listFiltersByPassportNumber() throws Exception {
+        when(preauthorizationService.list(any(), eq("A1234567"), any()))
+                .thenReturn(new PageImpl<>(List.of(sampleResponse(PreauthorizationStatus.PENDING))));
+
+        mockMvc.perform(get("/api/v1/preauthorizations").param("passportNumber", "A1234567"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].id").value(preauthorizationId.toString()));
     }

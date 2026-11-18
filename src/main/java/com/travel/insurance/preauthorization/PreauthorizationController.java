@@ -93,8 +93,9 @@ public class PreauthorizationController {
 
     @GetMapping
     public ResponseEntity<Page<PreauthorizationResponse>> list(
-            @RequestParam(required = false) UUID insurerId, Pageable pageable) {
-        return ResponseEntity.ok(preauthorizationService.list(insurerId, pageable));
+            @RequestParam(required = false) UUID insurerId,
+            @RequestParam(required = false) String passportNumber, Pageable pageable) {
+        return ResponseEntity.ok(preauthorizationService.list(insurerId, passportNumber, pageable));
     }
 
     @PutMapping("/{id}")

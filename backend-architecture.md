@@ -944,7 +944,10 @@ Policy
   bypassing the scope; an `INSURER_USER` is always restricted to their own
   insurer via `findAllByInsurerId` — the param is ignored, no linked insurer →
   empty page; any other role filters the full table via
-  `findAllByInsurerId`). `GET /api/v1/preauthorizations/{id}` applies the same
+  `findAllByInsurerId`). It also takes an optional `passportNumber` (resolved to a visitor via the
+  passport blind index, `VisitorService.findIdByPassportNumber`; unknown passport → empty page) that
+  narrows within the same role scope via the `findAllByVisitorId…` repository methods.
+  `GET /api/v1/preauthorizations/{id}` applies the same
   row scoping: an `INSURER_USER`/`PROVIDER_USER` reading another insurer's /
   service provider's pre-auth gets `AccessDeniedException` (403). Create
   requires the diagnosis (`icd11CodeId`, validated via `Icd11CodeService`),

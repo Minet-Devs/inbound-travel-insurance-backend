@@ -79,6 +79,14 @@ public interface PreauthorizationRepository extends JpaRepository<Preauthorizati
                                                           @Param("dateFrom") Instant dateFrom,
                                                           @Param("dateTo") Instant dateTo);
 
+    Page<Preauthorization> findAllByVisitorIdAndInsurerId(UUID visitorId, UUID insurerId, Pageable pageable);
+
+    Page<Preauthorization> findAllByVisitorIdAndServiceProviderId(
+            UUID visitorId, UUID serviceProviderId, Pageable pageable);
+
+    Page<Preauthorization> findAllByVisitorIdAndServiceProviderIdAndInsurerId(
+            UUID visitorId, UUID serviceProviderId, UUID insurerId, Pageable pageable);
+
     Page<Preauthorization> findAllByServiceProviderIdAndInsurerId(
             UUID serviceProviderId, UUID insurerId, Pageable pageable);
 }

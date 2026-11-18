@@ -922,7 +922,7 @@ class PreauthorizationServiceImplTest {
         Pageable pageable = PageRequest.of(0, 10);
         when(preauthorizationRepository.findAllByServiceProviderId(serviceProviderId, pageable)).thenReturn(page);
 
-        Page<PreauthorizationResponse> result = preauthorizationService.list(null, pageable);
+        Page<PreauthorizationResponse> result = preauthorizationService.list(null, null, pageable);
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().getFirst().serviceProviderName()).isEqualTo("Aga Khan Hospital");
@@ -939,7 +939,7 @@ class PreauthorizationServiceImplTest {
         when(preauthorizationRepository.findAllByInsurerId(insurerId, pageable))
                 .thenReturn(new PageImpl<>(List.of(pendingPreauthorization())));
 
-        Page<PreauthorizationResponse> result = preauthorizationService.list(UUID.randomUUID(), pageable);
+        Page<PreauthorizationResponse> result = preauthorizationService.list(UUID.randomUUID(), null, pageable);
 
         assertThat(result.getContent()).hasSize(1);
         verify(preauthorizationRepository).findAllByInsurerId(insurerId, pageable);
@@ -952,7 +952,7 @@ class PreauthorizationServiceImplTest {
         authenticateAs(organizationId, "INSURER_USER");
         when(insurerService.findIdByOrganizationId(organizationId)).thenReturn(Optional.empty());
 
-        Page<PreauthorizationResponse> result = preauthorizationService.list(null, PageRequest.of(0, 10));
+        Page<PreauthorizationResponse> result = preauthorizationService.list(null, null, PageRequest.of(0, 10));
 
         assertThat(result.getContent()).isEmpty();
         verify(preauthorizationRepository, never()).findAll(any(Pageable.class));
@@ -1026,7 +1026,7 @@ class PreauthorizationServiceImplTest {
         Pageable pageable = PageRequest.of(0, 10);
         when(preauthorizationRepository.findAll(pageable)).thenReturn(page);
 
-        Page<PreauthorizationResponse> result = preauthorizationService.list(null, pageable);
+        Page<PreauthorizationResponse> result = preauthorizationService.list(null, null, pageable);
 
         assertThat(result.getContent()).hasSize(1);
         verify(preauthorizationRepository, never()).findAllByServiceProviderId(any(), any());
@@ -1039,7 +1039,7 @@ class PreauthorizationServiceImplTest {
         Pageable pageable = PageRequest.of(0, 10);
         when(preauthorizationRepository.findAllByInsurerId(insurerId, pageable)).thenReturn(page);
 
-        Page<PreauthorizationResponse> result = preauthorizationService.list(insurerId, pageable);
+        Page<PreauthorizationResponse> result = preauthorizationService.list(insurerId, null, pageable);
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().getFirst().insurerId()).isEqualTo(insurerId);
@@ -1056,10 +1056,53 @@ class PreauthorizationServiceImplTest {
         when(preauthorizationRepository.findAllByServiceProviderIdAndInsurerId(serviceProviderId, insurerId, pageable))
                 .thenReturn(page);
 
-        Page<PreauthorizationResponse> result = preauthorizationService.list(insurerId, pageable);
+        Page<PreauthorizationResponse> result = preauthorizationService.list(insurerId, null, pageable);
 
         assertThat(result.getContent()).hasSize(1);
         verify(preauthorizationRepository).findAllByServiceProviderIdAndInsurerId(serviceProviderId, insurerId, pageable);
         verify(preauthorizationRepository, never()).findAllByServiceProviderId(any(), any());
+    }
+
+    @Test
+    void listFiltersByPassportNumberForNonProviderUser() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        Pageable pageable = PageRequest.of(0, 10);
+        when(visitorService.findIdByPassportNumber("A1234567")).thenReturn(Optional.of(visitorId));
+        when(preauthorizationRepository.findAllByVisitorId(visitorId, pageable))
+                .thenReturn(new PageImpl<>(List.of(pendingPreauthorization())));
+
+        Page<PreauthorizationResponse> result = preauthorizationService.list(null, " A1234567 ", pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(preauthorizationRepository).findAllByVisitorId(visitorId, pageable);
+        verify(preauthorizationRepository, never()).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void listReturnsEmptyForUnknownPassportNumber() {
+        authenticateAs(UUID.randomUUID(), "ADMIN");
+        when(visitorService.findIdByPassportNumber("NOPE")).thenReturn(Optional.empty());
+
+        Page<PreauthorizationResponse> result = preauthorizationService.list(null, "NOPE", PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).isEmpty();
+        verify(preauthorizationRepository, never()).findAll(any(Pageable.class));
+        verify(preauthorizationRepository, never()).findAllByVisitorId(any(), any());
+    }
+
+    @Test
+    void listCombinesPassportNumberWithServiceProviderScopeForProviderUser() {
+        UUID organizationId = UUID.randomUUID();
+        authenticateAs(organizationId, "PROVIDER_USER");
+        when(serviceProviderService.findIdByOrganizationId(organizationId)).thenReturn(Optional.of(serviceProviderId));
+        Pageable pageable = PageRequest.of(0, 10);
+        when(visitorService.findIdByPassportNumber("A1234567")).thenReturn(Optional.of(visitorId));
+        when(preauthorizationRepository.findAllByVisitorIdAndServiceProviderId(visitorId, serviceProviderId, pageable))
+                .thenReturn(new PageImpl<>(List.of(pendingPreauthorization())));
+
+        Page<PreauthorizationResponse> result = preauthorizationService.list(null, "A1234567", pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(preauthorizationRepository, never()).findAllByVisitorId(any(), any());
     }
 }
