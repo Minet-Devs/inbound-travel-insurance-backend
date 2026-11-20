@@ -102,6 +102,9 @@ app:
       # One-off: enable for exactly one deploy to encrypt pre-existing
       # plaintext data, then set back to false. See backend-architecture.md.
       enabled: ${APP_ENCRYPTION_BACKFILL_ENABLED:false}
+  visitor-trend:
+    # Day visitor data started streaming in; trend-by-insurer buckets before it are dropped.
+    data-start-date: ${APP_VISITOR_TREND_DATA_START_DATE:2026-10-05}
   visitor-age:
     backfill:
       # One-off: enable for exactly one deploy to fill visitors.age for

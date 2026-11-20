@@ -797,8 +797,13 @@ Policy
   `[{periodStart, periodEnd, insurers:[{insurerId, insurerName, totalVisitors}]}]` — visitors
   registered (`createdDate`, UTC) per insurer in consecutive buckets, oldest first, ending with
   the current one. `period` (`WEEKLY` = last 12 Monday-based weeks, `MONTHLY` = last 12 months,
-  `YEARLY` = last 5 years; default `MONTHLY`) sets the bucket size; optional `insurerId` limits
-  it to one insurer (unknown id → 404). Every bucket lists every (selected) insurer, zero
+  `YEARLY` = last 5 years; default `MONTHLY`) sets the bucket size, but buckets that end
+  before visitor data started streaming in (`app.visitor-trend.data-start-date`, default
+  `2026-10-05`, env `APP_VISITOR_TREND_DATA_START_DATE`) are dropped, so the first bucket is the
+  one containing that date (the current bucket is always kept); optional `insurerId` limits
+  it to one insurer (unknown id → 404). `INSURER_USER` callers are always scoped to
+  their own insurer (resolved from their organization) whatever `insurerId` they pass, and get
+  an empty list if their organization has no insurer; other roles may pass any `insurerId`. Every bucket lists every (selected) insurer, zero
   counts included; null-`insurerId` visitors are skipped. Backed by
   `VisitorService.trendByInsurer` (`VisitorRepository.findInsurerRegistrationsCreatedBetween`,
   bucketed in memory). Reachable by `KENYA_RE`.

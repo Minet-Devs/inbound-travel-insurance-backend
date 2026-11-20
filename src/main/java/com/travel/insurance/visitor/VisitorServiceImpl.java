@@ -2,6 +2,8 @@ package com.travel.insurance.visitor;
 
 import com.travel.insurance.common.crypto.BlindIndexService;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.common.util.AuthenticatedUser;
+import com.travel.insurance.common.util.SecurityUtils;
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
@@ -70,6 +72,7 @@ public class VisitorServiceImpl implements VisitorService {
     private final ApplicationEventPublisher eventPublisher;
     private final BlindIndexService blindIndexService;
     private final CertificateSerialNumberGenerator certificateSerialNumberGenerator;
+    private final VisitorTrendProperties visitorTrendProperties;
 
     @Override
     public VisitorResponse create(VisitorRequest request) {
@@ -176,21 +179,32 @@ public class VisitorServiceImpl implements VisitorService {
     @Transactional(readOnly = true)
     public List<InsurerVisitorTrendBucket> trendByInsurer(TrendPeriod period, UUID insurerId) {
         TrendPeriod effective = period == null ? TrendPeriod.MONTHLY : period;
+        UUID scopedInsurerId = insurerId;
+        AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
+        if (user != null && "INSURER_USER".equals(user.role())) {
+            // Insurer users only ever see their own insurer's trend, whatever insurerId they pass.
+            scopedInsurerId = insurerRepository.findFirstByOrganizationId(user.organizationId())
+                    .map(Insurer::getId).orElse(null);
+            if (scopedInsurerId == null) {
+                return List.of();
+            }
+        }
+        final UUID filterInsurerId = scopedInsurerId;
         List<Insurer> insurers = insurerRepository.findAll().stream()
-                .filter(insurer -> insurerId == null || insurer.getId().equals(insurerId))
+                .filter(insurer -> filterInsurerId == null || insurer.getId().equals(filterInsurerId))
                 .toList();
-        if (insurerId != null && insurers.isEmpty()) {
-            throw new ResourceNotFoundException("Insurer not found: " + insurerId);
+        if (filterInsurerId != null && insurers.isEmpty()) {
+            throw new ResourceNotFoundException("Insurer not found: " + filterInsurerId);
         }
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        List<LocalDate> starts = trendBucketStarts(effective, today);
+        List<LocalDate> starts = clampToDataStart(trendBucketStarts(effective, today), effective);
         LocalDate windowEnd = bucketEnd(effective, starts.get(starts.size() - 1));
         Map<LocalDate, Map<UUID, Long>> counts = new HashMap<>();
         visitorRepository.findInsurerRegistrationsCreatedBetween(
                         starts.get(0).atStartOfDay().toInstant(ZoneOffset.UTC),
                         windowEnd.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC),
-                        insurerId)
+                        filterInsurerId)
                 .forEach(row -> counts
                         .computeIfAbsent(bucketStart(effective, row.getCreatedDate().atZone(ZoneOffset.UTC).toLocalDate()),
                                 k -> new HashMap<>())
@@ -205,6 +219,13 @@ public class VisitorServiceImpl implements VisitorService {
                             .toList());
                 })
                 .toList();
+    }
+
+    /** Drops buckets that end before visitor data started streaming in; always keeps the current bucket. */
+    private List<LocalDate> clampToDataStart(List<LocalDate> starts, TrendPeriod period) {
+        LocalDate floor = bucketStart(period, visitorTrendProperties.getDataStartDate());
+        List<LocalDate> clamped = starts.stream().filter(start -> !start.isBefore(floor)).toList();
+        return clamped.isEmpty() ? List.of(starts.get(starts.size() - 1)) : clamped;
     }
 
     private static List<LocalDate> trendBucketStarts(TrendPeriod period, LocalDate today) {

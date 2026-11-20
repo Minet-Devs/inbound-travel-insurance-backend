@@ -46,6 +46,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -81,11 +82,17 @@ class VisitorServiceImplTest {
         return "HASH:" + passportNumber;
     }
 
+    private static VisitorTrendProperties trendProperties(LocalDate dataStartDate) {
+        VisitorTrendProperties properties = new VisitorTrendProperties();
+        properties.setDataStartDate(dataStartDate);
+        return properties;
+    }
+
     @BeforeEach
     void setUp() {
         visitorService = new VisitorServiceImpl(
                 visitorRepository, visitorMapper, policyService, insurerRepository, eventPublisher,
-                blindIndexService, certificateSerialNumberGenerator);
+                blindIndexService, certificateSerialNumberGenerator, trendProperties(LocalDate.of(2000, 1, 1)));
         lenient().when(blindIndexService.hmac(anyString()))
                 .thenAnswer(invocation -> hashOf(invocation.getArgument(0)));
         policyId = UUID.randomUUID();
@@ -992,5 +999,128 @@ class VisitorServiceImplTest {
 
         assertThatThrownBy(() -> visitorService.trendByInsurer(TrendPeriod.MONTHLY, UUID.randomUUID()))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void trendByInsurerInsurerUserIsScopedToOwnInsurer() {
+        UUID orgId = UUID.randomUUID();
+        UUID otherInsurerId = UUID.randomUUID();
+        Insurer own = new Insurer();
+        own.setId(insurerId);
+        own.setName("Own Insurance");
+        Insurer other = new Insurer();
+        other.setId(otherInsurerId);
+        other.setName("Other Insurance");
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        new com.travel.insurance.common.util.AuthenticatedUser(UUID.randomUUID(), orgId, "INSURER_USER"),
+                        null, List.of()));
+        try {
+            when(insurerRepository.findFirstByOrganizationId(orgId)).thenReturn(Optional.of(own));
+            when(insurerRepository.findAll()).thenReturn(List.of(own, other));
+            when(visitorRepository.findInsurerRegistrationsCreatedBetween(any(), any(), eq(insurerId)))
+                    .thenReturn(List.of());
+
+            List<InsurerVisitorTrendBucket> result =
+                    visitorService.trendByInsurer(TrendPeriod.MONTHLY, otherInsurerId);
+
+            assertThat(result).hasSize(12);
+            assertThat(result).allSatisfy(bucket -> assertThat(bucket.insurers())
+                    .extracting(InsurerVisitorCount::insurerId).containsExactly(insurerId));
+            verify(visitorRepository, never())
+                    .findInsurerRegistrationsCreatedBetween(any(), any(), eq(otherInsurerId));
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void trendByInsurerInsurerUserWithoutInsurerGetsEmptyTrend() {
+        UUID orgId = UUID.randomUUID();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        new com.travel.insurance.common.util.AuthenticatedUser(UUID.randomUUID(), orgId, "INSURER_USER"),
+                        null, List.of()));
+        try {
+            when(insurerRepository.findFirstByOrganizationId(orgId)).thenReturn(Optional.empty());
+
+            assertThat(visitorService.trendByInsurer(TrendPeriod.MONTHLY, null)).isEmpty();
+            verifyNoInteractions(visitorRepository);
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void trendByInsurerAdminMayFilterByAnyInsurer() {
+        UUID otherInsurerId = UUID.randomUUID();
+        Insurer other = new Insurer();
+        other.setId(otherInsurerId);
+        other.setName("Other Insurance");
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        new com.travel.insurance.common.util.AuthenticatedUser(UUID.randomUUID(), UUID.randomUUID(), "ADMIN"),
+                        null, List.of()));
+        try {
+            when(insurerRepository.findAll()).thenReturn(List.of(other));
+            when(visitorRepository.findInsurerRegistrationsCreatedBetween(any(), any(), eq(otherInsurerId)))
+                    .thenReturn(List.of());
+
+            assertThat(visitorService.trendByInsurer(TrendPeriod.YEARLY, otherInsurerId)).hasSize(5);
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+    }
+
+    private VisitorServiceImpl serviceWithDataStart(LocalDate dataStartDate) {
+        return new VisitorServiceImpl(
+                visitorRepository, visitorMapper, policyService, insurerRepository, eventPublisher,
+                blindIndexService, certificateSerialNumberGenerator, trendProperties(dataStartDate));
+    }
+
+    @Test
+    void trendByInsurerStartsAtTheBucketContainingTheDataStartDate() {
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        when(insurerRepository.findAll()).thenReturn(List.of());
+        when(visitorRepository.findInsurerRegistrationsCreatedBetween(any(), any(), eq(null))).thenReturn(List.of());
+        // Mid-month start two months back: the monthly window opens on that month's 1st (3 buckets)...
+        LocalDate dataStart = today.minusMonths(2).withDayOfMonth(15);
+        VisitorServiceImpl service = serviceWithDataStart(dataStart);
+
+        List<InsurerVisitorTrendBucket> monthly = service.trendByInsurer(TrendPeriod.MONTHLY, null);
+        assertThat(monthly).hasSize(3);
+        assertThat(monthly.get(0).periodStart()).isEqualTo(dataStart.withDayOfMonth(1));
+        assertThat(monthly.get(2).periodStart()).isEqualTo(today.withDayOfMonth(1));
+
+        // ...and the weekly window opens on the Monday of the week containing it, ending with the current week.
+        List<InsurerVisitorTrendBucket> weekly = service.trendByInsurer(TrendPeriod.WEEKLY, null);
+        assertThat(weekly.get(0).periodStart())
+                .isEqualTo(dataStart.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)));
+        assertThat(weekly).hasSizeLessThanOrEqualTo(12);
+    }
+
+    @Test
+    void trendByInsurerYearlyStartsAtTheDataStartYear() {
+        when(insurerRepository.findAll()).thenReturn(List.of());
+        when(visitorRepository.findInsurerRegistrationsCreatedBetween(any(), any(), eq(null))).thenReturn(List.of());
+        int year = LocalDate.now(ZoneOffset.UTC).getYear();
+
+        List<InsurerVisitorTrendBucket> yearly =
+                serviceWithDataStart(LocalDate.of(year, 10, 5)).trendByInsurer(TrendPeriod.YEARLY, null);
+
+        assertThat(yearly).hasSize(1);
+        assertThat(yearly.get(0).periodStart()).isEqualTo(LocalDate.of(year, 1, 1));
+    }
+
+    @Test
+    void trendByInsurerKeepsCurrentBucketWhenDataStartIsInTheFuture() {
+        when(insurerRepository.findAll()).thenReturn(List.of());
+        when(visitorRepository.findInsurerRegistrationsCreatedBetween(any(), any(), eq(null))).thenReturn(List.of());
+
+        List<InsurerVisitorTrendBucket> monthly = serviceWithDataStart(LocalDate.now(ZoneOffset.UTC).plusYears(1))
+                .trendByInsurer(TrendPeriod.MONTHLY, null);
+
+        assertThat(monthly).hasSize(1);
+        assertThat(monthly.get(0).periodStart()).isEqualTo(LocalDate.now(ZoneOffset.UTC).withDayOfMonth(1));
     }
 }
