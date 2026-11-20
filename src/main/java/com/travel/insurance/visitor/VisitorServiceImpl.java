@@ -72,6 +72,7 @@ public class VisitorServiceImpl implements VisitorService {
     private final ApplicationEventPublisher eventPublisher;
     private final BlindIndexService blindIndexService;
     private final CertificateSerialNumberGenerator certificateSerialNumberGenerator;
+    private final VisitorTrendProperties visitorTrendProperties;
 
     @Override
     public VisitorResponse create(VisitorRequest request) {
@@ -197,7 +198,7 @@ public class VisitorServiceImpl implements VisitorService {
         }
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        List<LocalDate> starts = trendBucketStarts(effective, today);
+        List<LocalDate> starts = clampToDataStart(trendBucketStarts(effective, today), effective);
         LocalDate windowEnd = bucketEnd(effective, starts.get(starts.size() - 1));
         Map<LocalDate, Map<UUID, Long>> counts = new HashMap<>();
         visitorRepository.findInsurerRegistrationsCreatedBetween(
@@ -218,6 +219,13 @@ public class VisitorServiceImpl implements VisitorService {
                             .toList());
                 })
                 .toList();
+    }
+
+    /** Drops buckets that end before visitor data started streaming in; always keeps the current bucket. */
+    private List<LocalDate> clampToDataStart(List<LocalDate> starts, TrendPeriod period) {
+        LocalDate floor = bucketStart(period, visitorTrendProperties.getDataStartDate());
+        List<LocalDate> clamped = starts.stream().filter(start -> !start.isBefore(floor)).toList();
+        return clamped.isEmpty() ? List.of(starts.get(starts.size() - 1)) : clamped;
     }
 
     private static List<LocalDate> trendBucketStarts(TrendPeriod period, LocalDate today) {

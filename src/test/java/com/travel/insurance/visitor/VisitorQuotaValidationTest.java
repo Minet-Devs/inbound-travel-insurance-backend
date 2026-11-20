@@ -59,11 +59,17 @@ class VisitorQuotaValidationTest {
 
     private VisitorRequest visitorRequest;
 
+    private static VisitorTrendProperties trendProperties(LocalDate dataStartDate) {
+        VisitorTrendProperties properties = new VisitorTrendProperties();
+        properties.setDataStartDate(dataStartDate);
+        return properties;
+    }
+
     @BeforeEach
     void setUp() {
         visitorService = new VisitorServiceImpl(
                 visitorRepository, visitorMapper, policyService, insurerRepository, eventPublisher,
-                blindIndexService, certificateSerialNumberGenerator);
+                blindIndexService, certificateSerialNumberGenerator, trendProperties(LocalDate.of(2000, 1, 1)));
         lenient().when(blindIndexService.hmac(anyString())).thenAnswer(invocation -> "HASH:" + invocation.getArgument(0));
 
         visitorRequest = new VisitorRequest(
