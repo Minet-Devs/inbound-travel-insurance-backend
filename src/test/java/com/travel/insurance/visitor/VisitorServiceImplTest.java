@@ -46,6 +46,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -992,5 +993,76 @@ class VisitorServiceImplTest {
 
         assertThatThrownBy(() -> visitorService.trendByInsurer(TrendPeriod.MONTHLY, UUID.randomUUID()))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void trendByInsurerInsurerUserIsScopedToOwnInsurer() {
+        UUID orgId = UUID.randomUUID();
+        UUID otherInsurerId = UUID.randomUUID();
+        Insurer own = new Insurer();
+        own.setId(insurerId);
+        own.setName("Own Insurance");
+        Insurer other = new Insurer();
+        other.setId(otherInsurerId);
+        other.setName("Other Insurance");
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        new com.travel.insurance.common.util.AuthenticatedUser(UUID.randomUUID(), orgId, "INSURER_USER"),
+                        null, List.of()));
+        try {
+            when(insurerRepository.findFirstByOrganizationId(orgId)).thenReturn(Optional.of(own));
+            when(insurerRepository.findAll()).thenReturn(List.of(own, other));
+            when(visitorRepository.findInsurerRegistrationsCreatedBetween(any(), any(), eq(insurerId)))
+                    .thenReturn(List.of());
+
+            List<InsurerVisitorTrendBucket> result =
+                    visitorService.trendByInsurer(TrendPeriod.MONTHLY, otherInsurerId);
+
+            assertThat(result).hasSize(12);
+            assertThat(result).allSatisfy(bucket -> assertThat(bucket.insurers())
+                    .extracting(InsurerVisitorCount::insurerId).containsExactly(insurerId));
+            verify(visitorRepository, never())
+                    .findInsurerRegistrationsCreatedBetween(any(), any(), eq(otherInsurerId));
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void trendByInsurerInsurerUserWithoutInsurerGetsEmptyTrend() {
+        UUID orgId = UUID.randomUUID();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        new com.travel.insurance.common.util.AuthenticatedUser(UUID.randomUUID(), orgId, "INSURER_USER"),
+                        null, List.of()));
+        try {
+            when(insurerRepository.findFirstByOrganizationId(orgId)).thenReturn(Optional.empty());
+
+            assertThat(visitorService.trendByInsurer(TrendPeriod.MONTHLY, null)).isEmpty();
+            verifyNoInteractions(visitorRepository);
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
+    }
+
+    @Test
+    void trendByInsurerAdminMayFilterByAnyInsurer() {
+        UUID otherInsurerId = UUID.randomUUID();
+        Insurer other = new Insurer();
+        other.setId(otherInsurerId);
+        other.setName("Other Insurance");
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        new com.travel.insurance.common.util.AuthenticatedUser(UUID.randomUUID(), UUID.randomUUID(), "ADMIN"),
+                        null, List.of()));
+        try {
+            when(insurerRepository.findAll()).thenReturn(List.of(other));
+            when(visitorRepository.findInsurerRegistrationsCreatedBetween(any(), any(), eq(otherInsurerId)))
+                    .thenReturn(List.of());
+
+            assertThat(visitorService.trendByInsurer(TrendPeriod.YEARLY, otherInsurerId)).hasSize(5);
+        } finally {
+            org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        }
     }
 }

@@ -2,6 +2,8 @@ package com.travel.insurance.visitor;
 
 import com.travel.insurance.common.crypto.BlindIndexService;
 import com.travel.insurance.common.exception.ResourceNotFoundException;
+import com.travel.insurance.common.util.AuthenticatedUser;
+import com.travel.insurance.common.util.SecurityUtils;
 import com.travel.insurance.insurer.Insurer;
 import com.travel.insurance.insurer.InsurerRepository;
 import com.travel.insurance.policy.Policy;
@@ -176,11 +178,22 @@ public class VisitorServiceImpl implements VisitorService {
     @Transactional(readOnly = true)
     public List<InsurerVisitorTrendBucket> trendByInsurer(TrendPeriod period, UUID insurerId) {
         TrendPeriod effective = period == null ? TrendPeriod.MONTHLY : period;
+        UUID scopedInsurerId = insurerId;
+        AuthenticatedUser user = SecurityUtils.currentUser().orElse(null);
+        if (user != null && "INSURER_USER".equals(user.role())) {
+            // Insurer users only ever see their own insurer's trend, whatever insurerId they pass.
+            scopedInsurerId = insurerRepository.findFirstByOrganizationId(user.organizationId())
+                    .map(Insurer::getId).orElse(null);
+            if (scopedInsurerId == null) {
+                return List.of();
+            }
+        }
+        final UUID filterInsurerId = scopedInsurerId;
         List<Insurer> insurers = insurerRepository.findAll().stream()
-                .filter(insurer -> insurerId == null || insurer.getId().equals(insurerId))
+                .filter(insurer -> filterInsurerId == null || insurer.getId().equals(filterInsurerId))
                 .toList();
-        if (insurerId != null && insurers.isEmpty()) {
-            throw new ResourceNotFoundException("Insurer not found: " + insurerId);
+        if (filterInsurerId != null && insurers.isEmpty()) {
+            throw new ResourceNotFoundException("Insurer not found: " + filterInsurerId);
         }
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
@@ -190,7 +203,7 @@ public class VisitorServiceImpl implements VisitorService {
         visitorRepository.findInsurerRegistrationsCreatedBetween(
                         starts.get(0).atStartOfDay().toInstant(ZoneOffset.UTC),
                         windowEnd.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC),
-                        insurerId)
+                        filterInsurerId)
                 .forEach(row -> counts
                         .computeIfAbsent(bucketStart(effective, row.getCreatedDate().atZone(ZoneOffset.UTC).toLocalDate()),
                                 k -> new HashMap<>())

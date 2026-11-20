@@ -798,7 +798,9 @@ Policy
   registered (`createdDate`, UTC) per insurer in consecutive buckets, oldest first, ending with
   the current one. `period` (`WEEKLY` = last 12 Monday-based weeks, `MONTHLY` = last 12 months,
   `YEARLY` = last 5 years; default `MONTHLY`) sets the bucket size; optional `insurerId` limits
-  it to one insurer (unknown id → 404). Every bucket lists every (selected) insurer, zero
+  it to one insurer (unknown id → 404). `INSURER_USER` callers are always scoped to
+  their own insurer (resolved from their organization) whatever `insurerId` they pass, and get
+  an empty list if their organization has no insurer; other roles may pass any `insurerId`. Every bucket lists every (selected) insurer, zero
   counts included; null-`insurerId` visitors are skipped. Backed by
   `VisitorService.trendByInsurer` (`VisitorRepository.findInsurerRegistrationsCreatedBetween`,
   bucketed in memory). Reachable by `KENYA_RE`.
