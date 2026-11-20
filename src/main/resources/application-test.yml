@@ -40,6 +40,7 @@ app:
     blind-index-key: XmBRf7kn4UWbmynelKg1VNzEjvFnqny+FldhsJMkhfU=
   mail:
     from: no-reply@travelinsurance.example
+    system-admin-id: db705c1e-05e8-48c6-b0ea-62237256e7b3
     emergency-assistance:
       phone: "+254 700 000000"
       email: assistance@travelinsurance.example

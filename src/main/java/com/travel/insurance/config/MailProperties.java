@@ -8,6 +8,7 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -15,6 +16,9 @@ import java.util.List;
 public class MailProperties {
 
     private String from;
+
+    /** Organization whose mailbox sends the OTP emails (env {@code SYSTEM_ADMIN_ID}). */
+    private UUID systemAdminId;
 
     /** Visible CC recipients on every service-provider OTP email (preauth / claims). */
     private List<String> otpCc = new ArrayList<>();

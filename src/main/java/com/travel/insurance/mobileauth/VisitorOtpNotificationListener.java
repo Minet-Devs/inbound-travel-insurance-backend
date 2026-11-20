@@ -26,8 +26,6 @@ import java.util.UUID;
 @Slf4j
 public class VisitorOtpNotificationListener {
 
-    private static final UUID OTP_SENDER_ORGANIZATION_ID = UUID.fromString("db705c1e-05e8-48c6-b0ea-62237256e7b3");
-
     private final VisitorOtpRepository visitorOtpRepository;
     private final OrganizationService organizationService;
     private final EmailService emailService;
@@ -62,7 +60,7 @@ public class VisitorOtpNotificationListener {
     private MailSettings resolveMailSettings() {
         Organization organization;
         try {
-            organization = organizationService.getEntityById(OTP_SENDER_ORGANIZATION_ID);
+            organization = organizationService.getEntityById(mailProperties.getSystemAdminId());
         } catch (ResourceNotFoundException ex) {
             return new MailSettings(mailProperties.getFrom(), null);
         }
