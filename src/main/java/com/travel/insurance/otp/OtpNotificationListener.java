@@ -49,6 +49,7 @@ public class OtpNotificationListener {
                 .orElseThrow(() -> new IllegalStateException("Otp not found: " + otpId));
 
         MailSettings mailSettings = resolveMailSettings();
+        log.info("Sending OTP {} to {} (otp {})", otp.getOtp(), otp.getEmail(), otpId);
         emailService.send(
                 mailSettings.credentials(),
                 mailSettings.from(),
