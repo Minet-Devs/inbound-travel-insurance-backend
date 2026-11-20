@@ -109,6 +109,7 @@ app:
       enabled: ${APP_VISITOR_AGE_BACKFILL_ENABLED:false}
   mail:
     from: ${SMTP_USERNAME}
+    system-admin-id: ${SYSTEM_ADMIN_ID}
     resend:
       enabled: ${ACTIVATION_RESEND_ENABLED:true}
       interval: ${ACTIVATION_RESEND_INTERVAL:PT10M}

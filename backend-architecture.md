@@ -2143,7 +2143,8 @@ Design notes:
 - The sending mailbox is **not** derived from the visitor/policy (the `Otp`
   entity has no path to an `Insurer`). It's resolved via
   `OrganizationService.getEntityById` from a fixed organization id
-  (`OtpNotificationListener.OTP_SENDER_ORGANIZATION_ID`) — `Organization`
+  (`app.mail.system-admin-id`, env `SYSTEM_ADMIN_ID`, required — also used by
+  `VisitorOtpNotificationListener`) — `Organization`
   carries `host`/`port`/`notificationEmail`/`notificationEmailPassword`
   directly, so this reads the mailbox straight off that entity rather than
   hopping through `Insurer` (unlike

@@ -47,6 +47,7 @@ class OtpNotificationListenerTest {
     void setUp() {
         MailProperties mailProperties = new MailProperties();
         mailProperties.setFrom("no-reply@travelinsurance.example");
+        mailProperties.setSystemAdminId(OTP_SENDER_ORGANIZATION_ID);
         mailProperties.setOtpCc(List.of("inbound.travel@minet.co.ke"));
 
         listener = new OtpNotificationListener(otpRepository, organizationService, emailService, mailProperties);
